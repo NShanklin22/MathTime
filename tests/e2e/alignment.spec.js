@@ -72,6 +72,8 @@ test('box and operators are centred on the digit ink', async ({ page }) => {
   expect(Math.abs(box.midY - digits.mid)).toBeLessThanOrEqual(TOL);
   for (const i of [0, 1]) {
     const op = ink(shot, await rect(page, '.op', i), [182, 205, 238]);   // muted #b6cdee
+    // Recorded so drift shows in reports: "=" sits at the 0.5px floor at 1x.
+    test.info().annotations.push({ type: `"${['+', '='][i]}" offset`, description: `${(op.midY - digits.mid).toFixed(4)}px` });
     expect(Math.abs(op.midY - digits.mid)).toBeLessThanOrEqual(TOL);
   }
 });
@@ -151,7 +153,10 @@ test('the widest answer has the same padding on all four sides', async ({ page }
   };
   // The four sides must match each other (spec: within about 0.5px)...
   const sides = Object.values(gaps);
-  expect(Math.max(...sides) - Math.min(...sides), `answer ${widest.n}, padding spread`).toBeLessThanOrEqual(TOL);
+  const spread = Math.max(...sides) - Math.min(...sides);
+  // Recorded so drift shows in reports: desktop sits close to TOL.
+  test.info().annotations.push({ type: 'padding spread', description: `${spread.toFixed(4)}px` });
+  expect(spread, `answer ${widest.n}, padding spread`).toBeLessThanOrEqual(TOL);
   // ...and, loosely, the designed padding.
   for (const [side, gap] of Object.entries(gaps)) {
     expect(Math.abs(gap - pad), `answer ${widest.n}, ${side} padding`).toBeLessThanOrEqual(1);
@@ -197,6 +202,20 @@ test('keypad digit labels are centred on their ink', async ({ page }) => {
   }
 });
 
+test('a layout while a key is pressed leaves that key\'s label alone', async ({ page }) => {
+  // A pressed key is scaled to 0.97, so measuring it then would misplace its label.
+  const label = page.locator('.pad button[data-k="5"] .kl');
+  const before = await label.evaluate(el => el.style.transform);
+  await page.evaluate(() => {
+    const key = document.querySelector('.pad button[data-k="5"]');
+    key.classList.add('pressed');
+    key.getAnimations().forEach(a => a.finish());   // skip the press transition
+    window.mathtime.layout.layout();
+    key.classList.remove('pressed');
+  });
+  expect(await label.evaluate(el => el.style.transform)).toBe(before);
+});
+
 test('gutters hold, overhang included, with no horizontal scroll', async ({ page }) => {
   const g = await gutters(page);
   const min = g.phone ? 16 : 24;
@@ -232,6 +251,25 @@ test('a narrow screen shrinks the equation to fit, measured again', async ({ pag
   expect(Math.abs(plus.midY - digits.mid), '+').toBeLessThanOrEqual(TOL);
 });
 
+test('a layout during an animation still puts the equation on whole device pixels', async ({ page }) => {
+  // The shake and slide animations move #eq with a transform. Lay out while
+  // it is moved, then check where it lands once the transform is gone.
+  await page.evaluate(() => {
+    const eq = document.querySelector('#eq');
+    eq.style.transform = 'translate(13.37px, 7.77px)';
+    window.mathtime.layout.layout();
+    eq.style.transform = '';
+  });
+  const off = await page.evaluate(() => {
+    const { geo } = window.mathtime.layout;
+    const r = document.querySelector('#eq').getBoundingClientRect();
+    const fromGrid = v => Math.abs(v * devicePixelRatio - Math.round(v * devicePixelRatio));
+    return { left: fromGrid(r.left), baseline: fromGrid(r.top + geo.base * geo.fs) };
+  });
+  expect(off.left, 'left edge, device px from the grid').toBeLessThanOrEqual(0.01);
+  expect(off.baseline, 'baseline, device px from the grid').toBeLessThanOrEqual(0.01);
+});
+
 test('the header stays on one line at 320px wide', async ({ page }) => {
   // Note: setViewportSize drops the phone project to 1x; this test measures no pixels.
   await page.setViewportSize({ width: 320, height: 640 });
@@ -240,6 +278,16 @@ test('the header stays on one line at 320px wide', async ({ page }) => {
     return document.querySelector('.crumbs').scrollWidth <= where.clientWidth;
   })).toBe(true);
   await expect(page.locator('.crumbs .here')).toBeVisible();
+});
+
+test('the header is fitted on the level selector too', async ({ page }) => {
+  // Note: setViewportSize drops the phone project to 1x; this test measures no pixels.
+  await page.setViewportSize({ width: 375, height: 700 });
+  await expect(page.locator('.crumbs .stage-name')).toBeHidden();    // no room beside the lives
+  await page.evaluate(() => document.body.classList.add('at-select'));
+  // The selector hides the lives (and the stage), leaving room for every crumb.
+  await expect(page.locator('.crumbs .stage-name')).toBeVisible();
+  expect(await page.evaluate(() => document.querySelector('.crumbs').scrollWidth <= document.querySelector('.where').clientWidth)).toBe(true);
 });
 
 test('fonts that arrive after the load timeout are measured again', async ({ page, browser, viewport, deviceScaleFactor, baseURL }) => {
@@ -280,10 +328,18 @@ test('a new device pixel ratio alone is measured again', async ({ page }, info) 
   test.skip(info.project.name !== 'desktop', 'the phone ratio is forced by a launch flag, so it cannot be emulated');
   const caretHeight = () => page.evaluate(() => parseFloat(document.querySelector('.caret').style.height));
   const before = await caretHeight();
+  // Count finished layouts from here on.
+  await page.evaluate(() => {
+    const { layout } = window.mathtime;
+    const render = layout.afterMeasure;
+    window.layoutsDone = 0;
+    layout.afterMeasure = () => { window.layoutsDone++; render(); };
+  });
   // Same CSS size, so ResizeObserver stays silent: only the ratio changes.
   const cdp = await page.context().newCDPSession(page);
   await cdp.send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 900, deviceScaleFactor: 2, mobile: false });
   await expect.poll(() => page.evaluate(() => devicePixelRatio)).toBe(2);
+  await expect.poll(() => page.evaluate(() => window.layoutsDone)).toBeGreaterThan(0);
   // The caret is snapped outward to whole device pixels, so a re-measure at
   // 2x changes its height. That change is the real check.
   await expect.poll(caretHeight).not.toBe(before);

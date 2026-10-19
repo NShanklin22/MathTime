@@ -1,17 +1,21 @@
 import { centreInk, band, snapOutward, snap } from './ink.js';
 
+const DIGITS = [...'0123456789'];
+
 // Measures the real ink of the equation's font and lays the screen out around
 // it (spec §6.1): box, caret and operators from measured ink; equation fitted
 // between the gutters and snapped to device pixels; header fitted; keypad
-// labels centred. `afterMeasure` runs after every measurement so the view can
-// re-render digits with the new geometry.
+// labels centred. `afterMeasure` runs once per layout, after the last
+// measurement, so the view can re-render digits with the new geometry.
 export function createLayout(dom, scan, possibleAnswers) {
   const { eq, slot, caret, stage, topBar } = dom;
   const geo = { fs: 0, style: null, base: 0.8, mid: 0.5, boxW: 1.2, wide: 0.6 };
   const api = { geo, inkOf, layout, afterMeasure: null };
 
-  // Ink geometry of `text` centred across `width` em, at the current size.
+  // Ink geometry of `text` centred across `width` em, at the current size
+  // (all zeros before the first measurement).
   function inkOf(text, width) {
+    if (!geo.style) return { off: 0, right: 0, w: 0 };
     return centreInk(scan(text, geo.style, geo.fs * devicePixelRatio), width);
   }
 
@@ -32,10 +36,12 @@ export function createLayout(dom, scan, possibleAnswers) {
     geo.style = { weight: cs.fontWeight, family: cs.fontFamily };
     const size = geo.fs * devicePixelRatio;
     geo.base = domBaseline();
-    const digits = band(scan('0123456789', geo.style, size), geo.base);
+    // The digit ink band is the union of the ten digits. Fonts' "tabular"
+    // digits can still differ in width, so a cell is the widest advance.
+    const each = DIGITS.map(c => scan(c, geo.style, size));
+    const digits = band({ asc: Math.max(...each.map(m => m.asc)), desc: Math.max(...each.map(m => m.desc)) }, geo.base);
     geo.mid = digits.mid;
-    // Fonts' "tabular" digits can still differ in width; use the widest.
-    geo.wide = Math.max(...[...'0123456789'].map(c => scan(c, geo.style, size).adv));
+    geo.wide = Math.max(...each.map(m => m.adv));
     geo.boxW = Math.max(...possibleAnswers.map(s => inkOf(s, 0).w));
     eq.style.setProperty('--fs', geo.fs + 'px');
     eq.style.setProperty('--ink-top', digits.top.toFixed(4));
@@ -54,7 +60,17 @@ export function createLayout(dom, scan, possibleAnswers) {
     const cap = snapOutward((digits.top - geo.base) * geo.fs, (digits.top + digits.h - geo.base) * geo.fs, devicePixelRatio);
     caret.style.top = (geo.base * geo.fs + cap.top).toFixed(3) + 'px';
     caret.style.height = (cap.bottom - cap.top).toFixed(3) + 'px';
-    api.afterMeasure?.();
+  }
+
+  // The equation's box without its live transform. The shake and slide
+  // animations move #eq with translateX, which must not leak into the
+  // snapping. They only translate; a scale would only change the width,
+  // which is divided out.
+  function eqBox() {
+    const r = eq.getBoundingClientRect();
+    const tf = getComputedStyle(eq).transform;
+    const t = tf === 'none' ? new DOMMatrixReadOnly() : new DOMMatrixReadOnly(tf);
+    return { left: r.left - t.m41, top: r.top - t.m42, width: r.width / t.a };
   }
 
   // The box is last in the equation, so its dashed construction outline
@@ -76,31 +92,45 @@ export function createLayout(dom, scan, possibleAnswers) {
   // Centre each digit key's label on its real ink. Labels are much smaller
   // than the equation and snap to pixels differently, so each is scanned at
   // its own device size. Text baselines snap to whole device pixels, so the
-  // vertical shift is a whole number of device pixels too.
+  // vertical shift is a whole number of device pixels too. A pressed key is
+  // scaled down, so its label keeps its last position. All the reads happen
+  // in one pass, between the writes.
   function centreKeys() {
     const dpr = devicePixelRatio;
-    for (const kl of document.querySelectorAll('.pad .kl')) {
-      const kr = kl.parentElement.getBoundingClientRect();
-      if (!kr.width) continue;
+    const labels = [...document.querySelectorAll('.pad .kl')].filter(kl => {
+      const key = kl.parentElement;
+      return key.getBoundingClientRect().width && !key.classList.contains('pressed') && !key.matches(':active');
+    });
+    const probes = labels.map(kl => {
       kl.style.transform = 'none';
-      const cs = getComputedStyle(kl);
-      const kfs = parseFloat(cs.fontSize);
-      const m = scan(kl.textContent, { weight: cs.fontWeight, family: cs.fontFamily }, kfs * dpr);
       const probe = document.createElement('span');
       probe.style.cssText = 'display:inline-block;width:0;height:0;vertical-align:baseline';
       kl.appendChild(probe);
-      const baseY = snap(probe.getBoundingClientRect().top, dpr);
-      probe.remove();
-      const lr = kl.getBoundingClientRect();
-      const dy = snap(kr.top + kr.height / 2 - (baseY - (m.asc - m.desc) / 2 * kfs), dpr);
-      const dx = kr.left + kr.width / 2 - (m.abr - m.abl) / 2 * kfs - lr.left;
+      return probe;
+    });
+    const found = labels.map((kl, i) => {
+      const cs = getComputedStyle(kl);
+      return {
+        key: kl.parentElement.getBoundingClientRect(),
+        label: kl.getBoundingClientRect(),
+        baseY: snap(probes[i].getBoundingClientRect().top, dpr),
+        kfs: parseFloat(cs.fontSize),
+        style: { weight: cs.fontWeight, family: cs.fontFamily },
+      };
+    });
+    probes.forEach(probe => probe.remove());
+    labels.forEach((kl, i) => {
+      const { key, label, baseY, kfs, style } = found[i];
+      const m = scan(kl.textContent, style, kfs * dpr);
+      const dy = snap(key.top + key.height / 2 - (baseY - (m.asc - m.desc) / 2 * kfs), dpr);
+      const dx = key.left + key.width / 2 - (m.abr - m.abl) / 2 * kfs - label.left;
       kl.style.transform = `translate(${dx.toFixed(3)}px, ${dy.toFixed(3)}px)`;
-    }
+    });
   }
 
   function layout() {
+    fitHeader();                               // the header also shows on the level selector
     if (!stage.clientWidth) return;            // hidden (level selector showing)
-    fitHeader();
     eq.style.fontSize = '';
     eq.style.left = '';
     eq.style.top = '';
@@ -108,15 +138,18 @@ export function createLayout(dom, scan, possibleAnswers) {
     const gutter = innerWidth <= 480 ? 16 : 24;
     const avail = stage.clientWidth - 2 * gutter - 1;   // 1px slack for pixel snapping
     for (let i = 0; i < 3; i++) {                       // the overhang scales with the font
-      const width = eq.getBoundingClientRect().width + overhang();
+      const width = eqBox().width + overhang();
       if (width <= avail) break;
       eq.style.fontSize = (geo.fs * avail / width) + 'px';
       measure();
     }
-    // Baseline and left edge on whole device pixels; shift left by half the
-    // overhang so the visible group (equation plus outline) is centred.
+    // Draw the problem and answer with the final geometry, then place the
+    // equation: baseline and left edge on whole device pixels, shifted left
+    // by half the overhang so the visible group (equation plus outline) is
+    // centred.
+    api.afterMeasure?.();
     const dpr = devicePixelRatio;
-    const r = eq.getBoundingClientRect();
+    const r = eqBox();
     eq.style.setProperty('--overhang', overhang() + 'px');
     eq.style.left = (snap(r.left - overhang() / 2, dpr) - r.left).toFixed(3) + 'px';
     const baseY = r.top + geo.base * geo.fs;

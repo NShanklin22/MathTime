@@ -45,3 +45,44 @@ test('a slow font stylesheet cannot hold the page for more than about 3 seconds'
   expect(elapsed).toBeLessThan(5000);
   await expect(page.locator('.pad button')).toHaveCount(12);
 });
+
+test('startup measures the screen once', async ({ page }) => {
+  // Each ink scan reads the canvas once. Count the scans in the first layout
+  // and after the page settles: the fonts it waited for must not trigger a
+  // second, cold measure when their load event arrives.
+  await page.addInitScript(() => {
+    window.scans = 0;
+    const read = CanvasRenderingContext2D.prototype.getImageData;
+    CanvasRenderingContext2D.prototype.getImageData = function (...args) {
+      window.scans++;
+      return read.apply(this, args);
+    };
+    new MutationObserver((_, observer) => {
+      const html = document.documentElement;
+      if (html && !html.classList.contains('loading')) {
+        window.scansAtFirstLayout = window.scans;
+        observer.disconnect();
+      }
+    }).observe(document, { subtree: true, attributes: true, attributeFilter: ['class'] });
+  });
+  await open(page);
+  await page.evaluate(() => document.fonts.ready.then(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))));
+  await page.waitForTimeout(500);
+  const scans = await page.evaluate(() => ({ first: window.scansAtFirstLayout, total: window.scans }));
+  expect(scans.first).toBeGreaterThan(0);
+  expect(scans.total).toBe(scans.first);
+});
+
+test('a failed measurement still shows the page', async ({ page }) => {
+  // Every canvas read comes back blank, so the scanner finds no ink and throws.
+  await page.addInitScript(() => {
+    CanvasRenderingContext2D.prototype.getImageData = (sx, sy, sw, sh) => new ImageData(sw, sh);
+  });
+  const errors = [];
+  page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
+  await page.goto('/');
+  await page.waitForFunction(() => !document.documentElement.classList.contains('loading'), null, { timeout: 10_000 });
+  await expect(page.locator('.pad')).toBeVisible();
+  await expect(page.locator('#ans')).toBeFocused();
+  expect(errors.join('\n')).toContain('No ink');
+});
