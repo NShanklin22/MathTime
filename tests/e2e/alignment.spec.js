@@ -201,7 +201,7 @@ test('gutters hold, overhang included, with no horizontal scroll', async ({ page
 test('a narrow screen shrinks the equation to fit, measured again', async ({ page }) => {
   // This drops the phone project to 1x, which is fine: everything below is
   // measured in that state.
-  await page.setViewportSize({ width: 300, height: 700 });
+  await page.setViewportSize({ width: 280, height: 700 });
   // Wait until the equation is smaller than its CSS size (the clamp() in
   // styles.css, read from a probe with the same class).
   await expect.poll(() => page.evaluate(() => {
@@ -263,4 +263,18 @@ test('fonts that arrive after the load timeout are measured again', async ({ pag
   } finally {
     await context.close();
   }
+});
+
+test('a new device pixel ratio alone is measured again', async ({ page }, info) => {
+  test.skip(info.project.name !== 'desktop', 'the phone ratio is forced by a launch flag, so it cannot be emulated');
+  const caretHeight = () => page.evaluate(() => parseFloat(document.querySelector('.caret').style.height));
+  const before = await caretHeight();
+  // Same CSS size, so ResizeObserver stays silent: only the ratio changes.
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 900, deviceScaleFactor: 2, mobile: false });
+  await expect.poll(() => page.evaluate(() => devicePixelRatio)).toBe(2);
+  // The caret is snapped outward to whole device pixels, so a re-measure at
+  // 2x moves its height onto the half-pixel grid.
+  await expect.poll(caretHeight).not.toBe(before);
+  expect(Number.isInteger((await caretHeight()) * 2)).toBe(true);
 });
