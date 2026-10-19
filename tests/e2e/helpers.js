@@ -6,11 +6,12 @@ export async function open(page) {
   await page.waitForFunction(() => !document.documentElement.classList.contains('loading'));
 }
 
-// For pixel measurement: plain background (no grid), no blinking caret and no
-// dashed outline. None of these change layout.
+// For pixel measurement: plain background (no grid), a hidden caret (its rect
+// still works) and a transparent dashed outline (it still counts in layout).
+// None of these change layout.
 export async function freeze(page) {
   await page.addStyleTag({
-    content: 'body{background:#12407e!important}.caret{animation:none!important}.slot::after{outline:none!important}',
+    content: 'body{background:#12407e!important}.caret{visibility:hidden!important}.slot::after{outline-color:transparent!important}',
   });
 }
 
@@ -32,24 +33,36 @@ export async function rect(page, selector, index = 0) {
 
 export async function capture(page) {
   const dpr = await page.evaluate(() => devicePixelRatio);
-  return { png: PNG.sync.read(await page.screenshot()), dpr };
+  return { png: PNG.sync.read(await page.screenshot({ animations: 'disabled' })), dpr };
 }
 
-// Sub-pixel bounds (CSS px) of light ink inside `area` (CSS px), from real
-// screenshot pixels. Coverage comes from the blue channel: background #12407e
-// is blue 126 and ink #eef5ff is blue 255, so the amber caret (blue 107)
-// counts as nothing.
-export function ink({ png, dpr }, area) {
+const BG = [18, 64, 126];       // #12407e
+const INK = [238, 245, 255];   // #eef5ff
+
+// Sub-pixel bounds (CSS px) of `colour` ink inside `area` (CSS px), from real
+// screenshot pixels. A pixel's coverage is the average over R, G and B of how
+// far it has moved from the background #12407e (18, 64, 126) towards the ink
+// colour, clamped to 0..1. Averaging the channels keeps this correct for
+// anti-aliased edges. Other colours do not score zero (the amber caret reads
+// about 0.6 against the default ink), so hide them first: freeze() hides the
+// caret.
+// Returns null when the area is empty, off-screen or holds no ink.
+export function ink({ png, dpr }, area, colour = INK) {
   const x0 = Math.max(0, Math.floor(area.left * dpr));
   const x1 = Math.min(png.width, Math.ceil(area.right * dpr));
   const y0 = Math.max(0, Math.floor(area.top * dpr));
   const y1 = Math.min(png.height, Math.ceil(area.bottom * dpr));
+  if (x1 <= x0 || y1 <= y0) return null;
+  const chans = [0, 1, 2].filter(c => colour[c] !== BG[c]);
+  if (chans.length === 0) return null;
   const rows = new Float64Array(y1 - y0);
   const cols = new Float64Array(x1 - x0);
   for (let y = y0; y < y1; y++) {
     for (let x = x0; x < x1; x++) {
-      const blue = png.data[(y * png.width + x) * 4 + 2];
-      const f = Math.min(1, Math.max(0, (blue - 126) / (255 - 126)));
+      const i = (y * png.width + x) * 4;
+      let sum = 0;
+      for (const c of chans) sum += (png.data[i + c] - BG[c]) / (colour[c] - BG[c]);
+      const f = Math.min(1, Math.max(0, sum / chans.length));
       if (f > rows[y - y0]) rows[y - y0] = f;
       if (f > cols[x - x0]) cols[x - x0] = f;
     }
