@@ -55,12 +55,17 @@ export function band(m, base) {
 }
 
 // Grow a span (CSS px) outward to whole device pixels, so it always covers the ink.
+// The results land on whole device pixels only if the coordinate origin is itself
+// on a device pixel (layout passes values relative to a pixel-aligned baseline).
+// The 1e-3 is in device px: it absorbs float noise so an exact boundary is not
+// pushed out a whole pixel, at the cost of falling short by up to 0.001 device px.
+// "+ 0" turns a -0 result into 0.
 export function snapOutward(top, bottom, dpr) {
   return {
-    top: Math.floor(top * dpr + 1e-3) / dpr,
-    bottom: Math.ceil(bottom * dpr - 1e-3) / dpr,
+    top: Math.floor(top * dpr + 1e-3) / dpr + 0,
+    bottom: Math.ceil(bottom * dpr - 1e-3) / dpr + 0,
   };
 }
 
-// Nearest whole device pixel, in CSS px.
-export const snap = (v, dpr) => Math.round(v * dpr) / dpr;
+// Nearest whole device pixel, in CSS px (ties round toward +Infinity; never -0).
+export const snap = (v, dpr) => Math.round(v * dpr) / dpr + 0;
