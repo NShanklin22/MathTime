@@ -7,7 +7,7 @@ export function createScanner() {
   const canvas = document.createElement('canvas');
   const ctx = canvas.getContext('2d', { willReadFrequently: true });
   const cache = new Map();
-  return function scan(text, style, size) {
+  function scan(text, style, size) {
     const key = `${style.weight}|${style.family}|${size}|${text}`;
     if (cache.has(key)) return cache.get(key);
     const width = Math.ceil(size * (text.length * 1.3 + 1));
@@ -27,5 +27,9 @@ export function createScanner() {
     const m = toMetrics(edges, x0, y0, size, ctx.measureText(text).width);
     cache.set(key, m);
     return m;
-  };
+  }
+  // Forget every measurement. The cache key can't tell a fallback font from
+  // the real one, so this must run when a font finishes loading late.
+  scan.reset = () => cache.clear();
+  return scan;
 }
