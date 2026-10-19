@@ -22,7 +22,7 @@ Development goes **one piece at a time**: one level, one problem. This spec cove
 | Out of lives | Go to the level selector |
 | Level selector | Bare minimum: one "Level 1" button. Pressing it starts again at Question 1 with 3 lives. A real selector is a later piece. |
 | Checking an empty box | Does nothing; no life is lost. |
-| Timing | Green holds for 0.35s, then the slide out and in takes about 0.22s each way. The shake takes 0.32s. After the third miss, the selector appears 0.45s later. Input is ignored from a correct answer until the next problem has slid in, and from the third miss until the selector appears. During a wrong-answer shake you can type again right away. |
+| Timing | Green holds for 0.35s, then the slide out and in takes about 0.22s each way. The shake takes 0.32s. After the third miss, the selector appears 0.45s later. Input is ignored from a correct answer until the next problem is drawn (you can type as it slides in), and from the third miss until the selector appears. During a wrong-answer shake you can type again right away. |
 
 ## 3. Screen layout
 
