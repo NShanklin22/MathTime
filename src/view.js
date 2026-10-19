@@ -1,6 +1,9 @@
-// Draws game state into the page.
+// Draws game state into the page and plays the feedback animations
+// (timings from spec §2).
 export function createView(dom, layout, level) {
-  const { slot, shown, caret, qnum, hearts, livesBox, a, b, ans } = dom;
+  const { eq, slot, shown, caret, qnum, hearts, livesBox, a, b, ans, status } = dom;
+  const ANIMS = ['shake', 'in', 'out'];
+  const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 
   // Problem digits: one fixed cell each, nudged so the ink is centred.
   function renderDigits(el, str) {
@@ -43,5 +46,44 @@ export function createView(dom, layout, level) {
     livesBox.setAttribute('aria-label', state.lives === 1 ? '1 life left' : `${state.lives} lives left`);
   }
 
-  return { render, renderAnswer };
+  function play(cls) {
+    eq.classList.remove(...ANIMS);
+    void eq.offsetWidth;                 // restart the animation
+    eq.classList.add(cls);
+  }
+  eq.addEventListener('animationend', e => {
+    // 'out' holds its end state until 'in' replaces it.
+    if (e.target === eq && e.animationName !== 'out') eq.classList.remove(...ANIMS);
+  });
+
+  // Green for 0.35s, slide out, swap in the next problem, slide in.
+  async function showCorrect(state, next) {
+    status.textContent = `Question ${state.question} correct`;   // differs each time, so it is re-announced
+    eq.classList.add('correct');
+    await wait(350);
+    play('out');
+    await wait(220);
+    next();
+    eq.classList.remove('correct');
+    render(state);
+    play('in');
+  }
+
+  function showWrong(state) {
+    render(state);
+    status.textContent = `Wrong, ${livesBox.getAttribute('aria-label')}`;
+    play('shake');
+  }
+
+  // Third miss: shake, then the level selector 0.45s later.
+  async function showOut(state) {
+    render(state);
+    status.textContent = 'Out of lives';
+    play('shake');
+    await wait(450);
+    eq.classList.remove(...ANIMS);
+    document.body.classList.add('at-select');
+  }
+
+  return { render, renderAnswer, showCorrect, showWrong, showOut };
 }

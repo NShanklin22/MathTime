@@ -4,6 +4,7 @@ import { fontsReady } from './fonts.js';
 import { createScanner } from './scanner.js';
 import { createLayout } from './layout.js';
 import { createView } from './view.js';
+import { bindInput } from './input.js';
 
 const $ = sel => document.querySelector(sel);
 const dom = {
@@ -20,6 +21,17 @@ layout.afterMeasure = () => view.render(game.state);
 
 // Handle for the browser tests (tests/e2e) to put a known problem on screen.
 window.mathtime = { game, view, layout };
+
+// The game locks input itself during the correct and out-of-lives
+// transitions (spec §2), so every key just goes to game.press().
+bindInput(dom, key => {
+  const result = game.press(key);
+  if (result === 'typed') view.renderAnswer(game.state.typed);
+  if (result === 'wrong') view.showWrong(game.state);
+  if (result === 'correct') view.showCorrect(game.state, () => game.next());
+  if (result === 'out') view.showOut(game.state).then(() => $('#level1').focus({ preventScroll: true }));
+  return result;
+});
 
 // Fonts already measured: those loaded at the first successful layout, plus
 // every one loaded since. Their load events need no second measure.
@@ -67,6 +79,13 @@ function watchPixelRatio() {
     remeasure();
   }, { once: true });
 }
+
+$('#level1').addEventListener('click', () => {
+  game.restart();
+  document.body.classList.remove('at-select');
+  safeLayout();
+  dom.ans.focus({ preventScroll: true });
+});
 
 fontsReady().then(() => {
   safeLayout();
