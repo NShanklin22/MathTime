@@ -1,5 +1,8 @@
 // The rules of play, with no DOM. The view asks it what happened and animates.
 //
+// `state` is one object, updated in place and never replaced: the view and the
+// browser tests hold references to it.
+//
 // phase: 'playing' – accepting input
 //        'correct' – answer was right; input locked until next()
 //        'out'     – third miss; input locked until restart()
@@ -21,6 +24,7 @@ export function createGame(level, rng = Math.random) {
 
   // One key from the keypad or keyboard: a digit, 'Backspace' or 'Enter'.
   // Returns 'typed' | 'ignored' | 'correct' | 'wrong' | 'out'.
+  // 'typed' means the answer changed: a digit was added or removed.
   function press(key) {
     if (state.phase !== 'playing') return 'ignored';
     if (/^\d$/.test(key)) {
@@ -50,7 +54,9 @@ export function createGame(level, rng = Math.random) {
     return 'ignored';
   }
 
+  // Only a correct answer moves on; next() in any other phase does nothing.
   function next() {
+    if (state.phase !== 'correct') return;
     state.question += 1;
     fresh();
   }

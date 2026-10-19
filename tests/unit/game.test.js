@@ -122,6 +122,54 @@ test('while the answer is correct, Enter and Backspace do nothing either', () =>
   assert.equal(game.state.phase, 'correct');
 });
 
+test('a correct short answer locks digits too, not just a full-length one', () => {
+  // '12' is at the length cap anyway; '5' has room for another digit, so only
+  // the phase lock keeps '3' out.
+  const game = twoPlusThree();
+  game.press('5');
+  assert.equal(game.press('Enter'), 'correct');
+  assert.equal(game.press('3'), 'ignored');
+  assert.equal(game.state.typed, '5');
+  assertLocked(game);
+  assert.equal(game.state.typed, '5');
+  assert.equal(game.state.phase, 'correct');
+});
+
+test('next() does nothing unless the answer was correct', () => {
+  // While playing, even mid-answer after a miss.
+  const playing = threeProblems();
+  miss(playing);
+  playing.press('1');
+  const duringPlay = structuredClone(playing.state);
+  playing.next();
+  assert.deepEqual(playing.state, duringPlay);
+
+  // After running out of lives.
+  const out = threeProblems();
+  runOut(out);
+  const afterOut = structuredClone(out.state);
+  out.next();
+  assert.deepEqual(out.state, afterOut);
+  assert.equal(out.state.phase, 'out');
+});
+
+test('state stays the same object across next() and restart()', () => {
+  // The view and the browser tests hold on to game.state.
+  const game = threeProblems();
+  const state = game.state;
+  game.press('1');
+  game.press('2');
+  game.press('Enter');
+  game.next();
+  assert.equal(game.state, state);
+  assert.equal(state.question, 2);
+  runOut(game);
+  game.restart();
+  assert.equal(game.state, state);
+  assert.equal(state.question, 1);
+  assert.equal(state.phase, 'playing');
+});
+
 test('next() moves to the next question with full lives, an empty answer and a new problem', () => {
   const game = threeProblems();
   assert.deepEqual(game.state.problem, { a: 7, b: 5, answer: 12 });
@@ -192,7 +240,7 @@ test('when out of lives, every key is ignored and nothing changes', () => {
   assert.equal(game.state.phase, 'out');
 });
 
-test('restart() draws a different problem from the one that was lost', () => {
+test('restart() draws a new problem instead of keeping the lost one', () => {
   const game = threeProblems();
   runOut(game);                   // lost on 7 + 5
   game.restart();
