@@ -8,7 +8,7 @@ export default defineConfig({
   webServer: {
     command: 'node scripts/serve.mjs',
     env: { PORT: '5481' },
-    url: 'http://127.0.0.1:5481',
+    port: 5481,
     reuseExistingServer: false,
   },
   projects: [
