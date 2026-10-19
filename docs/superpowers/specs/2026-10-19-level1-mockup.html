@@ -1,0 +1,1153 @@
+<!doctype html>
+<html lang="en" class="loading">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>MathTime level 1</title>
+<style>
+  /* ---------- Base tokens (the "Paper" theme, with automatic dark mode) ---------- */
+  :root {
+    color-scheme: light dark;
+    --bg: #faf9f6;
+    --bg-image: none;
+    --ink: #1f1e1b;
+    --muted: #6b6861;
+    --faint: #8f8c85;          /* upcoming roadmap segments, 3:1 on bg */
+    --key: #e8e6e0;
+    --key-press: #cfccc3;
+    --accent: #2f6fd6;
+    --accent-press: #2559ad;
+    --on-accent: #ffffff;
+    --good: #2e8a3e;
+    --heart: #d9443f;
+    --heart-lost: var(--muted);
+    --ui: system-ui, -apple-system, "Segoe UI", sans-serif;
+    --num-font: var(--ui);
+    --num-weight: 500;
+    --here-weight: 500;
+    --box-bw: max(0.04em, 3px);
+    --box-radius: 0.12em;
+    --box-fill: transparent;
+    --box-shadow: none;
+    --box-outline: none;
+    --caret: var(--accent);
+    --caret-w: 0.05em;
+    --caret-radius: 1px;
+    --key-radius: 12px;
+    --key-ring: none;
+    --key-ring-go: none;
+    --key-size: 26px;
+    --key-down: scale(0.97);
+    --key-down-ring: var(--key-ring);
+    --icon-stroke: 2.25;
+    --icon-cap: round;
+    --icon-join: round;
+    --chev-stroke: 1.5;
+    --seg-radius: 2px;
+    --seg-now: var(--accent);
+    --q-color: var(--muted);
+    --glow: none;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1b1b19;
+      --ink: #f1efe8;
+      --muted: #8f8c84;
+      --faint: #6a6862;
+      --key: #2d2d2a;
+      --key-press: #45453f;
+      --accent: #6ea2f2;
+      --accent-press: #8bb5f5;
+      --on-accent: #10213d;
+      --good: #6cc47a;
+      --heart: #f07571;
+    }
+  }
+
+  /* ---------- Themes ---------- */
+  :root[data-theme="slate"] {
+    color-scheme: dark;
+    --bg: #0f172a;
+    --ink: #e2e8f0;
+    --muted: #94a3b8;
+    --faint: #5b6b84;
+    --key: #1c2740;
+    --key-press: #2b3a57;
+    --key-ring: inset 0 0 0 1px #34445f;
+    --accent: #38bdf8;
+    --accent-press: #7dd3fc;
+    --on-accent: #082f49;
+    --good: #4ade80;
+    --heart: #fb7185;
+    --ui: "Inter", system-ui, sans-serif;
+    --num-weight: 600;
+    --here-weight: 600;
+    --icon-stroke: 2.5;
+  }
+  :root[data-theme="textbook"] {
+    color-scheme: light;
+    --bg: #f7f2e7;
+    --ink: #22201c;
+    --muted: #6a6356;
+    --faint: #958b78;
+    --key: #ede6d6;
+    --key-press: #d8cdb5;
+    --key-ring: inset 0 0 0 1px #cfc3a8;
+    --accent: #8c2f39;
+    --accent-press: #74252e;
+    --on-accent: #fff8f0;
+    --good: #2d7a52;
+    --heart: #b23a48;
+    --ui: "Fraunces", Georgia, serif;
+    --num-weight: 600;
+    --here-weight: 600;
+    --box-bw: max(0.03em, 2px);
+    --box-radius: 0.05em;
+    --key-radius: 6px;
+  }
+  :root[data-theme="soft"] {
+    color-scheme: light;
+    --bg: #fff4ec;
+    --ink: #3b2f4a;
+    --muted: #6f6079;
+    --faint: #b0806b;
+    --key: #ffe1d0;
+    --key-press: #ffd3bb;
+    --accent: #d9461f;
+    --accent-press: #c23d19;
+    --on-accent: #ffffff;
+    --good: #1f8a56;
+    --heart: #e53d61;
+    --ui: "Fredoka", system-ui, sans-serif;
+    --num-weight: 600;
+    --here-weight: 600;
+    --box-bw: max(0.05em, 3px);
+    --box-radius: 0.26em;
+    --box-fill: #ffffff;
+    --key-radius: 20px;
+    --key-ring: 0 4px 0 #e9b49a;
+    --key-ring-go: 0 4px 0 #9c3014;
+    --key-down: translateY(4px);
+    --key-down-ring: none;
+    --icon-stroke: 2.75;
+    --seg-radius: 4px;
+  }
+  :root[data-theme="bold"] {
+    color-scheme: dark;
+    --bg: #000000;
+    --ink: #ffffff;
+    --muted: #b5b5b5;
+    --faint: #606060;
+    --key: #161616;
+    --key-press: #333333;
+    --key-ring: inset 0 0 0 2px #2e2e2e;
+    --accent: #ffd400;
+    --accent-press: #ffe55c;
+    --on-accent: #000000;
+    --good: #00e676;
+    --heart: #ff3d3d;
+    --ui: "Archivo Black", "Arial Black", sans-serif;
+    --num-weight: 400;
+    --here-weight: 400;
+    --box-bw: max(0.06em, 4px);
+    --box-radius: 0;
+    --caret-w: 0.08em;
+    --caret-radius: 0;
+    --key-radius: 0;
+    --icon-stroke: 3;
+    --icon-cap: square;
+    --icon-join: miter;
+    --chev-stroke: 2.5;
+    --seg-radius: 0;
+  }
+  :root[data-theme="dusk"] {
+    color-scheme: dark;
+    --bg: #1d1a33;
+    --bg-image: radial-gradient(circle at 50% 42%, #2c2752 0%, #1d1a33 62%);
+    --ink: #f4ecff;
+    --muted: #a99cc7;
+    --faint: #6c64a0;
+    --key: #2c2850;
+    --key-press: #3d3768;
+    --key-ring: inset 0 0 0 1px #453e74;
+    --accent: #ff8f6b;
+    --accent-press: #ffab90;
+    --on-accent: #2a1206;
+    --good: #7ee0a6;
+    --heart: #ff6b8b;
+    --ui: "Manrope", system-ui, sans-serif;
+    --num-weight: 600;
+    --here-weight: 600;
+    --box-radius: 0.2em;
+    --key-radius: 16px;
+    --icon-stroke: 2.5;
+  }
+
+  /* Creative 1: chalkboard in a wooden frame */
+  :root[data-theme="chalk"] {
+    color-scheme: dark;
+    --bg: #263d31;
+    --bg-image:
+      radial-gradient(ellipse 60% 40% at 28% 30%, rgba(255,255,255,0.06), transparent 70%),
+      radial-gradient(ellipse 50% 35% at 75% 70%, rgba(255,255,255,0.045), transparent 70%),
+      radial-gradient(ellipse 80% 30% at 50% 100%, rgba(255,255,255,0.05), transparent 70%);
+    --ink: #f3f1e7;
+    --muted: #c9cdbd;
+    --faint: #7a9585;
+    --key: transparent;
+    --key-press: rgba(255,255,255,0.1);
+    --key-ring: inset 0 0 0 2px rgba(243,241,231,0.75);
+    --key-ring-go: inset 0 0 0 2px #f4e27c;
+    --accent: #f4e27c;
+    --accent-press: #f8eca8;
+    --on-accent: #263d31;
+    --good: #a6ecaa;
+    --heart: #f5a3ab;
+    --ui: "Patrick Hand", "Comic Sans MS", cursive;
+    --num-weight: 400;
+    --here-weight: 400;
+    --box-bw: max(0.045em, 3px);
+    --box-radius: 0.2em 0.08em 0.22em 0.1em / 0.1em 0.22em 0.08em 0.18em;
+    --caret: #f4e27c;
+    --key-radius: 14px 6px 16px 8px / 8px 16px 6px 14px;
+    --seg-now: #f4e27c;
+    --glow: 0 0 1px rgba(255,255,255,0.55), 0 0 6px rgba(255,255,255,0.12);
+  }
+  /* Wooden frame: four boards drawn into the border area, grain running
+     along each board, with the board joints shaded. */
+  :root[data-theme="chalk"] body {
+    --grain: #7b5333 0 2px, #714b2d 2px 3px, #82593a 3px 6px, #6c472a 6px 7px, #7b5333 7px 9px, #876040 9px 11px, #6f4a2c 11px 12px, #7b5333 12px 14px;
+    border: 14px solid transparent;
+    background:
+      linear-gradient(90deg, rgba(0,0,0,0.25), transparent 14px, transparent calc(100% - 14px), rgba(0,0,0,0.25)) top / 100% 14px no-repeat border-box,
+      linear-gradient(90deg, rgba(0,0,0,0.25), transparent 14px, transparent calc(100% - 14px), rgba(0,0,0,0.25)) bottom / 100% 14px no-repeat border-box,
+      repeating-linear-gradient(180deg, var(--grain)) top / 100% 14px no-repeat border-box,
+      repeating-linear-gradient(0deg, var(--grain)) bottom / 100% 14px no-repeat border-box,
+      repeating-linear-gradient(90deg, var(--grain)) left / 14px 100% no-repeat border-box,
+      repeating-linear-gradient(270deg, var(--grain)) right / 14px 100% no-repeat border-box,
+      var(--bg-image),
+      var(--bg) padding-box;
+    box-shadow: inset 0 0 0 2px #4a2f18, inset 0 0 40px rgba(0,0,0,0.35);
+  }
+  :root[data-theme="chalk"] .pad button.go { background: transparent; color: var(--accent); }
+  :root[data-theme="chalk"] .pad button.go:active,
+  :root[data-theme="chalk"] .pad button.go.pressed { background: rgba(244,226,124,0.16); box-shadow: var(--key-ring-go); }
+  /* hand-drawn: no two neighbouring keys share an outline */
+  :root[data-theme="chalk"] .pad button:nth-child(3n+2) { border-radius: 8px 15px 7px 13px / 14px 7px 15px 8px; }
+  :root[data-theme="chalk"] .pad button:nth-child(3n) { border-radius: 16px 9px 12px 6px / 6px 12px 10px 16px; }
+  :root[data-theme="chalk"] .pad button:nth-child(4n) { border-radius: 10px 13px 15px 7px / 12px 9px 7px 14px; }
+
+  /* Creative 2: the user's PICO-8 pixel system (palette indices in comments) */
+  :root[data-theme="pixel"] {
+    color-scheme: dark;
+    --bg: #1D2B53;            /* 1 */
+    --ink: #FFF1E8;           /* 7 */
+    --muted: #C2C3C7;         /* 6 */
+    --faint: #83769C;         /* 13 */
+    --key: #C2C3C7;           /* 6 */
+    --key-press: #83769C;     /* 13 */
+    --key-ring: 0 -4px 0 0 #000, 0 4px 0 0 #000, -4px 0 0 0 #000, 4px 0 0 0 #000, 8px 8px 0 0 #5F574F;
+    --key-ring-go: 0 -4px 0 0 #000, 0 4px 0 0 #000, -4px 0 0 0 #000, 4px 0 0 0 #000, 8px 8px 0 0 #7E2553;
+    --key-down: translate(4px, 4px);
+    --key-down-ring: 0 -4px 0 0 #000, 0 4px 0 0 #000, -4px 0 0 0 #000, 4px 0 0 0 #000;
+    --accent: #29ADFF;        /* 12 */
+    --accent-press: #FF004D;  /* 8 */
+    --on-accent: #FFF1E8;     /* 7 */
+    --good: #00E436;          /* 11 */
+    --heart: #FF004D;         /* 8 */
+    --heart-lost: #83769C;    /* 13 */
+    --ui: "Press Start 2P", monospace;
+    --num-weight: 400;
+    --here-weight: 400;
+    --box-bw: calc(1em / 8);
+    --box-radius: 0;
+    --box-fill: #000000;      /* 0 */
+    --box-shadow: calc(1em / 8) calc(1em / 8) 0 0 #000000;
+    --caret: #FFEC27;         /* 10 */
+    --caret-w: calc(1em / 8);
+    --caret-radius: 0;
+    --key-radius: 0;
+    --key-size: 24px;
+    --seg-radius: 0;
+    --seg-now: #00E436;       /* 11 */
+    --q-color: #FFEC27;       /* 10 */
+  }
+  :root[data-theme="pixel"] body { -webkit-font-smoothing: none; }
+  :root[data-theme="pixel"] .eq { --box-pad: 0.25; }
+  :root[data-theme="pixel"] .eq.out { animation: out-px .24s steps(4) forwards; }
+  :root[data-theme="pixel"] .eq.in  { animation: in-px .24s steps(4); }
+  @keyframes out-px { to { transform: translateX(-100vw); } }
+  @keyframes in-px  { from { transform: translateX(100vw); } }
+  :root[data-theme="pixel"] .slot::after,
+  :root[data-theme="pixel"] .pad button,
+  :root[data-theme="pixel"] .lives svg path { transition: none; }
+  :root[data-theme="pixel"] .pad { gap: 16px; padding: 4px 24px 16px 20px; }
+  :root[data-theme="pixel"] .pad button { height: 56px; color: #1D2B53; }
+  :root[data-theme="pixel"] .pad button.go { background: #FF004D; color: #FFF1E8; }
+  :root[data-theme="pixel"] .pad button.go:active,
+  :root[data-theme="pixel"] .pad button.go.pressed { background: #FF004D; }
+  :root[data-theme="pixel"] .pad button svg { width: auto; height: auto; shape-rendering: crispEdges; }
+  :root[data-theme="pixel"] .pad button svg path { fill: currentColor; stroke: none; }
+  :root[data-theme="pixel"] .crumbs { font-size: 16px; line-height: 16px; gap: 8px; text-transform: uppercase; }
+  :root[data-theme="pixel"] .crumbs .sep { width: 6px; height: 10px; shape-rendering: crispEdges; }
+  :root[data-theme="pixel"] .crumbs .sep path { fill: currentColor; stroke: none; }
+  :root[data-theme="pixel"] .road { margin-top: 12px; }
+  :root[data-theme="pixel"] .road span { width: 24px; height: 8px; }
+  :root[data-theme="pixel"] .lives svg { width: 28px; height: 24px; shape-rendering: crispEdges; }
+  :root[data-theme="pixel"] .lives svg path { stroke: none; }
+  :root[data-theme="pixel"] .lives svg.lost path { fill: var(--heart-lost); stroke: none; }
+  :root[data-theme="pixel"] .qnum { text-transform: uppercase; }
+  :root[data-theme="pixel"] .select button {
+    font-size: 16px; line-height: 16px; text-transform: uppercase;
+    border: 0; border-radius: 0; background: #C2C3C7; color: #1D2B53; padding: 12px 16px;
+    box-shadow: 0 -4px 0 0 #000, 0 4px 0 0 #000, -4px 0 0 0 #000, 4px 0 0 0 #000, 8px 8px 0 0 #5F574F;
+  }
+  :root[data-theme="pixel"] .select button:focus-visible { outline: 4px dashed #FFF1E8; outline-offset: 16px; }
+
+  /* Creative 3: engineering blueprint, a nod to where this is headed */
+  :root[data-theme="blueprint"] {
+    color-scheme: dark;
+    --bg: #12407e;
+    --bg-image:
+      linear-gradient(rgba(255,255,255,0.14) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.14) 1px, transparent 1px),
+      linear-gradient(rgba(255,255,255,0.06) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.06) 1px, transparent 1px);
+    --ink: #eef5ff;
+    --muted: #b6cdee;
+    --faint: #6f95cc;
+    --key: transparent;
+    --key-press: rgba(255,255,255,0.12);
+    --key-ring: inset 0 0 0 1.5px rgba(238,245,255,0.8);
+    --accent: #eef5ff;
+    --accent-press: #cfe0f7;
+    --on-accent: #12407e;
+    --good: #8ff0c0;
+    --heart: #eef5ff;
+    --heart-lost: #8fb0dd;
+    /* IBM Plex Mono for everything; IBM Plex Sans (same family) supplies
+       Greek letters, which Plex Mono doesn't have, for later physics. */
+    --ui: "IBM Plex Mono", "IBM Plex Sans", ui-monospace, monospace;
+    --num-weight: 500;
+    --here-weight: 600;
+    --box-bw: max(0.025em, 2px);
+    --box-radius: 0;
+    --box-outline: 1px dashed rgba(238,245,255,0.55);
+    --caret: #ffd66b;
+    --caret-radius: 0;
+    --key-radius: 0;
+    --seg-radius: 0;
+    --seg-now: #ffd66b;
+  }
+  :root[data-theme="blueprint"] body { background-size: 100px 100px, 100px 100px, 20px 20px, 20px 20px; background-position: -1px -1px; }
+  :root[data-theme="blueprint"] .crumbs,
+  :root[data-theme="blueprint"] .qnum { letter-spacing: 0.04em; }
+  :root[data-theme="blueprint"] .lives svg.lost path { stroke-dasharray: 2.5 2; }
+
+  /* ---------- Layout ---------- */
+  *, *::before, *::after { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  html.loading .stage, html.loading .pad { visibility: hidden; }
+  body {
+    background: var(--bg-image), var(--bg);
+    color: var(--ink);
+    font-family: var(--ui);
+    overflow: hidden;
+    height: 100dvh;
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+    grid-template-columns: minmax(0, 1fr);
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+  }
+
+  /* Header: where you are in the roadmap, and lives */
+  .top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 20px 24px 0;
+  }
+  .where { min-width: 0; }
+  .crumbs {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 14px;
+    line-height: 20px;
+    color: var(--muted);
+    white-space: nowrap;
+    text-shadow: var(--glow);
+  }
+  .crumbs .here { color: var(--ink); font-weight: var(--here-weight); }
+  .crumbs .sep { width: 12px; height: 12px; flex: none; }
+  .crumbs .sep path { stroke-width: var(--chev-stroke); stroke-linecap: var(--icon-cap); stroke-linejoin: var(--icon-join); }
+  /* When the header gets tight, drop crumbs from the left; the roadmap strip
+     still shows the stage. Set by fitHeader(). */
+  .top.tight .stage-name, .top.tight .stage-sep,
+  .top.tighter .sub-name, .top.tighter .sub-sep { display: none; }
+  .road {
+    display: flex;
+    gap: 4px;
+    margin-top: 8px;
+  }
+  .road span {
+    width: 20px;
+    height: 4px;
+    border-radius: var(--seg-radius);
+    background: var(--faint);
+  }
+  .road span.now { background: var(--seg-now); }
+
+  .lives { display: flex; gap: 8px; color: var(--heart); flex: none; }
+  .lives svg { width: 24px; height: 24px; display: block; }
+  .lives svg path { fill: currentColor; stroke: currentColor; stroke-width: 2; stroke-linejoin: round; transition: fill .2s, stroke .2s; }
+  .lives svg.lost path { fill: none; stroke: var(--heart-lost); }
+
+  /* Problem area */
+  .stage {
+    min-height: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+
+  /* Ink metrics are measured from the real font (see measureInk):
+     --ink-top / --ink-h = where digit ink sits in each 1em line box,
+     --wide = widest digit (problem digit cell),
+     --box-w = ink width of the widest possible answer in this level,
+     --bw = the box border width in px (kept outside the padding). */
+  .eq {
+    --ink-top: 0.2;
+    --ink-h: 0.72;
+    --wide: 0.58;
+    --box-w: 1.1;
+    --box-pad: 0.17;
+    --bw: 3px;
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 0.3em;
+    font-family: var(--num-font);
+    font-weight: var(--num-weight);
+    font-size: clamp(40px, min(17vw, 15dvh), 128px);
+    text-shadow: var(--glow);
+  }
+  .eq > * {
+    display: block;
+    height: 1em;
+    line-height: 1;
+  }
+  .op { color: var(--muted); position: relative; }
+
+  /* Every digit sits in a fixed cell, nudged so its ink (not its advance
+     width) is centered. Typed digits never shift, and "1" isn't lopsided. */
+  #a, #b, .shown, #shown { display: flex; }
+  .cell {
+    display: block;
+    flex: none;
+    width: calc(var(--wide) * 1em);
+    height: 1em;
+    white-space: pre;
+  }
+
+  .qnum {
+    position: absolute;
+    left: calc(50% + var(--overhang, 0px) / 2);   /* centred over what's visible */
+    top: calc((var(--ink-top) - var(--box-pad)) * var(--fs, 100px) - var(--bw) - max(0.2 * var(--fs, 100px), 18px));
+    transform: translate(-50%, -100%);
+    height: auto !important;
+    font-size: var(--q-size, max(15px, calc(var(--fs, 100px) * 0.16)));
+    line-height: 1.25;
+    color: var(--q-color);
+    white-space: nowrap;
+  }
+
+  /* The answer box is one fixed size for the whole level: wide enough for the
+     widest possible answer (--box-w, measured), with the same padding on all
+     four sides inside the border. It never resizes, and every answer is
+     ink-centered in it. */
+  .slot {
+    position: relative;
+    width: calc((var(--box-w) + 2 * var(--box-pad)) * 1em + 2 * var(--bw));
+  }
+  .slot::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: calc((var(--ink-top) - var(--box-pad)) * 1em - var(--bw));
+    height: calc((var(--ink-h) + 2 * var(--box-pad)) * 1em + 2 * var(--bw));
+    border: var(--box-bw) solid var(--accent);
+    border-radius: var(--box-radius);
+    background: var(--box-fill);
+    box-shadow: var(--box-shadow);
+    outline: var(--box-outline);
+    outline-offset: max(0.06em, 5px);
+    transition: border-color .15s;
+  }
+  .shown {
+    position: absolute;
+    z-index: 1;
+    top: 0;
+    left: calc(var(--box-pad) * 1em + var(--bw));
+    height: 1em;
+  }
+  .caret {
+    position: absolute;
+    left: 100%;
+    top: calc(var(--ink-top) * 1em);
+    width: var(--caret-w);
+    min-width: 2px;
+    height: calc(var(--ink-h) * 1em);
+    background: var(--caret);
+    border-radius: var(--caret-radius);
+    animation: blink 1.06s steps(1) infinite;
+  }
+  .slot.empty .caret { left: calc(var(--box-w) * 0.5em); transform: translateX(-50%); }
+  .slot:not(.focused) .caret,
+  .slot.full .caret { visibility: hidden; }
+  @keyframes blink { 50% { opacity: 0; } }
+  .slot input {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    opacity: 0;
+    font: inherit;
+    caret-color: transparent;
+  }
+
+  .eq.correct .shown { color: var(--good); }
+  .eq.correct .slot::after { border-color: var(--good); }
+  .eq.correct .caret { visibility: hidden; }
+
+  .eq.shake { animation: shake .32s ease; }
+  @keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    20% { transform: translateX(-0.12em); }
+    40% { transform: translateX(0.1em); }
+    60% { transform: translateX(-0.06em); }
+    80% { transform: translateX(0.04em); }
+  }
+  .eq.out { animation: out .22s ease-in forwards; }
+  .eq.in  { animation: in .22s ease-out; }
+  @keyframes out { to { transform: translateX(-40vw); opacity: 0; } }
+  @keyframes in  { from { transform: translateX(40vw); opacity: 0; } }
+
+  /* On-screen keypad */
+  .pad {
+    width: 100%;
+    max-width: 420px;
+    justify-self: center;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    padding: 0 16px max(16px, env(safe-area-inset-bottom));
+  }
+  .pad button {
+    height: clamp(48px, 7.5dvh, 64px);
+    border: 0;
+    border-radius: var(--key-radius);
+    background: var(--key);
+    box-shadow: var(--key-ring);
+    color: var(--ink);
+    font: var(--num-weight) var(--key-size)/1 var(--num-font);
+    text-shadow: var(--glow);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    touch-action: manipulation;
+    transition: background .08s, transform .08s, box-shadow .08s;
+  }
+  /* Digit key labels sit in their own box so centerKeys() can move each
+     label's ink (not its line box) to the centre of its key. */
+  .pad button { padding: 0; }
+  .pad .kl { display: block; height: 1em; line-height: 1; }
+  .pad button svg { width: 28px; height: 28px; display: block; }
+  .pad button svg path {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: var(--icon-stroke);
+    stroke-linecap: var(--icon-cap);
+    stroke-linejoin: var(--icon-join);
+  }
+  .pad button.go { background: var(--accent); color: var(--on-accent); box-shadow: var(--key-ring-go); }
+  .pad button:active, .pad button.pressed {
+    background: var(--key-press);
+    transform: var(--key-down);
+    box-shadow: var(--key-down-ring);
+  }
+  .pad button.go:active, .pad button.go.pressed { background: var(--accent-press); }
+  .pad button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  /* Bare-minimum level select */
+  .select {
+    display: none;
+    align-items: center;
+    justify-content: center;
+  }
+  .select button {
+    font: var(--num-weight) 20px/1 var(--ui);
+    color: var(--ink);
+    background: transparent;
+    border: 1.5px solid var(--ink);
+    border-radius: 10px;
+    padding: 16px 40px;
+    cursor: pointer;
+  }
+  .select button:hover { background: var(--key); }
+  .select button:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+  body.at-select .stage, body.at-select .pad, body.at-select .lives { display: none; }
+  body.at-select .select { display: flex; }
+
+  @media (max-width: 480px) {
+    .top { padding: 16px 16px 0; }
+  }
+</style>
+</head>
+<body>
+  <header class="top">
+    <div class="where">
+      <div class="crumbs">
+        <span class="stage-name">Arithmetic</span>
+        <svg class="sep stage-sep" viewBox="0 0 12 12" aria-hidden="true"><path d="M4.5 2.5L8 6l-3.5 3.5" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span class="sub-name">Addition</span>
+        <svg class="sep sub-sep" viewBox="0 0 12 12" aria-hidden="true"><path d="M4.5 2.5L8 6l-3.5 3.5" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span class="here">Level 1</span>
+      </div>
+      <div class="road" role="img" aria-label="Roadmap stage 1 of 7: Arithmetic. Then fractions, algebra, geometry, trigonometry, calculus, physics.">
+        <span class="now" title="Arithmetic"></span>
+        <span title="Fractions"></span>
+        <span title="Algebra"></span>
+        <span title="Geometry"></span>
+        <span title="Trigonometry"></span>
+        <span title="Calculus"></span>
+        <span title="Physics"></span>
+      </div>
+    </div>
+    <div class="lives" aria-label="3 lives left">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.5 12.572l-7.5 7.428l-7.5 -7.428a5 5 0 1 1 7.5 -6.566a5 5 0 1 1 7.5 6.572"/></svg>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.5 12.572l-7.5 7.428l-7.5 -7.428a5 5 0 1 1 7.5 -6.566a5 5 0 1 1 7.5 6.572"/></svg>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.5 12.572l-7.5 7.428l-7.5 -7.428a5 5 0 1 1 7.5 -6.566a5 5 0 1 1 7.5 6.572"/></svg>
+    </div>
+  </header>
+
+  <main class="stage">
+    <div class="eq" id="eq">
+      <span class="qnum" id="qnum">Question 1</span>
+      <span id="a">7</span>
+      <span class="op">+</span>
+      <span id="b">5</span>
+      <span class="op">=</span>
+      <span class="slot empty" id="slot">
+        <span class="shown"><span id="shown"></span><span class="caret"></span></span>
+        <input id="ans" inputmode="none" maxlength="2" autocomplete="off" aria-label="Answer">
+      </span>
+    </div>
+  </main>
+
+  <div class="select">
+    <button id="level1">Level 1</button>
+  </div>
+
+  <nav class="pad" aria-label="Keypad">
+    <button data-k="1">1</button><button data-k="2">2</button><button data-k="3">3</button>
+    <button data-k="4">4</button><button data-k="5">5</button><button data-k="6">6</button>
+    <button data-k="7">7</button><button data-k="8">8</button><button data-k="9">9</button>
+    <button data-k="Backspace" aria-label="Delete"><svg viewBox="0 0 24 24" aria-hidden="true"><g transform="translate(-0.5 0)"><path d="M20 6H9l-5 6l5 6h11a1 1 0 0 0 1-1V7a1 1 0 0 0-1-1z"/><path d="M12.25 10.25l3.5 3.5m0-3.5l-3.5 3.5"/></g></svg></button>
+    <button data-k="0">0</button>
+    <button data-k="Enter" class="go" aria-label="Check answer"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 12.5l5.5 5.5l11.5-11.5"/></svg></button>
+  </nav>
+
+<script>
+  // ---------- Theme ----------
+  // Blueprint is the chosen look and the default. ?theme=<name> picks one of
+  // the other options; ?embed=1 (the gallery) skips autofocus so the
+  // frames don't fight over focus or scroll the gallery page.
+  const params = new URLSearchParams(location.search);
+  const THEMES = {
+    paper:     null,
+    slate:     { css: 'Inter:wght@400;600', family: 'Inter', weights: [400, 600] },
+    textbook:  { css: 'Fraunces:opsz,wght@36,400;36,600', family: 'Fraunces', weights: [400, 600] },
+    soft:      { css: 'Fredoka:wght@400;600', family: 'Fredoka', weights: [400, 600] },
+    bold:      { css: 'Archivo+Black', family: 'Archivo Black', weights: [400] },
+    dusk:      { css: 'Manrope:wght@400;600', family: 'Manrope', weights: [400, 600] },
+    chalk:     { css: 'Patrick+Hand', family: 'Patrick Hand', weights: [400] },
+    pixel:     { css: 'Press+Start+2P', family: 'Press Start 2P', weights: [400], grid: 8 },
+    blueprint: { css: 'IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600', family: 'IBM Plex Mono', weights: [400, 500, 600] },
+  };
+  // ?font=<name> swaps just the typeface while keeping the theme's look.
+  // num = weight for the numbers and keys, here = weight for the current crumb.
+  const FONTS = {
+    barlow:    { css: 'Barlow:wght@400;500;600', family: 'Barlow', weights: [400, 500, 600], num: 500, here: 600 },
+    b612:      { css: 'B612:wght@400;700', family: 'B612', weights: [400, 700], num: 400, here: 700 },
+    plexmono:  { css: 'IBM+Plex+Mono:wght@400;500;600', family: 'IBM Plex Mono', weights: [400, 500, 600], num: 500, here: 600 },
+    spacemono: { css: 'Space+Mono:wght@400;700', family: 'Space Mono', weights: [400, 700], num: 400, here: 700 },
+    chakra:    { css: 'Chakra+Petch:wght@400;500;600', family: 'Chakra Petch', weights: [400, 500, 600], num: 500, here: 600 },
+    sharetech: { css: 'Share+Tech+Mono', family: 'Share Tech Mono', weights: [400], num: 400, here: 400 },
+    architects: { css: 'Architects+Daughter', family: 'Architects Daughter', weights: [400], num: 400, here: 400 },
+  };
+  const themeName = Object.hasOwn(THEMES, params.get('theme')) ? params.get('theme') : 'blueprint';
+  const fontPick = Object.hasOwn(FONTS, params.get('font')) ? FONTS[params.get('font')] : null;
+  const theme = fontPick ? { ...THEMES[themeName], ...fontPick, grid: undefined } : THEMES[themeName];
+  const grid = theme && theme.grid;   // pixel fonts: snap to whole font pixels
+  const embedded = params.get('embed') === '1';
+  if (themeName !== 'paper') document.documentElement.dataset.theme = themeName;
+  if (fontPick) {
+    const root = document.documentElement.style;
+    root.setProperty('--ui', `"${fontPick.family}", system-ui, sans-serif`);
+    root.setProperty('--num-weight', fontPick.num);
+    root.setProperty('--here-weight', fontPick.here);
+  }
+
+  function loadThemeFont() {
+    if (!theme) return Promise.resolve();
+    return new Promise(resolve => {
+      const link = document.createElement('link');
+      link.rel = 'stylesheet';
+      link.href = `https://fonts.googleapis.com/css2?family=${theme.css}&display=block`;
+      link.onload = () => Promise.all(theme.weights.map(w =>
+        document.fonts.load(`${w} 64px "${theme.family}"`, '0123456789+=Q'))).then(resolve, resolve);
+      link.onerror = resolve;
+      document.head.appendChild(link);
+      setTimeout(resolve, 3000);
+    });
+  }
+
+  if (grid) {
+    // Pixel art drawn on whole pixels: 7x6 heart, 8x6 check, 8x5 back arrow,
+    // 3x5 chevron. Each '#' is one pixel.
+    const art = rows => {
+      let d = '';
+      rows.forEach((r, y) => [...r].forEach((c, x) => { if (c === '#') d += `M${x} ${y}h1v1h-1z`; }));
+      return `viewBox="0 0 ${rows[0].length} ${rows.length}" width="${rows[0].length * 4}" height="${rows.length * 4}"`
+        + ` aria-hidden="true"><path d="${d}"/>`;
+    };
+    const heart = art(['.##.##.', '#######', '#######', '.#####.', '..###..', '...#...']);
+    document.querySelectorAll('.lives svg').forEach(s => s.outerHTML = `<svg ${heart}</svg>`);
+    document.querySelector('[data-k="Enter"] svg').outerHTML =
+      `<svg ${art(['.......#', '......##', '#....##.', '##..##..', '.####...', '..##....'])}</svg>`;
+    document.querySelector('[data-k="Backspace"] svg').outerHTML =
+      `<svg ${art(['..#.....', '.##.....', '########', '.##.....', '..#.....'])}</svg>`;
+    document.querySelectorAll('.crumbs .sep').forEach(s =>
+      s.outerHTML = `<svg class="${s.getAttribute('class')}" ${art(['#..', '.#.', '..#', '.#.', '#..'])}</svg>`);
+  }
+
+  document.querySelectorAll('.pad button').forEach(b => {
+    if (!b.querySelector('svg')) b.innerHTML = `<span class="kl">${b.textContent}</span>`;
+  });
+
+  // ---------- Game ----------
+  const eq = document.getElementById('eq');
+  const ans = document.getElementById('ans');
+  const slot = document.getElementById('slot');
+  const shown = document.getElementById('shown');
+  const qnum = document.getElementById('qnum');
+  const topBar = document.querySelector('.top');
+  const hearts = [...document.querySelectorAll('.lives svg')];
+  const livesBox = document.querySelector('.lives');
+  const ANIMS = ['shake', 'in', 'out'];
+  let a, b, lives, question = 1, busy = false;
+  // Per-string ink geometry (in em), filled by measureInk:
+  // off = text indent (may be negative) that centers the ink across `width` em,
+  // right = where the ink ends, measured from the start of that width,
+  // w = ink width.
+  let inkOf = () => ({ off: 0, right: 0, w: 0 });
+  let boxW = 1.1, wideW = 0.58, inkMid = 0.5, baseEm = 0.8;
+  const caret = document.querySelector('.caret');
+
+  // Problem digits: one fixed cell each, nudged so the ink is centered.
+  function renderDigits(el, str) {
+    el.replaceChildren(...[...str].map(c => {
+      const cell = document.createElement('span');
+      cell.className = 'cell';
+      cell.textContent = c;
+      cell.style.textIndent = inkOf(c, wideW).off.toFixed(4) + 'em';
+      return cell;
+    }));
+  }
+
+  // Answer: ink-centered in the fixed box, with the caret a fixed gap after
+  // the real ink. A wrong entry wider than any real answer (like "44") is
+  // scaled down around its ink center so it never touches the border.
+  function renderAnswer(v) {
+    const span = document.createElement('span');
+    span.className = 'cell';
+    span.style.width = 'calc(var(--box-w) * 1em)';
+    span.textContent = v;
+    const g = v ? inkOf(v, boxW) : { off: 0, right: 0, w: 0 };
+    span.style.textIndent = g.off.toFixed(4) + 'em';
+    if (g.w > boxW + 1e-3) {
+      span.style.transform = `scale(${(boxW / g.w).toFixed(4)})`;
+      span.style.transformOrigin = `50% ${inkMid.toFixed(4)}em`;
+    }
+    shown.replaceChildren(span);
+    caret.style.left = v ? `calc(${g.right.toFixed(4)}em + max(0.08em, 4px))` : '';
+    caret.style.transform = '';
+    if (grid) {
+      // The caret is 1 or 2 font pixels wide, whichever matches the box's
+      // parity, so the empty caret centres exactly on whole font pixels.
+      const bp = Math.round(boxW * grid), cw = bp % 2 ? 1 : 2;
+      caret.style.width = cw / grid + 'em';
+      if (!v) {
+        caret.style.left = (bp - cw) / 2 / grid + 'em';
+        caret.style.transform = 'none';
+      }
+    }
+  }
+
+  function setAnswer(v) {
+    ans.value = v;
+    renderAnswer(v);
+    slot.classList.toggle('empty', v === '');
+    slot.classList.toggle('full', v.length >= 2);
+  }
+
+  function newProblem() {
+    a = Math.floor(Math.random() * 10);
+    b = Math.floor(Math.random() * 10);
+    renderDigits(document.getElementById('a'), String(a));
+    renderDigits(document.getElementById('b'), String(b));
+    qnum.textContent = 'Question ' + question;
+    lives = 3;
+    hearts.forEach(h => h.classList.remove('lost'));
+    livesBox.setAttribute('aria-label', '3 lives left');
+    setAnswer('');
+    eq.classList.remove('correct');
+  }
+
+  function play(cls) {
+    eq.classList.remove(...ANIMS);
+    void eq.offsetWidth;
+    eq.classList.add(cls);
+  }
+  eq.addEventListener('animationend', e => {
+    if (e.target === eq && !e.animationName.startsWith('out')) eq.classList.remove(...ANIMS);
+  });
+
+  function type(k) {
+    if (busy) return;
+    if (k === 'Enter') return submit();
+    if (k === 'Backspace') { setAnswer(ans.value.slice(0, -1)); return true; }
+    if (/^\d$/.test(k) && ans.value.length < 2) { setAnswer(ans.value + k); return true; }
+    return false;
+  }
+
+  function submit() {
+    if (busy || ans.value === '') return false;
+    if (Number(ans.value) === a + b) {
+      busy = true;
+      eq.classList.add('correct');
+      setTimeout(() => {
+        play('out');
+        setTimeout(() => {
+          question++;
+          newProblem();
+          play('in');
+          busy = false;
+        }, 240);
+      }, 350);
+    } else {
+      lives--;
+      hearts[lives].classList.add('lost');
+      livesBox.setAttribute('aria-label', lives + (lives === 1 ? ' life left' : ' lives left'));
+      setAnswer('');
+      play('shake');
+      if (lives === 0) {
+        busy = true;
+        setTimeout(() => {
+          eq.classList.remove(...ANIMS);
+          document.body.classList.add('at-select');
+          document.getElementById('level1').focus({ preventScroll: true });
+          busy = false;
+        }, 450);
+      }
+    }
+    return true;
+  }
+
+  // Physical keyboard: route keys through the same path as the keypad, and
+  // light up the matching on-screen key.
+  ans.addEventListener('keydown', e => {
+    e.preventDefault();
+    if (e.key !== 'Enter' && e.key !== 'Backspace' && !/^\d$/.test(e.key)) return;
+    const accepted = type(e.key);
+    const btn = document.querySelector(`.pad button[data-k="${e.key}"]`);
+    if (btn && accepted) {
+      btn.classList.add('pressed');
+      setTimeout(() => btn.classList.remove('pressed'), 110);
+    }
+  });
+  ans.addEventListener('input', () => setAnswer(shown.textContent));
+  ans.addEventListener('focus', () => slot.classList.add('focused'));
+  ans.addEventListener('blur', () => slot.classList.remove('focused'));
+
+  document.querySelectorAll('.pad button').forEach(btn => {
+    btn.addEventListener('click', () => type(btn.dataset.k));
+  });
+
+  document.getElementById('level1').addEventListener('click', () => {
+    document.body.classList.remove('at-select');
+    question = 1;
+    newProblem();
+    layout();
+    ans.focus({ preventScroll: true });
+  });
+
+  // Keep focus in the answer while playing, without letting taps steal it.
+  document.addEventListener('pointerdown', e => {
+    if (!document.body.classList.contains('at-select') && e.target !== ans) {
+      e.preventDefault();
+      ans.focus({ preventScroll: true });
+    }
+  });
+
+  // ---------- Measuring ----------
+  // Fonts place glyphs differently inside a line box, so measure the real
+  // digit ink and align the box, caret, operators and the whole equation to
+  // it instead of to the line box. measureText's ink bounds are rounded (and
+  // coarser still at large sizes), so each string is drawn offscreen and its
+  // edges found by scanning pixels, using the edge pixel's coverage for
+  // sub-pixel precision. The baseline is read from the live layout.
+  // Scan at the real on-screen size in device pixels, so font hinting matches
+  // what is actually drawn; results are in em.
+  let S = 200;
+  const scanCanvas = document.createElement('canvas');
+  const ctx = scanCanvas.getContext('2d', { willReadFrequently: true });
+  let scanCache = new Map();
+
+  function scan(s, font = scanFont, size = S) {
+    const key = font + '|' + s;
+    if (scanCache.has(key)) return scanCache.get(key);
+    const W = Math.ceil(size * (s.length * 1.3 + 1)), H = Math.ceil(2 * size);
+    const x0 = Math.round(size / 2), y0 = Math.round(size * 1.3);
+    if (scanCanvas.width !== W || scanCanvas.height !== H) {
+      scanCanvas.width = W;
+      scanCanvas.height = H;
+    }
+    ctx.font = font;
+    ctx.clearRect(0, 0, W, H);
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillText(s, x0, y0);
+    const px = ctx.getImageData(0, 0, W, H).data;
+    const rows = new Uint8Array(H), cols = new Uint8Array(W);
+    for (let y = 0; y < H; y++) {
+      for (let x = 0; x < W; x++) {
+        const al = px[(y * W + x) * 4 + 3];
+        if (al > rows[y]) rows[y] = al;
+        if (al > cols[x]) cols[x] = al;
+      }
+    }
+    const MIN = 4;
+    let t = 0, b = H - 1, l = 0, r = W - 1;
+    while (t < H && rows[t] < MIN) t++;
+    while (b > t && rows[b] < MIN) b--;
+    while (l < W && cols[l] < MIN) l++;
+    while (r > l && cols[r] < MIN) r--;
+    const topEdge = t + 1 - rows[t] / 255, bottom = b + rows[b] / 255;
+    const left = l + 1 - cols[l] / 255, right = r + cols[r] / 255;
+    const m = {
+      asc: (y0 - topEdge) / size,
+      desc: (bottom - y0) / size,
+      abl: (x0 - left) / size,
+      abr: (right - x0) / size,
+      adv: ctx.measureText(s).width / size,
+    };
+    scanCache.set(key, m);
+    return m;
+  }
+  let scanFont = '';
+
+  function domBaseline(fs) {
+    const box = document.createElement('span');
+    box.style.cssText = 'position:absolute;visibility:hidden;display:block;height:1em;line-height:1;white-space:pre';
+    box.innerHTML = '0<span style="display:inline-block;width:0;height:0;vertical-align:baseline"></span>';
+    eq.appendChild(box);
+    const base = (box.lastChild.getBoundingClientRect().top - box.getBoundingClientRect().top) / fs;
+    box.remove();
+    return base;
+  }
+
+  function measureInk() {
+    const cs = getComputedStyle(eq);
+    const fs = parseFloat(cs.fontSize);
+    S = Math.max(24, fs * devicePixelRatio);
+    const font = `${cs.fontWeight} ${S}px ${cs.fontFamily}`;
+    scanFont = font;
+    const base = baseEm = domBaseline(fs);
+    const q = v => grid ? Math.round(v * grid) / grid : v;   // whole font pixels
+    const ink = s => {
+      const m = scan(s);
+      const t = base - m.asc, btm = base + m.desc;
+      return { top: t, h: btm - t, mid: (t + btm) / 2 };
+    };
+    const d = ink('0123456789');
+    inkMid = d.mid;
+    // Some fonts' "tabular" digits still differ in width; use the widest.
+    const wide = Math.max(...'0123456789'.split('').map(c => scan(c).adv));
+    inkOf = (s, width) => {
+      const m = scan(s);
+      const off = q(width / 2 - (m.abr - m.abl) / 2);
+      return { off, right: off + m.abr, w: m.abl + m.abr };
+    };
+    // Box fits the widest ink of every possible answer in this level (0–18).
+    const answers = Array.from({ length: 19 }, (_, i) => String(i));
+    const digits = [...'0123456789'];
+    const maxInk = Math.max(...answers.map(s => inkOf(s, 0).w));
+    if (grid) {
+      // On a pixel grid an ink can only be centered exactly when its width and
+      // the space around it have the same odd/even parity, so pick the box and
+      // cell widths (in whole font pixels) that center the most strings.
+      const inkPx = s => Math.round(inkOf(s, 0).w * grid);
+      const pick = (strs, min) => [min, min + 1]
+        .map(c => ({ c, n: strs.filter(s => (c - inkPx(s)) % 2 === 0).length }))
+        .reduce((x, y) => (y.n > x.n ? y : x)).c / grid;
+      boxW = pick(answers, Math.ceil(maxInk * grid - 1e-6));
+      wideW = pick(digits, Math.max(...digits.map(inkPx)));
+    } else {
+      boxW = maxInk;
+      wideW = wide;
+    }
+    eq.style.setProperty('--box-w', boxW.toFixed(4));
+    eq.style.setProperty('--fs', fs + 'px');
+    eq.style.setProperty('--ink-top', d.top.toFixed(4));
+    eq.style.setProperty('--ink-h', d.h.toFixed(4));
+    eq.style.setProperty('--wide', wideW.toFixed(4));
+    eq.style.setProperty('--bw', getComputedStyle(slot, '::after').borderTopWidth);
+    if (grid) eq.style.gap = q(0.3) + 'em';
+    document.querySelectorAll('.op').forEach(op => {
+      op.style.top = (d.mid - ink(op.textContent).mid).toFixed(4) + 'em';
+    });
+    // Center the digits' ink, not the line box, in the problem area.
+    eq.style.marginTop = ((0.5 - d.mid) * 2).toFixed(4) + 'em';
+    // The caret spans the digit ink, snapped OUTWARD to whole device pixels
+    // around the (pixel-aligned) baseline, so it never comes up short.
+    const dp = devicePixelRatio;
+    const capTop = Math.floor((d.top - base) * fs * dp + 1e-3) / dp;
+    const capBottom = Math.ceil((d.top + d.h - base) * fs * dp - 1e-3) / dp;
+    caret.style.top = (base * fs + capTop).toFixed(3) + 'px';
+    caret.style.height = (capBottom - capTop).toFixed(3) + 'px';
+    renderDigits(document.getElementById('a'), String(a));
+    renderDigits(document.getElementById('b'), String(b));
+    renderAnswer(ans.value);
+  }
+
+  // Drop breadcrumb parts from the left until the header fits on one line.
+  function fitHeader() {
+    topBar.classList.remove('tight', 'tighter');
+    const where = topBar.querySelector('.where');
+    const crumbs = topBar.querySelector('.crumbs');
+    if (crumbs.scrollWidth > where.clientWidth) topBar.classList.add('tight');
+    if (crumbs.scrollWidth > where.clientWidth) topBar.classList.add('tighter');
+  }
+
+  // Size the equation: start from the CSS size, shrink it if the widest
+  // state (box included) doesn't fit between the side gutters, snap pixel
+  // fonts to their grid, then measure. Pixel themes also nudge the whole
+  // equation onto whole device pixels so font pixels stay crisp.
+  function layout() {
+    fitHeader();
+    eq.style.fontSize = '';
+    eq.style.left = '';
+    eq.style.top = '';
+    measureInk();
+    const stage = document.querySelector('.stage');
+    const gutter = innerWidth <= 480 ? 16 : 24;
+    // Half a pixel of slack so device-pixel snapping can't tip a gutter under.
+    const avail = stage.clientWidth - 2 * gutter - 1;
+    // The box is last in the equation, so anything it draws outside its own
+    // box sticks out on the RIGHT: the pixel theme's hard shadow, or the
+    // blueprint's dashed construction outline. Count it in the width, and
+    // later shift the equation left by half of it so the visible group is
+    // centred.
+    const overhang = () => {
+      const after = getComputedStyle(slot, '::after');
+      const outline = after.outlineStyle === 'none' ? 0
+        : parseFloat(after.outlineOffset) + parseFloat(after.outlineWidth);
+      const shadow = grid ? parseFloat(getComputedStyle(eq).fontSize) / grid : 0;
+      return Math.max(outline, shadow);
+    };
+    // Overhangs scale with the font, so settle the size over a few rounds.
+    for (let i = 0; i < 3; i++) {
+      const cur = parseFloat(getComputedStyle(eq).fontSize);
+      const w = eq.getBoundingClientRect().width + overhang();
+      let next = w > avail ? cur * avail / w : cur;
+      if (grid) {
+        // Snap so one font pixel is a whole number of DEVICE pixels.
+        const step = grid / devicePixelRatio;
+        next = Math.max(step * 4, Math.floor(next / step + 1e-6) * step);
+      }
+      if (Math.abs(next - cur) < 0.01) break;
+      eq.style.fontSize = next + 'px';
+      measureInk();
+    }
+    const fs = parseFloat(getComputedStyle(eq).fontSize);
+    if (grid) eq.style.setProperty('--q-size', fs >= 96 ? '24px' : '16px');
+    // Put the equation (and so its baseline) on whole device pixels, so the
+    // browser's own pixel snapping can't push glyphs and box apart.
+    const r = eq.getBoundingClientRect();
+    const px = 1 / devicePixelRatio;
+    eq.style.setProperty('--overhang', overhang() + 'px');
+    const left = r.left - overhang() / 2;
+    eq.style.left = (Math.round(left / px) * px - r.left).toFixed(3) + 'px';
+    const baseY = r.top + baseEm * fs;
+    eq.style.top = (Math.round(baseY / px) * px - baseY).toFixed(3) + 'px';
+    centerKeys();
+  }
+
+  // Centre each digit key's label on its real ink. Labels are drawn at a
+  // much smaller size than the equation, where fonts snap to pixels
+  // differently, so each one is scanned at its own device size. The browser
+  // snaps text baselines to whole device pixels, so the vertical shift is a
+  // whole number of device pixels too; pixel fonts also keep their glyph
+  // origin on a whole device pixel horizontally.
+  function centerKeys() {
+    const dpr = devicePixelRatio;
+    document.querySelectorAll('.pad .kl').forEach(kl => {
+      const kr = kl.parentElement.getBoundingClientRect();
+      if (!kr.width) return;
+      kl.style.transform = 'none';
+      const cs = getComputedStyle(kl);
+      const kfs = parseFloat(cs.fontSize);
+      const m = scan(kl.textContent, `${cs.fontWeight} ${kfs * dpr}px ${cs.fontFamily}`, kfs * dpr);
+      const probe = document.createElement('span');
+      probe.style.cssText = 'display:inline-block;width:0;height:0;vertical-align:baseline';
+      kl.appendChild(probe);
+      const baseY = Math.round(probe.getBoundingClientRect().top * dpr) / dpr;
+      probe.remove();
+      const lr = kl.getBoundingClientRect();
+      const inkMidY = baseY - (m.asc - m.desc) / 2 * kfs;
+      const dy = Math.round((kr.top + kr.height / 2 - inkMidY) * dpr) / dpr;
+      const inkHalf = (m.abr - m.abl) / 2 * kfs;          // origin to ink centre
+      let dx = kr.left + kr.width / 2 - inkHalf - lr.left;
+      if (grid) dx = Math.round((lr.left + dx) * dpr) / dpr - lr.left;
+      kl.style.transform = `translate(${dx.toFixed(3)}px, ${dy.toFixed(3)}px)`;
+    });
+  }
+
+  let queued = false;
+  function relayout() {
+    if (queued) return;
+    queued = true;
+    requestAnimationFrame(() => { queued = false; layout(); });
+  }
+
+  newProblem();
+  loadThemeFont().then(() => {
+    layout();
+    document.documentElement.classList.remove('loading');
+    new ResizeObserver(relayout).observe(document.querySelector('.stage'));
+    document.fonts.addEventListener('loadingdone', relayout);
+    if (!embedded) ans.focus({ preventScroll: true });
+  });
+</script>
+</body>
+</html>
