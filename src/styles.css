@@ -28,7 +28,6 @@ body {
   color: var(--ink);
   font-family: var(--font);
   overflow: hidden;
-  height: 100vh;
   height: 100dvh;
   display: grid;
   grid-template-rows: auto 1fr auto;

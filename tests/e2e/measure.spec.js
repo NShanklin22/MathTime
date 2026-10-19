@@ -11,7 +11,7 @@ import { open, freeze, capture, ink } from './helpers.js';
 // The worst error seen here is what justifies TOL in helpers.js.
 const SHIFTS = [0.125, 0.25, 0.5, 1];
 const BASES = [100, 100.4];
-const MAX_ERROR = 0.1;
+const MAX_ERROR = 0.05;
 const AREA = { left: 40, right: 360, top: 40, bottom: 360 };
 
 // Put `kind` (a solid box or a glyph) at (x, y) CSS px on an overlay that
