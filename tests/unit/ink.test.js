@@ -29,6 +29,36 @@ test('edgesFromAlpha returns null when nothing is drawn', () => {
   assert.equal(edgesFromAlpha(pixels(4, 4, () => {}), 4, 4), null);
 });
 
+test('edgesFromAlpha uses coverage on the bottom, left and right edges too', () => {
+  const d = pixels(10, 10, set => {
+    for (let y = 3; y <= 6; y++) for (let x = 2; x <= 5; x++) set(x, y, 255);
+    for (let x = 2; x <= 5; x++) set(x, 7, 51);            // bottom row, 20% covered
+    for (let y = 3; y <= 6; y++) { set(1, y, 102); set(6, y, 153); }  // left 40%, right 60%
+  });
+  const e = edgesFromAlpha(d, 10, 10);
+  close(e.bottom, 7 + 51 / 255);
+  close(e.left, 2 - 102 / 255);
+  close(e.right, 6 + 153 / 255);
+});
+
+test('edgesFromAlpha handles ink touching the canvas border', () => {
+  const d = pixels(4, 3, set => {
+    for (let y = 0; y < 3; y++) for (let x = 0; x < 4; x++) set(x, y, 255);
+  });
+  assert.deepEqual(edgesFromAlpha(d, 4, 3), { top: 0, bottom: 3, left: 0, right: 4 });
+});
+
+test('edgesFromAlpha handles a single solid pixel', () => {
+  const d = pixels(5, 5, set => set(2, 3, 255));
+  assert.deepEqual(edgesFromAlpha(d, 5, 5), { top: 3, bottom: 4, left: 2, right: 3 });
+});
+
+test('edgesFromAlpha ignores alpha below the min threshold', () => {
+  const d = pixels(6, 6, set => { set(0, 0, 3); set(2, 2, 255); set(5, 5, 3); });
+  assert.deepEqual(edgesFromAlpha(d, 6, 6), { top: 2, bottom: 3, left: 2, right: 3 });
+  assert.equal(edgesFromAlpha(pixels(3, 3, set => set(1, 1, 3)), 3, 3), null);
+});
+
 test('toMetrics converts edges around an origin into em', () => {
   const m = toMetrics({ top: 10, bottom: 52, left: 5, right: 35 }, 10, 50, 40, 32);
   assert.deepEqual(m, { asc: 1, desc: 0.05, abl: 0.125, abr: 0.625, adv: 0.8 });
