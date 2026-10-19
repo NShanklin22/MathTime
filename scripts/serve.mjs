@@ -30,8 +30,9 @@ const server = createServer(async (req, res) => {
     res.writeHead(400).end('Bad request');
     return;
   }
-  // No path outside the project, and nothing dotted (.git, .gitignore, ..).
-  if (!file.startsWith(root) || path.split(/[\\/]/).some((part) => part.startsWith('.'))) {
+  // No path outside the project, and nothing dotted (.git, .gitignore, ..),
+  // including Windows short names for them (GIT~1).
+  if (!file.startsWith(root) || path.split(/[\\/]/).some((part) => part.startsWith('.') || part.includes('~'))) {
     res.writeHead(403).end();
     return;
   }
