@@ -17,7 +17,7 @@
 
 *, *::before, *::after { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; }
-html.loading .stage, html.loading .pad { visibility: hidden; }
+html.loading .top, html.loading .stage, html.loading .pad { visibility: hidden; }
 body {
   background:
     linear-gradient(rgba(255, 255, 255, 0.14) 1px, transparent 1px) -1px -1px / 100px 100px,

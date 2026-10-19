@@ -86,5 +86,5 @@ export async function typeKeys(page, keys) {
   for (const k of keys) await page.keyboard.press(k);
 }
 
-// Spec target is 0.5px; 0.05px allows for this measurement's own rounding.
+// Spec target 0.5px; ink() itself measures to ~0.01px (tests/e2e/measure.spec.js), 0.05px slack.
 export const TOL = 0.55;
