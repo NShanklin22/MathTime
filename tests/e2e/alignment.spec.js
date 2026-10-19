@@ -120,8 +120,11 @@ test('an answer sits on the same baseline as the problem', async ({ page }) => {
   const r = await rect(page, '#a');
   const problem = ink(shot, { ...r, top: r.top - 4, bottom: r.bottom + 4 });
   const answer = ink(shot, inner);
-  expect(Math.abs(answer.bottom - problem.bottom), 'ink bottom').toBeLessThanOrEqual(TOL);
-  expect(Math.abs(answer.top - problem.top), 'ink top').toBeLessThanOrEqual(TOL);
+  // The spec target is 0px. ink() measures to about 0.01px, so 0.05 still
+  // catches a single device pixel (0.5px at 2x), which TOL would let through.
+  const EXACT = 0.05;
+  expect(Math.abs(answer.bottom - problem.bottom), 'ink bottom').toBeLessThanOrEqual(EXACT);
+  expect(Math.abs(answer.top - problem.top), 'ink top').toBeLessThanOrEqual(EXACT);
 });
 
 // The box wraps every possible answer in equal padding: across, the widest
@@ -146,8 +149,12 @@ test('the widest answer has the same padding on all four sides', async ({ page }
     top: digits.top - edge.top,
     bottom: edge.bottom - digits.bottom,
   };
+  // The four sides must match each other (spec: within about 0.5px)...
+  const sides = Object.values(gaps);
+  expect(Math.max(...sides) - Math.min(...sides), `answer ${widest.n}, padding spread`).toBeLessThanOrEqual(TOL);
+  // ...and, loosely, the designed padding.
   for (const [side, gap] of Object.entries(gaps)) {
-    expect(Math.abs(gap - pad), `answer ${widest.n}, ${side} padding`).toBeLessThanOrEqual(TOL);
+    expect(Math.abs(gap - pad), `answer ${widest.n}, ${side} padding`).toBeLessThanOrEqual(1);
   }
 });
 
@@ -253,6 +260,10 @@ test('fonts that arrive after the load timeout are measured again', async ({ pag
     });
     await late.goto('/', { waitUntil: 'commit' });
     await late.waitForFunction(() => !document.documentElement.classList.contains('loading'));
+    // Precondition: the first layout really used a fallback font (so the
+    // route still delays the font files and this test can't pass vacuously).
+    const first = await vars(late);
+    expect(Math.abs(first['--box-w'] - normal['--box-w']), 'fallback --box-w').toBeGreaterThan(0.01);
     await late.waitForFunction(() => document.fonts.check('500 64px "IBM Plex Mono"') && [...document.fonts].some(
       f => f.family.replace(/"/g, '') === 'IBM Plex Mono' && f.weight === '500' && f.status === 'loaded'), null, { timeout: 15_000 });
     expect((await vars(late)).fs).toBe(normal.fs);
@@ -274,7 +285,8 @@ test('a new device pixel ratio alone is measured again', async ({ page }, info) 
   await cdp.send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 900, deviceScaleFactor: 2, mobile: false });
   await expect.poll(() => page.evaluate(() => devicePixelRatio)).toBe(2);
   // The caret is snapped outward to whole device pixels, so a re-measure at
-  // 2x moves its height onto the half-pixel grid.
+  // 2x changes its height. That change is the real check.
   await expect.poll(caretHeight).not.toBe(before);
+  // Secondary: the new height is on the 2x grid (the 1x height was too).
   expect(Number.isInteger((await caretHeight()) * 2)).toBe(true);
 });
