@@ -4,11 +4,11 @@ import { defineConfig } from '@playwright/test';
 export default defineConfig({
   testDir: 'tests/e2e',
   timeout: 60_000,
-  use: { baseURL: 'http://127.0.0.1:5174', browserName: 'chromium' },
+  use: { baseURL: 'http://127.0.0.1:5481', browserName: 'chromium' },
   webServer: {
     command: 'node scripts/serve.mjs',
-    env: { PORT: '5174' },
-    url: 'http://127.0.0.1:5174',
+    env: { PORT: '5481' },
+    url: 'http://127.0.0.1:5481',
     reuseExistingServer: false,
   },
   projects: [
