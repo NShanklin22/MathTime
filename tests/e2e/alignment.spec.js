@@ -251,6 +251,32 @@ test('a narrow screen shrinks the equation to fit, measured again', async ({ pag
   expect(Math.abs(plus.midY - digits.mid), '+').toBeLessThanOrEqual(TOL);
 });
 
+test('a repeat layout after a full shrink needs no new scans', async ({ page }) => {
+  // At 280px wide and 2x the fitting loop tries the CSS size and three
+  // smaller ones, so with the keypad one layout uses five font sizes. All of
+  // them must stay cached. The ratio is emulated, because setViewportSize
+  // would drop the phone project to 1x.
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send('Emulation.setDeviceMetricsOverride', { width: 280, height: 700, deviceScaleFactor: 2, mobile: false });
+  await page.waitForFunction(() => innerWidth === 280 && devicePixelRatio === 2);
+  await page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));
+  const reads = await page.evaluate(() => {
+    let count = 0;
+    const read = CanvasRenderingContext2D.prototype.getImageData;
+    CanvasRenderingContext2D.prototype.getImageData = function (...args) {
+      count++;
+      return read.apply(this, args);
+    };
+    try {
+      window.mathtime.layout.layout();
+    } finally {
+      CanvasRenderingContext2D.prototype.getImageData = read;
+    }
+    return count;
+  });
+  expect(reads).toBe(0);
+});
+
 test('a layout during an animation still puts the equation on whole device pixels', async ({ page }) => {
   // The shake and slide animations move #eq with a transform. Lay out while
   // it is moved, then check where it lands once the transform is gone.
@@ -288,6 +314,21 @@ test('the header is fitted on the level selector too', async ({ page }) => {
   // The selector hides the lives (and the stage), leaving room for every crumb.
   await expect(page.locator('.crumbs .stage-name')).toBeVisible();
   expect(await page.evaluate(() => document.querySelector('.crumbs').scrollWidth <= document.querySelector('.where').clientWidth)).toBe(true);
+});
+
+test('the header is refitted when the window resizes on the level selector', async ({ page }) => {
+  // Note: setViewportSize drops the phone project to 1x; this test measures no pixels.
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.evaluate(() => document.body.classList.add('at-select'));
+  await expect(page.locator('.crumbs .stage-name')).toBeVisible();
+  // Without the lives the full breadcrumb needs about 304px, so at 280 a
+  // crumb must go.
+  await page.setViewportSize({ width: 280, height: 700 });
+  await expect.poll(() => page.evaluate(() => {
+    const where = document.querySelector('.where');
+    return document.querySelector('.crumbs').scrollWidth <= where.clientWidth;
+  })).toBe(true);
+  await expect(page.locator('.crumbs .here')).toBeVisible();
 });
 
 test('fonts that arrive after the load timeout are measured again', async ({ page, browser, viewport, deviceScaleFactor, baseURL }) => {

@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { open } from './helpers.js';
 
-test('the scanner keeps only the four most recent font sizes', async ({ page }) => {
+test('the scanner keeps only the eight most recent font sizes', async ({ page }) => {
   await open(page);
   const scans = await page.evaluate(async () => {
     const { createScanner } = await import('/src/scanner.js');
@@ -15,9 +15,9 @@ test('the scanner keeps only the four most recent font sizes', async ({ page }) 
       const scan = createScanner();
       const style = { weight: '500', family: '"IBM Plex Mono"' };
       const count = size => { const before = reads; scan('8', style, size); return reads - before; };
-      for (const size of [20, 21, 22, 23]) count(size);
+      for (let size = 20; size < 28; size++) count(size);
       const recent = count(20);           // cached; 20 becomes the most recent
-      count(24);                          // a fifth size drops the oldest, 21
+      count(28);                          // a ninth size drops the oldest, 21
       return { recent, kept: count(20), dropped: count(21) };
     } finally {
       CanvasRenderingContext2D.prototype.getImageData = read;

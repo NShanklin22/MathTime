@@ -71,7 +71,12 @@ function watchPixelRatio() {
 fontsReady().then(() => {
   safeLayout();
   document.documentElement.classList.remove('loading');
-  new ResizeObserver(relayout).observe(dom.stage);
+  // The header too: on the level selector the stage is hidden, so it alone
+  // would never report a resize. Fitting the header only changes which
+  // crumbs show, not the header's size, so this can't loop.
+  const resized = new ResizeObserver(relayout);
+  resized.observe(dom.stage);
+  resized.observe(dom.topBar);
   document.fonts.addEventListener('loadingdone', onFontsLoaded);
   watchPixelRatio();
   dom.ans.focus({ preventScroll: true });

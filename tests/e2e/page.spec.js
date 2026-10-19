@@ -73,10 +73,12 @@ test('startup measures the screen once', async ({ page }) => {
   expect(scans.total).toBe(scans.first);
 });
 
-test('a failed measurement still shows the page', async ({ page }) => {
-  // Every canvas read comes back blank, so the scanner finds no ink and throws.
+test('a failed measurement still shows the page and the real problem', async ({ page }) => {
+  // Every canvas read comes back blank, so the scanner finds no ink. A fixed
+  // random makes the problem 2 + 2, unlike the 7 + 5 in index.html.
   await page.addInitScript(() => {
     CanvasRenderingContext2D.prototype.getImageData = (sx, sy, sw, sh) => new ImageData(sw, sh);
+    Math.random = () => 0.25;
   });
   const errors = [];
   page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
@@ -85,4 +87,16 @@ test('a failed measurement still shows the page', async ({ page }) => {
   await expect(page.locator('.pad')).toBeVisible();
   await expect(page.locator('#ans')).toBeFocused();
   expect(errors.join('\n')).toContain('No ink');
+  const shown = await page.evaluate(() => ({
+    problem: window.mathtime.game.state.problem,
+    a: document.querySelector('#a').textContent,
+    b: document.querySelector('#b').textContent,
+  }));
+  expect(shown.a).toBe(String(shown.problem.a));
+  expect(shown.b).toBe(String(shown.problem.b));
+  const answer = await page.evaluate(() => {
+    window.mathtime.view.renderAnswer('7');
+    return document.querySelector('#shown').textContent;
+  });
+  expect(answer).toBe('7');
 });
