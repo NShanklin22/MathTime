@@ -258,7 +258,8 @@ body {
   cursor: pointer;
 }
 .select button:hover { background: var(--key-press); }
-.select button:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+/* Amber, so it reads as focus rather than a second white border. */
+.select button:focus-visible { outline: 2px solid var(--amber); outline-offset: 4px; }
 body.at-select .stage, body.at-select .pad, body.at-select .lives { display: none; }
 body.at-select .select { display: flex; }
 

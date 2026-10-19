@@ -56,16 +56,39 @@ export function createView(dom, layout, level) {
     if (e.target === eq && e.animationName !== 'out') eq.classList.remove(...ANIMS);
   });
 
-  // Green for 0.35s, slide out, swap in the next problem, slide in.
+  // Resolves when the equation's `name` animation ends, or after `ms` if it
+  // never does (animations turned off).
+  function ended(name, ms) {
+    return new Promise(resolve => {
+      const done = () => {
+        clearTimeout(timer);
+        eq.removeEventListener('animationend', onEnd);
+        resolve();
+      };
+      const onEnd = e => { if (e.target === eq && e.animationName === name) done(); };
+      const timer = setTimeout(done, ms);
+      eq.addEventListener('animationend', onEnd);
+    });
+  }
+
+  // Tell screen readers which problem is now on screen.
+  function announceProblem(state) {
+    status.textContent = `Question ${state.question}: ${state.problem.a} plus ${state.problem.b}`;
+  }
+
+  // Green for 0.35s, slide out, swap in the next problem, slide in. The swap
+  // waits for the slide-out itself: its first frame comes a little after it
+  // is asked for, so a timer would cut it short.
   async function showCorrect(state, next) {
     status.textContent = `Question ${state.question} correct`;   // differs each time, so it is re-announced
     eq.classList.add('correct');
     await wait(350);
     play('out');
-    await wait(220);
+    await ended('out', 400);
     next();
     eq.classList.remove('correct');
     render(state);
+    announceProblem(state);
     play('in');
   }
 
@@ -85,5 +108,5 @@ export function createView(dom, layout, level) {
     document.body.classList.add('at-select');
   }
 
-  return { render, renderAnswer, showCorrect, showWrong, showOut };
+  return { render, renderAnswer, announceProblem, showCorrect, showWrong, showOut };
 }

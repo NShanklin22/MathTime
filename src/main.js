@@ -31,7 +31,7 @@ bindInput(dom, key => {
   if (result === 'correct') view.showCorrect(game.state, () => game.next());
   if (result === 'out') view.showOut(game.state).then(() => $('#level1').focus({ preventScroll: true }));
   return result;
-});
+}, () => game.state.typed);
 
 // Fonts already measured: those loaded at the first successful layout, plus
 // every one loaded since. Their load events need no second measure.
@@ -84,6 +84,7 @@ $('#level1').addEventListener('click', () => {
   game.restart();
   document.body.classList.remove('at-select');
   safeLayout();
+  view.announceProblem(game.state);
   dom.ans.focus({ preventScroll: true });
 });
 
