@@ -6,8 +6,7 @@
 <title>MathTime</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<!-- IBM Plex Mono for everything; IBM Plex Sans supplies Greek (spec §5.2). -->
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=block">
+<!-- The Google Fonts stylesheet (IBM Plex Mono and Sans) is added by src/fonts.js so it can be timed out. -->
 <link rel="stylesheet" href="src/styles.css">
 <script type="module" src="src/main.js"></script>
 </head>
@@ -19,7 +18,7 @@
         <svg class="sep stage-sep" viewBox="0 0 12 12" aria-hidden="true"><path d="M4.5 2.5L8 6l-3.5 3.5"/></svg>
         <span class="sub-name">Addition</span>
         <svg class="sep sub-sep" viewBox="0 0 12 12" aria-hidden="true"><path d="M4.5 2.5L8 6l-3.5 3.5"/></svg>
-        <span class="here">Level 1</span>
+        <span class="here" aria-current="step">Level 1</span>
       </div>
       <div class="road" role="img" aria-label="Roadmap stage 1 of 7: Arithmetic. Then fractions, algebra, geometry, trigonometry, calculus, physics.">
         <span class="now" title="Arithmetic"></span>
@@ -50,13 +49,14 @@
         <input id="ans" inputmode="none" maxlength="2" autocomplete="off" aria-label="Answer">
       </span>
     </div>
+    <p class="sr-only" role="status" id="status"></p>
   </main>
 
   <div class="select">
     <button id="level1">Level 1</button>
   </div>
 
-  <nav class="pad" aria-label="Keypad">
+  <div class="pad" role="group" aria-label="Keypad">
     <button data-k="1"><span class="kl">1</span></button>
     <button data-k="2"><span class="kl">2</span></button>
     <button data-k="3"><span class="kl">3</span></button>
@@ -69,6 +69,6 @@
     <button data-k="Backspace" aria-label="Delete"><svg viewBox="0 0 24 24" aria-hidden="true"><g transform="translate(-0.5 0)"><path d="M20 6H9l-5 6l5 6h11a1 1 0 0 0 1-1V7a1 1 0 0 0-1-1z"/><path d="M12.25 10.25l3.5 3.5m0-3.5l-3.5 3.5"/></g></svg></button>
     <button data-k="0"><span class="kl">0</span></button>
     <button data-k="Enter" class="go" aria-label="Check answer"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 12.5l5.5 5.5l11.5-11.5"/></svg></button>
-  </nav>
+  </div>
 </body>
 </html>

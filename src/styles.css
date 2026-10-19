@@ -11,6 +11,7 @@
   --heart-lost: #8fb0dd;
   --key-ring: inset 0 0 0 1.5px rgba(238, 245, 255, 0.8);
   --key-press: rgba(255, 255, 255, 0.12);
+  --go-press: #cfe0f7;       /* the check key while pressed */
   --font: "IBM Plex Mono", "IBM Plex Sans", ui-monospace, monospace;
 }
 
@@ -27,12 +28,27 @@ body {
   color: var(--ink);
   font-family: var(--font);
   overflow: hidden;
+  height: 100vh;
   height: 100dvh;
   display: grid;
   grid-template-rows: auto 1fr auto;
   grid-template-columns: minmax(0, 1fr);
   -webkit-tap-highlight-color: transparent;
   user-select: none;
+}
+
+/* Visually hidden, still read by screen readers (live region for answers). */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 /* ---------- Header: roadmap position and lives ---------- */
@@ -97,6 +113,7 @@ body {
   align-items: center;
   gap: 0.3em;
   font-weight: 500;
+  font-size: clamp(40px, min(17vw, 15vh), 128px);
   font-size: clamp(40px, min(17vw, 15dvh), 128px);
 }
 .eq > * { display: block; height: 1em; line-height: 1; }
@@ -205,6 +222,7 @@ body {
   padding: 0 16px max(16px, env(safe-area-inset-bottom));
 }
 .pad button {
+  height: clamp(48px, 7.5vh, 64px);
   height: clamp(48px, 7.5dvh, 64px);
   padding: 0;
   border: 0;
@@ -226,7 +244,7 @@ body {
 .pad button svg path { fill: none; stroke: currentColor; stroke-width: 2.25; stroke-linecap: round; stroke-linejoin: round; }
 .pad button.go { background: var(--ink); color: var(--bg); box-shadow: none; }
 .pad button:active, .pad button.pressed { background: var(--key-press); transform: scale(0.97); }
-.pad button.go:active, .pad button.go.pressed { background: #cfe0f7; }
+.pad button.go:active, .pad button.go.pressed { background: var(--go-press); }
 .pad button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
 
 /* ---------- Level selector (bare minimum) ---------- */
