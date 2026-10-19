@@ -120,7 +120,7 @@ Every point below was measured in real rendered pixels at 375×812 (pixel ratio 
 | Answer baseline vs problem baseline | 0px |
 | Caret top and bottom vs digit ink | Reaches the ink at both ends, never short |
 | Answer horizontal centring (every answer 0–18) | ≤ 0.5px |
-| Box padding, widest answer | Equal on all four sides, within about 0.5px |
+| Box padding, widest answer | Equal on all four sides, within about 0.5px. Left and right are measured from the answer's ink; top and bottom from the ink band of all ten digits, since the box must fit every digit. Flat-topped answers like "14" therefore sit about 1 device pixel inside that band. |
 | Keypad digit labels vs key centre (ink) | ≤ 0.5px both ways |
 | Equation position while typing or after a wrong answer | 0px movement |
 | Gutters | ≥ 16px phone, ≥ 24px desktop, overhangs included; no horizontal scroll |
