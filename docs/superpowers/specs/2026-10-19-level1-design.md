@@ -88,13 +88,13 @@ An engineering-drawing look: white line work on blueprint-blue grid paper. It po
 | Ink (digits, current crumb) | `#eef5ff` |
 | Muted (operators, other crumbs, question label) | `#b6cdee` |
 | Answer box line | `#eef5ff`, 2px or 0.025em (whichever is larger), square corners |
-| Construction outline | 1px dashed white at 55% opacity, offset 5px or 0.06em (whichever is larger) outside the box |
+| Construction outline | 1px dashed, ink colour (`#eef5ff`) at 55% opacity, offset 5px or 0.06em (whichever is larger) outside the box |
 | Caret, current roadmap segment | amber `#ffd66b` |
 | Upcoming roadmap segments | `#6f95cc` (3:1 against the background) |
 | Correct | `#8ff0c0` (answer digits and box line) |
 | Hearts | `#eef5ff` solid; a lost heart is a dashed `#8fb0dd` outline |
-| Keys | Transparent, 1.5px inset outline in white at 80% opacity, square corners. Pressed: white 12% fill. |
-| Check key | Solid `#eef5ff` with a `#12407e` icon |
+| Keys | Transparent, 1.5px inset outline in the ink colour (`#eef5ff`) at 80% opacity, square corners. Pressed: white 12% fill. |
+| Check key | Solid `#eef5ff` with a `#12407e` icon. Pressed: `#cfe0f7`. |
 
 The amber caret matters. In this font, a white "1" next to a white caret reads as "11"; the colour difference prevents that.
 
