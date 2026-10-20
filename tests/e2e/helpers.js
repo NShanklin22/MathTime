@@ -1,3 +1,4 @@
+import { test } from '@playwright/test';
 import { PNG } from 'pngjs';
 
 // Load the game and wait until fonts are in and the first layout is done.
@@ -24,6 +25,21 @@ export const showOutline = page => page.evaluate(rule => {
 // Wait out a resize: ResizeObserver reports it, then the layout runs in the
 // next animation frame.
 export const settle = page => page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(r)))));
+
+// Resize the page, keeping the project's own pixel ratio. setViewportSize
+// would drop the phone project's real 2x to 1x, so the phone's size is
+// emulated. The desktop project's viewport belongs to Playwright, which puts
+// it back for screenshots, so that one is resized through Playwright (1x).
+export async function resize(page, width, height) {
+  if (test.info().project.name === 'phone') {
+    const cdp = await page.context().newCDPSession(page);
+    await cdp.send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 2, mobile: false });
+  } else {
+    await page.setViewportSize({ width, height });
+  }
+  await page.waitForFunction(([w, h]) => innerWidth === w && innerHeight === h, [width, height]);
+  await settle(page);
+}
 
 // Put a known problem on screen, centred on its ink as a new problem is
 // (uses the handle main.js exposes for tests).
@@ -76,7 +92,10 @@ async function boxWindow(page) {
   const fs = await page.evaluate(() => parseFloat(getComputedStyle(document.querySelector('#eq')).fontSize));
   const side = Math.max(fs / 4, 8);
   const top = Math.max(s.top - fs / 2 - side, q.bottom, stage.top);
-  return { s, top, bottom: Math.min(s.bottom + fs / 2 + side, stage.bottom), side };
+  return {
+    s, top, bottom: Math.min(s.bottom + fs / 2 + side, stage.bottom),
+    left: Math.max(s.left - side, stage.left), right: Math.min(s.right + side, stage.right),
+  };
 }
 
 // The answer box's outer edges, measured from pixels (it is a pseudo-element).
@@ -88,8 +107,69 @@ export async function boxEdges(page, shot) {
 
 // The dashed outline's outer edges, from pixels. Needs showOutline() after freeze().
 export async function outlineEdges(page, shot) {
-  const { s, top, bottom, side } = await boxWindow(page);
-  return ink(shot, { left: s.left - side, right: s.right + side, top, bottom }, OUTLINE);
+  const { left, right, top, bottom } = await boxWindow(page);
+  return ink(shot, { left, right, top, bottom }, OUTLINE);
+}
+
+// How far the centre of what you see of the equation, from the first digit's
+// ink to the box's dashed outline, is right of the problem area's centre.
+// Needs showOutline().
+export async function groupOffset(page) {
+  const shot = await capture(page);
+  const first = await digitInk(page, shot, '#a');
+  const outline = await outlineEdges(page, shot);
+  const s = await rect(page, '.stage');
+  return { offset: (first.left + outline.right) / 2 - (s.left + s.right) / 2, first, outline, shot };
+}
+
+// The ink gap from "=" to the box's outer edge, and the mean of the ink gaps
+// either side of the second number over all ten digits ("+" → digit and
+// digit → "="). Needs freeze().
+export async function equalsGap(page) {
+  let sum = 0;
+  for (let b = 0; b <= 9; b++) {
+    await setProblem(page, 5, b);
+    const shot = await capture(page);
+    const plus = ink(shot, await rect(page, '.op', 0), MUTED);
+    const digit = await digitInk(page, shot, '#b');
+    const equals = ink(shot, await rect(page, '.op', 1), MUTED);
+    sum += (digit.left - plus.right) + (equals.left - digit.right);
+  }
+  const shot = await capture(page);
+  const equals = ink(shot, await rect(page, '.op', 1), MUTED);
+  return { mean: sum / 20, gap: (await boxEdges(page, shot)).left - equals.right };
+}
+
+// "Question N"'s ink, as far as the problem area shows it (it clips the rest).
+export async function labelInk(page, shot) {
+  const q = await rect(page, '#qnum');
+  const stage = await rect(page, '.stage');
+  return ink(shot, { left: q.left - 4, right: q.right + 4, top: Math.max(q.top - 4, stage.top), bottom: Math.min(q.bottom + 4, stage.bottom) }, MUTED);
+}
+
+// How far "Question N"'s ink is below the problem area's top (null if it is
+// clipped away), and the box's dashed outline above its bottom. Needs
+// showOutline().
+export async function clearances(page) {
+  const shot = await capture(page);
+  const stage = await rect(page, '.stage');
+  const label = await labelInk(page, shot);
+  const outline = await outlineEdges(page, shot);
+  return { above: label && label.top - stage.top, below: stage.bottom - outline.bottom };
+}
+
+// How far each digit key's label ink is from its key's centre, worst case
+// across and down. Needs freeze().
+export async function keyLabelOffsets(page) {
+  const shot = await capture(page);
+  let across = 0, down = 0;
+  for (const k of '0123456789') {
+    const r = await rect(page, `.pad button[data-k="${k}"]`);
+    const label = ink(shot, { left: r.left + 4, right: r.right - 4, top: r.top + 4, bottom: r.bottom - 4 });
+    across = Math.max(across, Math.abs(label.midX - (r.left + r.width / 2)));
+    down = Math.max(down, Math.abs(label.midY - (r.top + r.height / 2)));
+  }
+  return { across, down };
 }
 
 export async function capture(page) {

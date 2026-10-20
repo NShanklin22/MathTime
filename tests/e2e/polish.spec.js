@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import {
-  open, freeze, showOutline, settle, setProblem, rect, capture, ink, digitInk, digitBand, boxEdges, outlineEdges,
-  typeKeys, TOL, MUTED, LOST,
+  open, freeze, showOutline, settle, resize, setProblem, rect, capture, ink, digitBand, groupOffset,
+  equalsGap, labelInk, clearances, typeKeys, TOL, MUTED, LOST,
 } from './helpers.js';
 
 // The spacing, centring, header and short-screen targets of spec §3.1, §3.2
@@ -14,17 +14,6 @@ const layOut = (page, a, b) => page.evaluate(([a, b]) => {
   layout.layout();
 }, [a, b]);
 
-// How far the centre of what you see of the equation, from the first digit's
-// ink to the box's dashed outline, is right of the problem area's centre.
-// Needs showOutline().
-async function groupOffset(page) {
-  const shot = await capture(page);
-  const first = await digitInk(page, shot, '#a');
-  const outline = await outlineEdges(page, shot);
-  const s = await rect(page, '.stage');
-  return (first.left + outline.right) / 2 - (s.left + s.right) / 2;
-}
-
 // Records a measurement in the report, so drift shows.
 const note = (type, px) => test.info().annotations.push({ type, description: `${px.toFixed(3)}px` });
 
@@ -34,20 +23,7 @@ test.beforeEach(async ({ page }) => {
 });
 
 test('the ink gap from "=" to the box matches the mean ink gap around the second number', async ({ page }) => {
-  // The mean over every digit of the gaps "+" → digit and digit → "=".
-  let sum = 0;
-  for (let b = 0; b <= 9; b++) {
-    await setProblem(page, 5, b);
-    const shot = await capture(page);
-    const plus = ink(shot, await rect(page, '.op', 0), MUTED);
-    const digit = await digitInk(page, shot, '#b');
-    const equals = ink(shot, await rect(page, '.op', 1), MUTED);
-    sum += (digit.left - plus.right) + (equals.left - digit.right);
-  }
-  const mean = sum / 20;
-  const shot = await capture(page);
-  const equals = ink(shot, await rect(page, '.op', 1), MUTED);
-  const gap = (await boxEdges(page, shot)).left - equals.right;
+  const { mean, gap } = await equalsGap(page);
   note('mean digit gap', mean);
   note('"=" → box gap', gap);
   expect(Math.abs(gap - mean)).toBeLessThanOrEqual(TOL);
@@ -58,11 +34,25 @@ test('what you see of the equation is centred, for every first digit', async ({ 
   let worst = 0;
   for (let a = 0; a <= 9; a++) {
     await layOut(page, a, 5);
-    const off = await groupOffset(page);
+    const off = (await groupOffset(page)).offset;
     worst = Math.max(worst, Math.abs(off));
     expect(Math.abs(off), `a = ${a}: ${off.toFixed(3)}px`).toBeLessThanOrEqual(TOL);
   }
   note('worst centring', worst);
+});
+
+test('"Question N" has its ink centred over what you see', async ({ page }) => {
+  await showOutline(page);
+  let worst = 0;
+  for (const [question, a] of [[1, 5], [7, 4], [10, 7], [18, 1]]) {
+    await page.evaluate(n => { window.mathtime.game.state.question = n; }, question);
+    await setProblem(page, a, 3);
+    const { first, outline, shot } = await groupOffset(page);
+    const off = (await labelInk(page, shot)).midX - (first.left + outline.right) / 2;
+    worst = Math.max(worst, Math.abs(off));
+    expect(Math.abs(off), `Question ${question}, a = ${a}: ${off.toFixed(3)}px`).toBeLessThanOrEqual(TOL);
+  }
+  note('worst label centring', worst);
 });
 
 // "4" and "7" have the least and the most space before their ink in Plex
@@ -91,7 +81,7 @@ test('a new problem after a correct answer is centred before it slides in', asyn
   await expect(page.locator('#qnum')).toHaveText('Question 2');
   await expect(page.locator('#eq')).not.toHaveClass(/\bin\b/);   // it has slid in
   expect(await page.evaluate(() => document.querySelector('#eq').style.left)).toBe(await page.evaluate(() => window.leftAtSlideIn));
-  const off = await groupOffset(page);
+  const off = (await groupOffset(page)).offset;
   note('centring after a correct answer', off);
   expect(Math.abs(off)).toBeLessThanOrEqual(TOL);
 });
@@ -118,7 +108,7 @@ test('the first problem of a restarted game is centred from its first frame', as
   await expect(page.locator('#a')).toHaveText('7');
   await settle(page);                                     // any later layout has run
   expect(await page.evaluate(() => document.querySelector('#eq').style.left)).toBe(await page.evaluate(() => window.leftAtRestart));
-  const off = await groupOffset(page);
+  const off = (await groupOffset(page)).offset;
   note('centring after a restart', off);
   expect(Math.abs(off)).toBeLessThanOrEqual(TOL);
 });
@@ -167,49 +157,80 @@ test('the header\'s ink margins match left and right, full or lost', async ({ pa
   }
 });
 
-// Landscape phones leave a short problem area; the tall, narrow one is a
-// sanity check that needs no shrinking for height.
-for (const [width, height] of [[667, 375], [844, 390], [568, 320], [320, 740]]) {
+const fontSize = page => page.evaluate(() => parseFloat(getComputedStyle(document.querySelector('#eq')).fontSize));
+
+// Short portrait screens leave a short problem area (landscape ones get the
+// keypad beside it: landscape.spec.js); the tall, narrow one is a sanity
+// check that needs no shrinking for height.
+for (const [width, height] of [[360, 400], [400, 430], [320, 740]]) {
   test(`at ${width}×${height}, "Question N" and the box clear the problem area by 8px`, async ({ page }) => {
-    // Keep the project's own pixel ratio. setViewportSize would drop the
-    // phone project's real 2x to 1x, so the phone's size is emulated. The
-    // desktop project's viewport belongs to Playwright, which puts it back
-    // for screenshots, so that one is resized through Playwright (still 1x).
-    if (test.info().project.name === 'phone') {
-      const cdp = await page.context().newCDPSession(page);
-      await cdp.send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 2, mobile: false });
-    } else {
-      await page.setViewportSize({ width, height });
-    }
-    await page.waitForFunction(([w, h]) => innerWidth === w && innerHeight === h, [width, height]);
-    await settle(page);
+    await resize(page, width, height);
     const stage = await rect(page, '.stage');
     // The digit ink stays centred in the problem area.
     const digits = await digitBand(page);
     note('digit ink below centre', digits.mid - (stage.top + stage.bottom) / 2);
     expect(Math.abs(digits.mid - (stage.top + stage.bottom) / 2), 'digit ink centre').toBeLessThanOrEqual(TOL);
     await showOutline(page);
-    const shot = await capture(page);
-    const q = await rect(page, '#qnum');
-    // Only what the problem area shows: it clips anything outside it. The
-    // layout boxes are recorded too, since clipped ink can't say how far out
-    // it would reach.
-    note('"Question N" box below the top', q.top - stage.top);
-    note('box outline below the bottom', await page.evaluate(() => {
-      const after = getComputedStyle(document.querySelector('#slot'), '::after');
-      const bottom = document.querySelector('#slot').getBoundingClientRect().top + parseFloat(after.top) + parseFloat(after.height);
-      return document.querySelector('.stage').getBoundingClientRect().bottom - bottom - parseFloat(after.outlineOffset) - parseFloat(after.outlineWidth);
-    }));
-    const label = ink(shot, { left: q.left - 4, right: q.right + 4, top: stage.top, bottom: Math.min(q.bottom + 4, stage.bottom) }, MUTED);
-    const box = await outlineEdges(page, shot);
-    expect(label, '"Question N" shows').not.toBeNull();
-    note('"Question N" ink below the top', label.top - stage.top);
-    note('outline ink above the bottom', stage.bottom - box.bottom);
-    expect(label.top - stage.top, '"Question N" clear above').toBeGreaterThanOrEqual(8);
-    expect(stage.bottom - box.bottom, 'box clear below').toBeGreaterThanOrEqual(8);
-    if (height > width) {
+    const { above, below } = await clearances(page);
+    expect(above, '"Question N" shows').not.toBeNull();
+    note('font size', await fontSize(page));
+    note('"Question N" ink below the top', above);
+    note('outline ink above the bottom', below);
+    expect(above, '"Question N" clear above').toBeGreaterThanOrEqual(8);
+    expect(below, 'box clear below').toBeGreaterThanOrEqual(8);
+    if (height > 600) {
       // Tall enough: nothing shrinks for height, so the label keeps its size.
       expect(await page.evaluate(() => getComputedStyle(document.querySelector('#qnum')).fontSize)).toBe('15px');
     }
   });
 }
+
+// Where the digits' ink band sits against the problem area, from the layout
+// (pixels can't show what the problem area clips), and how far inside it the
+// drawn digit ink stays.
+async function digitsInside(page) {
+  const stage = await rect(page, '.stage');
+  const band = await page.evaluate(() => {
+    const eq = document.querySelector('#eq');
+    const cs = getComputedStyle(eq);
+    const fs = parseFloat(cs.fontSize);
+    const top = eq.getBoundingClientRect().top + parseFloat(cs.getPropertyValue('--ink-top')) * fs;
+    return { top, bottom: top + parseFloat(cs.getPropertyValue('--ink-h')) * fs };
+  });
+  const shot = await capture(page);
+  let drawn = Infinity;
+  for (const sel of ['#a', '#b']) {
+    const r = await rect(page, sel);
+    const d = ink(shot, { ...r, top: Math.max(r.top - 4, stage.top), bottom: Math.min(r.bottom + 4, stage.bottom) });
+    drawn = Math.min(drawn, d.top - stage.top, stage.bottom - d.bottom);
+  }
+  return { above: band.top - stage.top, below: stage.bottom - band.bottom, drawn };
+}
+
+test('a problem area too short for 8px clear still fits the whole group', async ({ page }) => {
+  // About 30px tall: no font size keeps 8px clear, because the box border
+  // and outline keep their px sizes.
+  await resize(page, 300, 310);
+  await showOutline(page);
+  const { above, below } = await clearances(page);
+  note('font size', await fontSize(page));
+  expect(above, '"Question N" shows').not.toBeNull();
+  note('"Question N" ink below the top', above);
+  note('outline ink above the bottom', below);
+  expect(Math.min(above, below), 'less than 8px clear: the rule cannot be met').toBeLessThan(8);
+  expect(above, '"Question N" inside').toBeGreaterThanOrEqual(0);
+  expect(below, 'outline inside').toBeGreaterThanOrEqual(0);
+  const digits = await digitsInside(page);
+  expect(Math.min(digits.above, digits.below), 'digit ink band inside').toBeGreaterThanOrEqual(0);
+});
+
+test('a problem area too short even for the box still shows the digits whole', async ({ page }) => {
+  await page.addStyleTag({ content: '.stage{max-height:14px!important}' });
+  await settle(page);
+  expect((await rect(page, '.stage')).height).toBe(14);
+  const digits = await digitsInside(page);
+  note('font size', await fontSize(page));
+  note('digit ink band inside, worst side', Math.min(digits.above, digits.below));
+  expect(Math.min(digits.above, digits.below), 'digit ink band inside').toBeGreaterThanOrEqual(0);
+  expect(digits.drawn, 'drawn digits not cut by the edge').toBeGreaterThan(0.25);
+});

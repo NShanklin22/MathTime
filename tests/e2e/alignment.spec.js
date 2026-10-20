@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { open, freeze, showOutline, setProblem, rect, capture, ink, digitInk, digitBand, boxEdges, outlineEdges, TOL } from './helpers.js';
+import { open, freeze, showOutline, resize, setProblem, rect, capture, ink, digitInk, digitBand, boxEdges, outlineEdges, TOL } from './helpers.js';
 
 // The box's outer edges and centre, and the area inside its border (with 1px
 // to spare) where answers are measured.
@@ -255,10 +255,10 @@ test('a repeat layout after a full shrink needs no new scans', async ({ page }) 
   expect(reads).toBe(0);
 });
 
-test('a layout during an animation still puts the equation on whole device pixels', async ({ page }) => {
-  // The shake and slide animations move #eq with a transform. Lay out while
-  // it is moved, then check where it lands once the transform is gone. Where
-  // it goes depends on the first digit, so try each.
+// The shake and slide animations move #eq with a transform. Lay out while it
+// is moved, then check where it lands once the transform is gone. Where it
+// goes depends on the first digit, so try each.
+async function laidOutOnGrid(page) {
   for (let a = 0; a <= 9; a++) {
     await page.evaluate(a => {
       const { game, layout } = window.mathtime;
@@ -277,6 +277,17 @@ test('a layout during an animation still puts the equation on whole device pixel
     expect(off.left, `a = ${a}: left edge, device px from the grid`).toBeLessThanOrEqual(0.01);
     expect(off.baseline, `a = ${a}: baseline, device px from the grid`).toBeLessThanOrEqual(0.01);
   }
+}
+
+test('a layout during an animation still puts the equation on whole device pixels', async ({ page }) => {
+  await laidOutOnGrid(page);
+});
+
+test('the equation lands on whole device pixels at an odd width too', async ({ page }) => {
+  // Where the equation's natural place has a finer fraction of a pixel, a
+  // length written with too few digits is cut short (see onLayoutGrid).
+  await resize(page, 381, 812);
+  await laidOutOnGrid(page);
 });
 
 test('the header stays on one line at 320px wide', async ({ page }) => {
