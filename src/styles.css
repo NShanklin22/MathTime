@@ -15,6 +15,7 @@
   --font: "IBM Plex Mono", "IBM Plex Sans", ui-monospace, monospace;
   --gutter: 24px;            /* side gutters (spec §5.3); layout.js reads it too */
   --top-pad: 20px;           /* above the header */
+  --top-safe: max(var(--top-pad), env(safe-area-inset-top));
 }
 
 *, *::before, *::after { box-sizing: border-box; }
@@ -58,7 +59,8 @@ body {
   align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
-  padding: var(--top-pad) var(--gutter) 0;
+  /* Clear of any notch or rounded corner (viewport-fit=cover). */
+  padding: var(--top-safe) max(var(--gutter), env(safe-area-inset-right)) 0 max(var(--gutter), env(safe-area-inset-left));
 }
 .where { min-width: 0; }
 .crumbs {
@@ -276,8 +278,9 @@ body {
 body.at-select .stage, body.at-select .pad, body.at-select .lives { display: none; }
 body.at-select .select { display: flex; }
 
-/* Phones, upright or sideways: 16px gutters and a tighter header. Sideways,
-   the header's right edge then lines up with the keypad's. */
+/* Narrow screens and phones held sideways (§3.4): 16px gutters and a tighter
+   header. Sideways, the header's right padding is the keypad's, so the
+   hearts end where the keys do. */
 @media (max-width: 480px), (orientation: landscape) and (max-height: 560px) and (min-aspect-ratio: 3/2) {
   :root { --gutter: 16px; --top-pad: 16px; }
 }
@@ -298,8 +301,9 @@ body.at-select .select { display: flex; }
   }
   .top { grid-area: top; }
   .stage, .select { grid-area: stage; }
+  .stage { margin-left: env(safe-area-inset-left); }   /* its rect is the safe part, which layout.js centres in */
   .pad {
-    --key-h: clamp(40px, (100dvh - var(--top-pad) - 32px - 16px - max(16px, env(safe-area-inset-bottom)) - 24px) / 4, 64px);
+    --key-h: clamp(40px, (100dvh - var(--top-safe) - 32px - 16px - max(16px, env(safe-area-inset-bottom)) - 24px) / 4, 64px);
     grid-area: pad;
     width: auto;
     max-width: none;
