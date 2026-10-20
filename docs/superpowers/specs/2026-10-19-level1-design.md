@@ -48,11 +48,13 @@ The screen has three stacked bands that fill the viewport. The page never scroll
 ### 3.1 Header
 - **Breadcrumb**, top left: `Arithmetic › Addition › Level 1`. The current step ("Level 1") is brighter and heavier.
 - **Roadmap strip**, under the breadcrumb: 7 short segments for the 7 stages (Arithmetic, Fractions, Algebra, Geometry, Trigonometry, Calculus, Physics). The current stage is highlighted. Each segment has its stage name as a tooltip, and the strip has an accessible label.
-- **Lives**, top right: 3 hearts. A lost life shows as a dashed outline heart. Lives are lost right to left.
+- **Lives**, top right: 3 hearts. A lost life shows as a dashed outline heart. Lives are lost right to left. The hearts are centred vertically on the breadcrumb's text line, and the hearts' right ink edge sits the same distance from the screen edge as the breadcrumb's left ink edge.
 - The header must stay on one line. When space runs out, crumbs drop from the left: first "Arithmetic ›", then "Addition ›". The roadmap strip still shows the stage.
 
 ### 3.2 Problem area
-- The equation `a + b = [box]` is big and centred, both horizontally and vertically, between the header and the keypad.
+- The equation `a + b = [box]` is big and centred, both horizontally and vertically, between the header and the keypad. Horizontal centring is of what you see: from the first digit's ink to the box's dashed outline.
+- The space between neighbours is even: the ink gap from "=" to the box's outer edge matches the ink gaps between the other symbols.
+- On short screens (for example a phone held sideways) the equation shrinks until "Question N" and the box both fit inside the problem area with at least 8px to spare above and below.
 - "Question N" sits centred above the equation, in a smaller muted style.
 - The answer is typed **inside the box, inline after "="**. There is no separate input field.
 
@@ -124,6 +126,11 @@ Every point below was measured in real rendered pixels at 375×812 (pixel ratio 
 | Keypad digit labels vs key centre (ink) | ≤ 0.5px both ways |
 | Equation position while typing or after a wrong answer | 0px movement |
 | Gutters | ≥ 16px phone, ≥ 24px desktop, overhangs included; no horizontal scroll |
+| Visible group (first digit ink to box outline) horizontal centre vs problem-area centre | ≤ 0.5px, for every problem |
+| Ink gap "=" → box vs mean of the other ink gaps | ≤ 0.5px |
+| Hearts centre vs breadcrumb text centre | ≤ 0.5px |
+| Header ink margins, left vs right | ≤ 0.5px apart |
+| "Question N" and box inside the problem area | ≥ 8px clear above and below, at every screen size including landscape phones |
 
 ### 6.1 How the mockup achieves it (keep these techniques)
 Browsers position text by its character box, not by its ink, and fonts differ a lot. So alignment is measured, not assumed:
