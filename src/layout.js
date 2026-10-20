@@ -14,7 +14,7 @@ const px = v => onLayoutGrid(v, devicePixelRatio) + 'px';
 // view calls it again after drawing a new one.
 export function createLayout(dom, scan, possibleAnswers) {
   const { eq, a, slot, caret, qnum, stage, topBar } = dom;
-  const geo = { fs: 0, style: null, base: 0.8, mid: 0.5, boxW: 1.2, wide: 0.6 };
+  const geo = { fs: 0, style: null, base: 0.8, mid: 0.5, inkH: 0.72, boxW: 1.2, wide: 0.6 };
   const api = { geo, inkOf, layout, place, afterMeasure: null };
 
   // Ink geometry of `text` centred across `width` em, at the current size
@@ -46,6 +46,7 @@ export function createLayout(dom, scan, possibleAnswers) {
     const each = DIGITS.map(c => scan(c, geo.style, size));
     const digits = band({ asc: Math.max(...each.map(m => m.asc)), desc: Math.max(...each.map(m => m.desc)) }, geo.base);
     geo.mid = digits.mid;
+    geo.inkH = digits.h;
     geo.wide = Math.max(...each.map(m => m.adv));
     geo.boxW = Math.max(...possibleAnswers.map(s => inkOf(s, 0).w));
     eq.style.setProperty('--fs', geo.fs + 'px');
@@ -186,12 +187,17 @@ export function createLayout(dom, scan, possibleAnswers) {
     // round fall short, so it takes a few.
     const gutter = parseFloat(getComputedStyle(stage).getPropertyValue('--gutter'));   // 16px on phones
     const across = stage.clientWidth - 2 * gutter - 1;   // 1px slack for pixel snapping
-    const down = stage.clientHeight / 2 - 8 - 0.5;        // 0.5px slack for pixel snapping
+    const half = stage.clientHeight / 2 - 0.5;           // 0.5px slack for pixel snapping
     let labelScale = 1;
     for (let i = 0; i < 3; i++) {
       const w = across / (eqBox().width + overhang());
-      let h = heightFit(down);
-      if (!(h > 0)) h = 1;                                // too short for any size: leave it
+      // 8px clear if any size can be. Below about 33px the box border and
+      // outline leave no room for that, so the clearance goes instead and the
+      // whole group just fits. Below about 17px not even that: only the digits
+      // are fitted, with a whole pixel to spare, so they are never cut.
+      let h = heightFit(half - 8);
+      if (!(h > 0)) h = heightFit(half);
+      if (!(h > 0)) h = (half - 0.5) / (geo.inkH / 2 * geo.fs);
       if (Math.min(w, h) >= 1) break;
       if (h < w) {
         labelScale *= h;
