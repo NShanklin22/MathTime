@@ -96,7 +96,7 @@ test('a new problem after a correct answer is centred before it slides in', asyn
   expect(Math.abs(off)).toBeLessThanOrEqual(TOL);
 });
 
-test('the first problem of a restarted game is centred', async ({ page }) => {
+test('the first problem of a restarted game is centred from its first frame', async ({ page }) => {
   await showOutline(page);
   await layOut(page, 4, 3);
   await page.evaluate(() => {
@@ -106,10 +106,18 @@ test('the first problem of a restarted game is centred', async ({ page }) => {
       restart();
       game.state.problem = { a: 7, b: 1, answer: 8 };
     };
+    // Where the equation is once the click is handled (this listener runs
+    // after the game's own). A later layout, when the problem area reappears,
+    // must not be what puts it right.
+    document.querySelector('#level1').addEventListener('click', () => {
+      window.leftAtRestart = document.querySelector('#eq').style.left;
+    });
   });
   for (let i = 0; i < 3; i++) await typeKeys(page, ['9', 'Enter']);
   await page.locator('#level1').click();
   await expect(page.locator('#a')).toHaveText('7');
+  await settle(page);                                     // any later layout has run
+  expect(await page.evaluate(() => document.querySelector('#eq').style.left)).toBe(await page.evaluate(() => window.leftAtRestart));
   const off = await groupOffset(page);
   note('centring after a restart', off);
   expect(Math.abs(off)).toBeLessThanOrEqual(TOL);
