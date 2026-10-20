@@ -191,6 +191,11 @@ test('the caret is drawn the same after every digit: one width, one gap to half 
     await caretShown(page, false);
     gaps.push(caret.left - digit.right);
     widths.push(caret.right - caret.left);
+    // Laid out on whole device pixels, so what layout and tests read is what is drawn.
+    const box = await rect(page, '.caret');
+    for (const [edge, v] of [['left', box.left], ['width', box.width]]) {
+      expect(Math.abs(v * dpr - Math.round(v * dpr)), `digit ${d}: caret ${edge} on the grid`).toBeLessThanOrEqual(0.02);
+    }
   }
   const spread = list => Math.max(...list) - Math.min(...list);
   test.info().annotations.push({ type: 'gaps', description: gaps.map(g => g.toFixed(3)).join(' ') });

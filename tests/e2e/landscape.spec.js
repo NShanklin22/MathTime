@@ -222,7 +222,8 @@ async function laidOut(page) {
 test('crossing 560px tall lays out as a fresh page at the new size does', async ({ page, browser }) => {
   await open(page);
   await freeze(page);
-  for (const [width, height, beside] of [[844, 390, true], [844, 600, false], [844, 390, true]]) {
+  // 520x300 shrinks the equation for width, so the next size must let it grow back.
+  for (const [width, height, beside] of [[844, 390, true], [844, 600, false], [520, 300, true], [520, 600, false], [844, 390, true]]) {
     await resize(page, width, height);
     const now = await laidOut(page);
     // A fresh page at the same size (and ratio) for comparison.
