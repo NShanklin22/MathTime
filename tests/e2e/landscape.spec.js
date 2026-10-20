@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import {
   open, freeze, showOutline, resize, setProblem, rect, capture, ink, digitInk, digitBand, boxEdges, groupOffset,
-  equalsGap, clearances, keyLabelOffsets, TOL, MUTED,
+  equalsGap, clearances, keyLabelOffsets, labelInk, TOL, MUTED,
 } from './helpers.js';
 
 // Phones held sideways (spec §3.4): the keypad beside the problem area, and
@@ -77,14 +77,18 @@ for (const [width, height] of [[667, 375], [844, 390], [568, 320], [740, 360], [
       expect(Math.abs(gap - mean), '"=" gap').toBeLessThanOrEqual(TOL);
       // What you see is centred in the column, whatever the first digit.
       await showOutline(page);
-      let worst = 0;
+      let worst = 0, label = 0;
       for (let a = 0; a <= 9; a++) {
         await setProblem(page, a, 5);
-        const off = (await groupOffset(page)).offset;
-        worst = Math.max(worst, Math.abs(off));
-        expect(Math.abs(off), `a = ${a}: ${off.toFixed(3)}px`).toBeLessThanOrEqual(TOL);
+        const { offset, first, outline, shot } = await groupOffset(page);
+        worst = Math.max(worst, Math.abs(offset));
+        expect(Math.abs(offset), `a = ${a}: ${offset.toFixed(3)}px`).toBeLessThanOrEqual(TOL);
+        // "Question N"'s ink over the same middle.
+        label = Math.max(label, Math.abs((await labelInk(page, shot)).midX - (first.left + outline.right) / 2));
       }
       note('worst centring', worst);
+      note('worst label centring', label);
+      expect(label, '"Question N" centring').toBeLessThanOrEqual(TOL);
     });
 
     test('"Question N" and the box clear the column by 8px, inside its gutters, with no scroll', async ({ page }) => {

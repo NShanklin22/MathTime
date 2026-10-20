@@ -10,14 +10,15 @@ const NO_INK = { asc: 0, desc: 0, abl: 0, abr: 0, adv: 0, approx: true };
 // in device pixels, so font hinting matches what is drawn (spec §6.1). It is
 // drawn in its own colour too: anti-aliasing depends on how bright the text
 // is, and light text comes out about 0.3 device px heavier per side than black.
-// style: { weight, family, color } as in computed CSS (color defaults to
-// black). Returns em metrics (ink.js).
+// style: { weight, family, color, spacing } as in computed CSS, with the
+// letter spacing in em (color defaults to black, spacing to 0). Returns em
+// metrics (ink.js).
 // If the pixels can't be read, it logs that once and returns the browser's
 // rougher bounds instead (flagged `approx`), so the page still draws.
 export function createScanner() {
   const canvas = document.createElement('canvas');
   const ctx = canvas.getContext('2d', { willReadFrequently: true });
-  const groups = new Map();          // "weight|family|size" → Map("color|text" → metrics), oldest first
+  const groups = new Map();          // "weight|family|size" → Map("color|spacing|text" → metrics), oldest first
   let warned = false;
 
   // The cache for one font and size, marked as the most recently used.
@@ -32,7 +33,7 @@ export function createScanner() {
 
   function scan(text, style, size) {
     const cache = group(style, size);
-    const key = `${style.color ?? ''}|${text}`;
+    const key = `${style.color ?? ''}|${style.spacing ?? 0}|${text}`;
     if (!cache.has(key)) cache.set(key, measure(text, style, size));
     return cache.get(key);
   }
@@ -49,9 +50,14 @@ export function createScanner() {
     }
   }
 
+  // The font and letter spacing of `style` at `size` px.
+  function setFont(style, size) {
+    ctx.font = `${style.weight} ${size}px ${style.family}`;
+    ctx.letterSpacing = (style.spacing ?? 0) * size + 'px';
+  }
+
   function scanPixels(text, style, size) {
-    const font = `${style.weight} ${size}px ${style.family}`;
-    ctx.font = font;
+    setFont(style, size);
     // Size the scan area from the browser's rough (rounded) ink bounds, with
     // about 0.25em to spare on every side. The clip check below throws if
     // that is ever not enough.
@@ -64,7 +70,7 @@ export function createScanner() {
     if (canvas.width < width || canvas.height < height) {
       canvas.width = Math.max(canvas.width, width);     // resizing resets the context
       canvas.height = Math.max(canvas.height, height);
-      ctx.font = font;
+      setFont(style, size);
     }
     ctx.clearRect(0, 0, width, height);
     ctx.fillStyle = style.color ?? '#000';
@@ -82,7 +88,7 @@ export function createScanner() {
   // the page. Zeros if even those are unusable.
   function rough(text, style, size) {
     try {
-      ctx.font = `${style.weight} ${size}px ${style.family}`;
+      setFont(style, size);
       const t = ctx.measureText(text);
       const m = {
         asc: t.actualBoundingBoxAscent / size,

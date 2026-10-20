@@ -108,7 +108,7 @@ body {
    --bw: the box border width in px (kept outside the padding)
    --outline-offset: the dashed outline's offset, in whole device pixels as drawn
    --fs: the equation font size in px
-   --seen-mid: the middle of what you see, first digit's ink to outline
+   --label-x: where "Question N" goes, so its ink is centred over what you see
    --label-scale: shrinks the label's px minimums with the font on short screens */
 .eq {
   --ink-top: 0.2;
@@ -142,7 +142,7 @@ body {
 
 .qnum {
   position: absolute;
-  left: var(--seen-mid, 50%);   /* centred over what you see */
+  left: var(--label-x, 50%);   /* its ink centred over what you see */
   top: calc(var(--ink-top) * var(--fs, 100px) - var(--pad) - var(--bw) - max(0.2 * var(--fs, 100px), 18px * var(--label-scale, 1)));
   transform: translate(-50%, -100%);
   height: auto !important;

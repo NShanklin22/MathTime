@@ -239,8 +239,15 @@ export function createLayout(dom, scan, possibleAnswers) {
     const ink = digit ? inkOf(digit, geo.wide) : { off: 0, right: 0, w: 0 };
     const start = (digit ? leadIndent(digit) : 0) + (ink.right - ink.w - ink.off) * geo.fs;
     const end = snap(slot.getBoundingClientRect().right - eq.getBoundingClientRect().left, dpr) + overhang();
-    eq.style.setProperty('--seen-mid', px((start + end) / 2));   // "Question N" is centred on it
-    eq.style.left = px(snap(s.left + s.width / 2 - (start + end) / 2, dpr) - r.left);
+    const mid = (start + end) / 2;
+    eq.style.left = px(snap(s.left + s.width / 2 - mid, dpr) - r.left);
+    // "Question N" goes over the same middle, centred on its own ink: its
+    // trailing letter spacing and side bearings would leave it off-centre.
+    const ls = getComputedStyle(qnum);
+    const lfs = parseFloat(ls.fontSize);
+    const style = { weight: ls.fontWeight, family: ls.fontFamily, color: ls.color, spacing: (parseFloat(ls.letterSpacing) || 0) / lfs };
+    const label = scan(qnum.textContent, style, lfs * dpr);
+    eq.style.setProperty('--label-x', px(mid + qnum.getBoundingClientRect().width / 2 - (label.abr - label.abl) / 2 * lfs));
     const baseY = r.top + geo.base * geo.fs;
     eq.style.top = px(snap(baseY, dpr) - baseY);
   }
