@@ -13,7 +13,7 @@ const keys = page => page.evaluate(() => [...document.querySelectorAll('.pad but
   return { k: b.dataset.k, left: r.left, right: r.right, top: r.top, bottom: r.bottom, width: r.width, height: r.height };
 }));
 
-for (const [width, height] of [[667, 375], [844, 390], [568, 320], [740, 360], [896, 414]]) {
+for (const [width, height] of [[667, 375], [844, 390], [568, 320], [740, 360], [896, 414], [932, 430]]) {
   test.describe(`landscape ${width}×${height}`, () => {
     test.beforeEach(async ({ page }) => {
       await open(page);
@@ -32,22 +32,27 @@ for (const [width, height] of [[667, 375], [844, 390], [568, 320], [740, 360], [
       expect(Math.abs(stage.top - top.bottom), 'problem area under the header').toBeLessThanOrEqual(0.01);
       expect(Math.abs(stage.bottom - height), 'problem area to the bottom').toBeLessThanOrEqual(0.01);
       expect(stage.left).toBe(0);
-      // The keypad: right of it, in the same 3×4 order, 16px from the right and bottom edges.
+      // The keypad: right of it, in the same 3×4 order, 16px from the right edge.
       const left = Math.min(...pad.map(k => k.left));
       expect(left, 'keypad right of the problem area').toBeGreaterThanOrEqual(stage.right - 0.01);
       expect(pad.map(k => k.k).join(' ')).toBe('1 2 3 4 5 6 7 8 9 Backspace 0 Enter');
+      // The rows share the height below the header, less 16px above and
+      // below and three 8px gaps, up to 64px each.
+      const keyH = Math.min(64, (height - top.bottom - 16 - 16 - 24) / 4);
       pad.forEach((k, i) => {
         expect(Math.abs(k.left - pad[i % 3].left), `${k.k} column`).toBeLessThanOrEqual(0.01);
         expect(Math.abs(k.top - pad[3 * Math.floor(i / 3)].top), `${k.k} row`).toBeLessThanOrEqual(0.01);
+        expect(Math.abs(k.height - keyH), `${k.k} height`).toBeLessThanOrEqual(0.01);
         expect(k.height, `${k.k} height`).toBeGreaterThanOrEqual(40);
-        expect(k.height, `${k.k} height`).toBeLessThanOrEqual(64);
         expect(Math.abs(k.width / k.height - 1.5), `${k.k} width : height`).toBeLessThanOrEqual(0.01);
       });
       expect(Math.abs(width - Math.max(...pad.map(k => k.right)) - 16), 'right gutter').toBeLessThanOrEqual(0.5);
-      expect(Math.abs(height - Math.max(...pad.map(k => k.bottom)) - 16), 'bottom gutter').toBeLessThanOrEqual(0.5);
-      expect(Math.min(...pad.map(k => k.top)) - top.bottom, 'room below the header').toBeGreaterThanOrEqual(16 - 0.5);
-      // The rows share the height: keys below their 64px cap leave no more room than the gutter.
-      if (pad[0].height < 64) expect(Math.min(...pad.map(k => k.top)) - top.bottom).toBeLessThanOrEqual(16 + 0.5);
+      const padTop = Math.min(...pad.map(k => k.top)), padBottom = Math.max(...pad.map(k => k.bottom));
+      expect(padTop - top.bottom, 'room below the header').toBeGreaterThanOrEqual(16 - 0.5);
+      expect(height - padBottom, 'bottom gutter').toBeGreaterThanOrEqual(16 - 0.5);
+      // Centred in its band, which shares the problem area's centre.
+      note('keypad centre below the problem area\'s', (padTop + padBottom) / 2 - (stage.top + stage.bottom) / 2);
+      expect(Math.abs((padTop + padBottom) / 2 - (stage.top + stage.bottom) / 2), 'keypad centre').toBeLessThanOrEqual(0.5);
     });
 
     test('the equation keeps the alignment rules in its column', async ({ page }) => {
@@ -136,3 +141,18 @@ test('the level selector uses the whole width in landscape', async ({ page }) =>
   const button = await rect(page, '#level1');
   expect(Math.abs(button.left + button.width / 2 - 667 / 2), 'centred across the screen').toBeLessThanOrEqual(0.5);
 });
+
+// Landscape but nearly square (spec §3.4 is for screens at least 3:2): the
+// side keypad would leave the equation a sliver, so the keypad stays below.
+for (const [width, height] of [[420, 390], [561, 560]]) {
+  test(`a near-square ${width}×${height} window keeps the keypad below the problem`, async ({ page }) => {
+    await open(page);
+    await resize(page, width, height);
+    const stage = await rect(page, '.stage');
+    const pad = await rect(page, '.pad');
+    note('font size', await fontSize(page));
+    expect(pad.top, 'keypad below the problem area').toBeGreaterThanOrEqual(stage.bottom - 0.01);
+    expect(stage.width, 'problem area across the screen').toBe(width);
+    expect(await fontSize(page), 'font size').toBeGreaterThanOrEqual(25);
+  });
+}
