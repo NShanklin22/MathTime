@@ -74,8 +74,9 @@ async function boxWindow(page) {
   const q = await rect(page, '#qnum');
   const stage = await rect(page, '.stage');
   const fs = await page.evaluate(() => parseFloat(getComputedStyle(document.querySelector('#eq')).fontSize));
-  const top = Math.max(s.top - fs / 2, q.bottom, stage.top);
-  return { s, top, bottom: Math.min(s.bottom + fs / 2, stage.bottom), side: Math.max(fs / 4, 8) };
+  const side = Math.max(fs / 4, 8);
+  const top = Math.max(s.top - fs / 2 - side, q.bottom, stage.top);
+  return { s, top, bottom: Math.min(s.bottom + fs / 2 + side, stage.bottom), side };
 }
 
 // The answer box's outer edges, measured from pixels (it is a pseudo-element).

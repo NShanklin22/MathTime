@@ -15,7 +15,7 @@ const px = v => Math.round(v * 64 * devicePixelRatio) / (64 * devicePixelRatio) 
 // `place` centres the equation on its ink, which depends on the problem: the
 // view calls it again after drawing a new one.
 export function createLayout(dom, scan, possibleAnswers) {
-  const { eq, a, slot, caret, stage, topBar } = dom;
+  const { eq, a, slot, caret, qnum, stage, topBar } = dom;
   const geo = { fs: 0, style: null, base: 0.8, mid: 0.5, boxW: 1.2, wide: 0.6 };
   const api = { geo, inkOf, layout, place, afterMeasure: null };
 
@@ -100,11 +100,28 @@ export function createLayout(dom, scan, possibleAnswers) {
     return { left: r.left - t.m41, top: r.top - t.m42, width: r.width / t.a };
   }
 
-  // The box is last in the equation, so its dashed construction outline
-  // sticks out on the right. Count it when fitting and centring.
+  // The box's dashed construction outline sticks out round it, and the box is
+  // last in the equation, so it sticks out on the right and below. Count it
+  // when fitting and centring.
   function overhang() {
     const after = getComputedStyle(slot, '::after');
     return after.outlineStyle === 'none' ? 0 : parseFloat(after.outlineOffset) + parseFloat(after.outlineWidth);
+  }
+
+  // How much the font must shrink so that "Question N" (above) and the box's
+  // outline (below) reach at most `room` px from the digit ink's centre,
+  // which is the problem area's centre (1 or more: no need). The label
+  // shrinks with the font (see --label-scale); the box border and outline
+  // keep their px widths, so they are taken off first.
+  function heightFit(room) {
+    const e = eq.getBoundingClientRect();
+    const mid = e.top + geo.mid * geo.fs;
+    const after = getComputedStyle(slot, '::after');
+    const bw = parseFloat(after.borderTopWidth);
+    const fixed = bw + overhang();
+    const above = mid - qnum.getBoundingClientRect().top;
+    const below = slot.getBoundingClientRect().top + parseFloat(after.top) + parseFloat(after.height) + overhang() - mid;
+    return Math.min((room - bw) / (above - bw), (room - fixed) / (below - fixed));
   }
 
   // Drop breadcrumb parts from the left until the header fits on one line.
@@ -162,13 +179,28 @@ export function createLayout(dom, scan, possibleAnswers) {
     eq.style.left = '';
     eq.style.top = '';
     eq.style.removeProperty('--slot-nudge');
+    eq.style.removeProperty('--label-scale');
     measure();
+    // Shrink to fit: across, between the gutters; down, with "Question N"
+    // and the box 8px clear of the problem area's edges, either side of the
+    // centred digit ink (spec §3.2). Each round takes the tighter of the
+    // two. Shrinking for height shrinks the label's px minimums too, so the
+    // whole group shrinks together. Parts that keep their px size make a
+    // round fall short, so it takes a few.
     const gutter = innerWidth <= 480 ? 16 : 24;
-    const avail = stage.clientWidth - 2 * gutter - 1;   // 1px slack for pixel snapping
-    for (let i = 0; i < 3; i++) {                       // the overhang scales with the font
-      const width = eqBox().width + overhang();
-      if (width <= avail) break;
-      eq.style.fontSize = (geo.fs * avail / width) + 'px';
+    const across = stage.clientWidth - 2 * gutter - 1;   // 1px slack for pixel snapping
+    const down = stage.clientHeight / 2 - 8 - 0.5;        // 0.5px slack for pixel snapping
+    let labelScale = 1;
+    for (let i = 0; i < 3; i++) {
+      const w = across / (eqBox().width + overhang());
+      let h = heightFit(down);
+      if (!(h > 0)) h = 1;                                // too short for any size: leave it
+      if (Math.min(w, h) >= 1) break;
+      if (h < w) {
+        labelScale *= h;
+        eq.style.setProperty('--label-scale', labelScale.toFixed(4));
+      }
+      eq.style.fontSize = (geo.fs * Math.min(w, h)) + 'px';
       measure();
     }
     // Draw the problem and answer with the final geometry, then place them.
