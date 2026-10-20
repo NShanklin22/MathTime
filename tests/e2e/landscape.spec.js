@@ -10,6 +10,16 @@ import {
 
 const note = (type, px) => test.info().annotations.push({ type, description: `${px.toFixed(3)}px` });
 const fontSize = page => page.evaluate(() => parseFloat(getComputedStyle(document.querySelector('#eq')).fontSize));
+// The equation's CSS size (the clamp() in styles.css), from a probe with the same class.
+const cssFontSize = page => page.evaluate(() => {
+  const probe = document.createElement('div');
+  probe.className = 'eq';
+  probe.style.cssText = 'position:absolute;visibility:hidden';
+  document.querySelector('.stage').appendChild(probe);
+  const size = parseFloat(getComputedStyle(probe).fontSize);
+  probe.remove();
+  return size;
+});
 const keys = page => page.evaluate(() => [...document.querySelectorAll('.pad button')].map(b => {
   const r = b.getBoundingClientRect();
   return { k: b.dataset.k, left: r.left, right: r.right, top: r.top, bottom: r.bottom, width: r.width, height: r.height };
@@ -112,7 +122,13 @@ for (const [width, height] of [[667, 375], [844, 390], [568, 320], [740, 360], [
       }));
       expect(scroll).toEqual({ x: 0, y: 0 });
       // It uses the column: the equation is no longer squeezed for height.
-      expect(await fontSize(page), 'font size').toBeGreaterThanOrEqual(40);
+      const fs = await fontSize(page);
+      expect(fs, 'font size').toBeGreaterThanOrEqual(40);
+      // Shrunk for width only as far as phone gutters need: with the 1px
+      // slack and the first digit's side bearing, they end up 16.5-20px.
+      if (fs < await cssFontSize(page) - 0.01) {
+        expect(Math.min(first.left - stage.left, stage.right - outline.right), 'tightest gutter once shrunk').toBeLessThan(20);
+      }
     });
 
     test('keypad labels are centred on their ink at this key size', async ({ page }) => {
