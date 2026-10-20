@@ -1,32 +1,9 @@
 import { test, expect } from '@playwright/test';
-import { open, freeze, setProblem, rect, capture, ink, TOL } from './helpers.js';
-
-// The digit ink band is the union of all ten digits (spec §6), so render the
-// digits in pairs and combine their ink.
-async function digitBand(page) {
-  let top = Infinity, bottom = -Infinity;
-  for (const [a, b] of [[0, 1], [2, 3], [4, 5], [6, 7], [8, 9]]) {
-    await setProblem(page, a, b);
-    const shot = await capture(page);
-    for (const sel of ['#a', '#b']) {
-      const r = await rect(page, sel);
-      const box = ink(shot, { ...r, top: r.top - 4, bottom: r.bottom + 4 });
-      top = Math.min(top, box.top);
-      bottom = Math.max(bottom, box.bottom);
-    }
-  }
-  return { top, bottom, mid: (top + bottom) / 2 };
-}
-
-// The answer box's outer edges, measured from pixels (it is a pseudo-element).
-// The window starts below the "Question N" label, which comes within reach of
-// the box on narrow screens.
-async function boxEdges(page, shot) {
-  const s = await rect(page, '#slot');
-  const q = await rect(page, '#qnum');
-  const fs = await page.evaluate(() => parseFloat(getComputedStyle(document.querySelector('#eq')).fontSize));
-  return ink(shot, { left: s.left - 2, right: s.right + 2, top: Math.max(s.top - fs / 2, q.bottom), bottom: s.bottom + fs / 2 });
-}
+import { chromium } from 'playwright-core';
+import {
+  open, freeze, showOutline, resize, setProblem, rect, capture, ink, digitInk, digitBand, boxEdges, outlineEdges,
+  fontSize, cssFontSize, TOL,
+} from './helpers.js';
 
 // The box's outer edges and centre, and the area inside its border (with 1px
 // to spare) where answers are measured.
@@ -49,16 +26,19 @@ function borderInner(shot, outer, bw) {
   };
 }
 
-// Space between the stage edges and the equation, its dashed outline included.
-const gutters = page => page.evaluate(() => {
-  const eq = document.querySelector('#eq');
-  const e = eq.getBoundingClientRect();
-  const s = document.querySelector('.stage').getBoundingClientRect();
-  const over = parseFloat(getComputedStyle(eq).getPropertyValue('--overhang')) || 0;
-  return { left: e.left - s.left, right: s.right - (e.right + over), scroll: document.documentElement.scrollWidth - innerWidth, phone: innerWidth <= 480 };
-});
+// Space between the stage edges and what you see of the equation, from
+// pixels: the first digit's ink on the left, the box's dashed outline on the
+// right. The equation is centred on that, not on its layout box (spec §3.2).
+async function gutters(page) {
+  await showOutline(page);
+  const shot = await capture(page);
+  const first = await digitInk(page, shot, '#a');
+  const outline = await outlineEdges(page, shot);
+  const s = await rect(page, '.stage');
+  const { scroll, phone } = await page.evaluate(() => ({ scroll: document.documentElement.scrollWidth - innerWidth, phone: innerWidth <= 480 }));
+  return { left: first.left - s.left, right: s.right - outline.right, scroll, phone };
+}
 
-const fontSize = page => page.evaluate(() => parseFloat(getComputedStyle(document.querySelector('#eq')).getPropertyValue('--fs')));
 
 test.beforeEach(async ({ page }) => {
   await open(page);
@@ -192,6 +172,46 @@ test('the caret is centred in an empty box, a fixed gap after a digit, and hidde
   expect(await caretVisibility(page)).toBe('hidden');
 });
 
+// Switch freeze()'s hiding of the caret off (true) or back on (false).
+const caretShown = (page, on) => page.evaluate(on => {
+  for (const s of document.querySelectorAll('style')) if (s.textContent.includes('.caret{visibility:hidden')) s.disabled = on;
+}, on);
+const AMBER = [255, 214, 107];   // #ffd66b: the digits and the box score nothing against it
+
+// The gap depends on where the answer falls on the device pixel grid, which
+// moves with the box: at the start size for whatever problem is showing, and
+// at sizes that once spread it over a device pixel for every first digit.
+for (const size of [null, [740, 360], [932, 430], [561, 560]]) test(`the caret is drawn the same after every digit: one width, one gap to half a device pixel${size ? ` (${size.join('×')}, every first digit)` : ''}`, async ({ page }) => {
+  if (size) await resize(page, ...size);
+  await page.evaluate(() => document.querySelector('#slot').classList.add('focused'));
+  const dpr = await page.evaluate(() => devicePixelRatio);
+  const spread = list => Math.max(...list) - Math.min(...list);
+  for (const first of size ? [1, 2, 3, 4, 5, 6, 7, 8, 9] : [null]) {
+    if (first) await setProblem(page, first, 5);
+    const { inner } = await boxInside(page);
+    const gaps = [], widths = [];
+    for (const d of '0123456789') {
+      await showAnswer(page, d);
+      const digit = ink(await capture(page), inner);                  // caret hidden
+      await caretShown(page, true);
+      const caret = ink(await capture(page), { ...inner, right: inner.right + 20 }, AMBER);
+      await caretShown(page, false);
+      gaps.push(caret.left - digit.right);
+      widths.push(caret.right - caret.left);
+      // Laid out on whole device pixels, so what layout and tests read is what is drawn.
+      const box = await rect(page, '.caret');
+      for (const [edge, v] of [['left', box.left], ['width', box.width]]) {
+        expect(Math.abs(v * dpr - Math.round(v * dpr)), `digit ${d}: caret ${edge} on the grid`).toBeLessThanOrEqual(0.02);
+      }
+    }
+    const problem = first ? `${first} + 5, ` : '';
+    test.info().annotations.push({ type: `${problem}gaps`, description: gaps.map(g => g.toFixed(3)).join(' ') });
+    expect(spread(widths), `${problem}painted width`).toBeLessThanOrEqual(0.05);
+    // Each gap is within half a device pixel of the design, so at most one apart.
+    expect(spread(gaps), `${problem}gap after the ink`).toBeLessThanOrEqual(1 / dpr + 0.05);
+  }
+});
+
 test('keypad digit labels are centred on their ink', async ({ page }) => {
   const shot = await capture(page);
   for (const k of '0123456789') {
@@ -228,33 +248,25 @@ test('a narrow screen shrinks the equation to fit, measured again', async ({ pag
   // This drops the phone project to 1x, which is fine: everything below is
   // measured in that state.
   await page.setViewportSize({ width: 280, height: 700 });
-  // Wait until the equation is smaller than its CSS size (the clamp() in
-  // styles.css, read from a probe with the same class).
-  await expect.poll(() => page.evaluate(() => {
-    const probe = document.createElement('div');
-    probe.className = 'eq';
-    probe.style.cssText = 'position:absolute;visibility:hidden';
-    document.querySelector('.stage').appendChild(probe);
-    const css = parseFloat(getComputedStyle(probe).fontSize);
-    probe.remove();
-    return parseFloat(getComputedStyle(document.querySelector('#eq')).fontSize) < css;
-  })).toBe(true);
-  const g = await gutters(page);
-  expect(g.left).toBeGreaterThanOrEqual(16 - 0.01);
-  expect(g.right).toBeGreaterThanOrEqual(16 - 0.01);
-  expect(g.scroll).toBeLessThanOrEqual(0);
+  // Wait until the equation is smaller than its CSS size.
+  await expect.poll(async () => await fontSize(page) < await cssFontSize(page)).toBe(true);
   const digits = await digitBand(page);
   const shot = await capture(page);
   const box = await boxEdges(page, shot);
   const plus = ink(shot, await rect(page, '.op', 0), [182, 205, 238]);   // muted #b6cdee
   expect(Math.abs(box.midY - digits.mid), 'box').toBeLessThanOrEqual(TOL);
   expect(Math.abs(plus.midY - digits.mid), '+').toBeLessThanOrEqual(TOL);
+  // Last: this shows the dashed outline, which the box measurement hides.
+  const g = await gutters(page);
+  expect(g.left).toBeGreaterThanOrEqual(16 - 0.01);
+  expect(g.right).toBeGreaterThanOrEqual(16 - 0.01);
+  expect(g.scroll).toBeLessThanOrEqual(0);
 });
 
 test('a repeat layout after a full shrink needs no new scans', async ({ page }) => {
-  // At 280px wide and 2x the fitting loop tries the CSS size and three
-  // smaller ones, so with the keypad one layout uses five font sizes. All of
-  // them must stay cached. The ratio is emulated, because setViewportSize
+  // At 280px wide and 2x the fitting loop tries the CSS size and smaller
+  // ones, so with the keypad and "Question N" one layout uses up to seven
+  // font sizes. All of them must stay cached. The ratio is emulated, because setViewportSize
   // would drop the phone project to 1x.
   const cdp = await page.context().newCDPSession(page);
   await cdp.send('Emulation.setDeviceMetricsOverride', { width: 280, height: 700, deviceScaleFactor: 2, mobile: false });
@@ -277,23 +289,57 @@ test('a repeat layout after a full shrink needs no new scans', async ({ page }) 
   expect(reads).toBe(0);
 });
 
+// The shake and slide animations move #eq with a transform. Lay out while it
+// is moved, then check where it lands once the transform is gone. Where it
+// goes depends on the first digit, so try each.
+async function laidOutOnGrid(page) {
+  for (let a = 0; a <= 9; a++) {
+    await page.evaluate(a => {
+      const { game, layout } = window.mathtime;
+      game.state.problem = { a, b: 1, answer: a + 1 };
+      const eq = document.querySelector('#eq');
+      eq.style.transform = 'translate(13.37px, 7.77px)';
+      layout.layout();
+      eq.style.transform = '';
+    }, a);
+    const off = await page.evaluate(() => {
+      const { geo } = window.mathtime.layout;
+      const r = document.querySelector('#eq').getBoundingClientRect();
+      const fromGrid = v => Math.abs(v * devicePixelRatio - Math.round(v * devicePixelRatio));
+      return { left: fromGrid(r.left), baseline: fromGrid(r.top + geo.base * geo.fs) };
+    });
+    expect(off.left, `a = ${a}: left edge, device px from the grid`).toBeLessThanOrEqual(0.01);
+    expect(off.baseline, `a = ${a}: baseline, device px from the grid`).toBeLessThanOrEqual(0.01);
+  }
+}
+
 test('a layout during an animation still puts the equation on whole device pixels', async ({ page }) => {
-  // The shake and slide animations move #eq with a transform. Lay out while
-  // it is moved, then check where it lands once the transform is gone.
-  await page.evaluate(() => {
-    const eq = document.querySelector('#eq');
-    eq.style.transform = 'translate(13.37px, 7.77px)';
-    window.mathtime.layout.layout();
-    eq.style.transform = '';
-  });
-  const off = await page.evaluate(() => {
-    const { geo } = window.mathtime.layout;
-    const r = document.querySelector('#eq').getBoundingClientRect();
-    const fromGrid = v => Math.abs(v * devicePixelRatio - Math.round(v * devicePixelRatio));
-    return { left: fromGrid(r.left), baseline: fromGrid(r.top + geo.base * geo.fs) };
-  });
-  expect(off.left, 'left edge, device px from the grid').toBeLessThanOrEqual(0.01);
-  expect(off.baseline, 'baseline, device px from the grid').toBeLessThanOrEqual(0.01);
+  await laidOutOnGrid(page);
+});
+
+test('the equation lands on whole device pixels at an odd width too', async ({ page }) => {
+  // Where the equation's natural place has a finer fraction of a pixel, a
+  // length written with too few digits is cut short (see onLayoutGrid).
+  await resize(page, 381, 812);
+  await laidOutOnGrid(page);
+});
+
+test('the equation lands on whole device pixels at ratios that are not powers of two', async ({ baseURL }) => {
+  // In real windows at these ratios (a launch flag): emulating the ratio lays
+  // out on a coarser grid, 1/64 CSS px, on which these device pixels don't
+  // exist. The two projects share the ratios out.
+  for (const dpr of test.info().project.name === 'phone' ? [3] : [2.625, 1.5]) {
+    const browser = await chromium.launch({ args: [`--force-device-scale-factor=${dpr}`, '--window-size=400,860', '--disable-lcd-text'] });
+    try {
+      const page = await browser.newPage({ viewport: null, deviceScaleFactor: undefined });   // not the project's
+      await page.goto(baseURL + '/');
+      await page.waitForFunction(() => !document.documentElement.classList.contains('loading'));
+      expect(await page.evaluate(() => devicePixelRatio)).toBe(dpr);
+      await laidOutOnGrid(page);
+    } finally {
+      await browser.close();
+    }
+  }
 });
 
 test('the header stays on one line at 320px wide', async ({ page }) => {
@@ -367,7 +413,8 @@ test('fonts that arrive after the load timeout are measured again', async ({ pag
 
 test('a new device pixel ratio alone is measured again', async ({ page }, info) => {
   test.skip(info.project.name !== 'desktop', 'the phone ratio is forced by a launch flag, so it cannot be emulated');
-  const caretHeight = () => page.evaluate(() => parseFloat(document.querySelector('.caret').style.height));
+  // As laid out: the written length carries a quarter-step bias (onLayoutGrid).
+  const caretHeight = () => page.evaluate(() => document.querySelector('.caret').getBoundingClientRect().height);
   const before = await caretHeight();
   // Count finished layouts from here on.
   await page.evaluate(() => {
@@ -386,4 +433,18 @@ test('a new device pixel ratio alone is measured again', async ({ page }, info) 
   await expect.poll(caretHeight).not.toBe(before);
   // Secondary: the new height is on the 2x grid (the 1x height was too).
   expect(Number.isInteger((await caretHeight()) * 2)).toBe(true);
+});
+
+test('a malformed --gutter cannot break the width fit', async ({ page }) => {
+  // The gutter is read from CSS; a bad value must fall back to a length.
+  await page.addStyleTag({ content: ':root{--gutter:oops}' });
+  await page.setViewportSize({ width: 280, height: 700 });   // drops the phone to 1x; measures no pixels
+  await expect.poll(async () => await fontSize(page) < await cssFontSize(page)).toBe(true);
+  const g = await page.evaluate(() => {
+    const e = document.querySelector('#eq').getBoundingClientRect();
+    return { left: e.left, right: innerWidth - e.right, scroll: document.documentElement.scrollWidth - innerWidth };
+  });
+  expect(g.left).toBeGreaterThanOrEqual(0);
+  expect(g.right).toBeGreaterThanOrEqual(0);
+  expect(g.scroll).toBeLessThanOrEqual(0);
 });

@@ -5,34 +5,39 @@ export function createView(dom, layout, level) {
   const ANIMS = ['shake', 'in', 'out'];
   const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 
-  // Problem digits: one fixed cell each, nudged so the ink is centred.
+  // Problem digits: one fixed cell each, nudged so the ink is centred. The
+  // equation's first digit starts on a whole device pixel (layout.leadIndent).
   function renderDigits(el, str) {
-    el.replaceChildren(...[...str].map(c => {
+    el.replaceChildren(...[...str].map((c, i) => {
       const cell = document.createElement('span');
       cell.className = 'cell';
       cell.textContent = c;
-      cell.style.textIndent = layout.inkOf(c, layout.geo.wide).off.toFixed(4) + 'em';
+      cell.style.textIndent = el === a && i === 0
+        ? layout.leadIndent(c)
+        : layout.inkOf(c, layout.geo.wide).off.toFixed(4) + 'em';
       return cell;
     }));
   }
 
-  // Answer: ink-centred in the fixed box, caret a fixed gap after the ink.
-  // A wrong entry wider than the box is scaled down around its centre.
+  // Answer: ink-centred in the fixed box, caret a fixed gap after the ink
+  // (layout.answerAt). A wrong entry wider than the box is scaled down
+  // around its centre.
   function renderAnswer(typed) {
     const { geo } = layout;
     const span = document.createElement('span');
     span.className = 'cell';
     span.style.width = 'calc(var(--box-w) * 1em)';
     span.textContent = typed;
-    const g = typed ? layout.inkOf(typed, geo.boxW) : { off: 0, right: 0, w: 0 };
-    span.style.textIndent = g.off.toFixed(4) + 'em';
-    if (g.w > geo.boxW + 1e-3) {
+    const g = typed ? layout.inkOf(typed, geo.boxW) : null;
+    const at = layout.answerAt(typed);
+    span.style.textIndent = at.indent;
+    if (g && g.w > geo.boxW + 1e-3) {
       span.style.transform = `scale(${(geo.boxW / g.w).toFixed(4)})`;
       span.style.transformOrigin = `50% ${geo.mid.toFixed(4)}em`;
     }
     shown.replaceChildren(span);
     ans.value = typed;                   // so screen readers hear the answer
-    caret.style.left = typed ? `calc(${g.right.toFixed(4)}em + max(0.08em, 4px))` : '';
+    caret.style.left = at.caret;
     slot.classList.toggle('empty', typed === '');
     slot.classList.toggle('full', typed.length >= level.maxAnswerLength);
   }
@@ -65,7 +70,8 @@ export function createView(dom, layout, level) {
   // waits for the slide-out animation itself: its first frame comes a little
   // after it is asked for, so a timer would cut it short. With animations
   // off there is none, so the swap is at once; the long timer is only a
-  // last resort for one that never ends.
+  // last resort for one that never ends. The new problem is centred on its
+  // own ink before it slides in.
   async function showCorrect(state, next) {
     status.textContent = 'Correct';      // always differs from the problem before it, so it is announced
     eq.classList.add('correct');
@@ -76,6 +82,11 @@ export function createView(dom, layout, level) {
     next();
     eq.classList.remove('correct');
     render(state);
+    try {
+      layout.place();
+    } catch (err) {
+      console.error(err);                // still slide in, wherever it is
+    }
     announceProblem(state);
     play('in');
   }

@@ -40,6 +40,15 @@ export function toMetrics(edges, x0, y0, size, advance) {
   };
 }
 
+// Metrics `m` of text measured without letter spacing, as they are with
+// `spacing` em after each of its `chars` characters (canvas and CSS letter
+// spacing both work this way): the ink ends that much further right for
+// every character but the first, and the advance includes the last one too.
+export function withSpacing(m, spacing, chars) {
+  if (!spacing || chars < 1) return m;
+  return { ...m, abr: m.abr + spacing * (chars - 1), adv: m.adv + spacing * chars };
+}
+
 // Where text must start so its ink is centred across `width` em.
 // off: the text indent (may be negative); right: where the ink ends; w: ink width.
 export function centreInk(m, width) {
@@ -69,3 +78,14 @@ export function snapOutward(top, bottom, dpr) {
 
 // Nearest whole device pixel, in CSS px (ties round toward +Infinity; never -0).
 export const snap = (v, dpr) => Math.round(v * dpr) / dpr + 0;
+
+// The nearest point of the layout grid, as a px length to write (never -0).
+// Chrome keeps positions in 64ths of a device pixel and truncates a written
+// length toward zero. At ratios that are powers of two a grid point is an
+// exact binary fraction; at others (3, 2.625, 1.5) it is not, and as written
+// it can fall just short and lose a whole step. A quarter of a step further
+// from zero keeps it on its point.
+export function onLayoutGrid(v, dpr) {
+  const k = Math.round(v * 64 * dpr);
+  return (k + 0.25 * Math.sign(k)) / (64 * dpr) + 0;
+}

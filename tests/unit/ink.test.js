@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { edgesFromAlpha, toMetrics, centreInk, band, snapOutward, snap } from '../../src/ink.js';
+import { edgesFromAlpha, toMetrics, centreInk, band, snapOutward, snap, onLayoutGrid, withSpacing } from '../../src/ink.js';
 
 // RGBA pixel data where paint(set) sets alpha values.
 function pixels(width, height, paint) {
@@ -120,4 +120,31 @@ test('snap rounds ties toward +Infinity, also below zero', () => {
 
 test('snap never returns negative zero', () => {
   assert.equal(snap(-0.2, 1), 0);   // strict equal compares with Object.is, so -0 would fail
+});
+
+test('onLayoutGrid lands on the nearest 64th of a device pixel once Chrome truncates it, at any ratio', () => {
+  for (const dpr of [1, 2, 3, 2.625, 1.5]) {
+    for (let k = -500; k <= 500; k++) {
+      for (const noise of [0, 1e-7, -1e-7, 0.4 / (64 * dpr), -0.4 / (64 * dpr)]) {
+        const v = onLayoutGrid(k / (64 * dpr) + noise, dpr);
+        // Written out, read back and truncated toward zero, as Chrome stores it.
+        assert.equal(Math.trunc(Number(String(v)) * 64 * dpr), k, `dpr ${dpr}, k ${k}, noise ${noise}`);
+      }
+    }
+  }
+});
+
+test('onLayoutGrid never returns negative zero', () => {
+  assert.equal(onLayoutGrid(-1e-4, 1), 0);
+});
+
+test('withSpacing adds letter spacing as canvas and CSS do: the ink gains it before each later character, the advance after every one', () => {
+  const m = { asc: 0.7, desc: 0.01, abl: -0.05, abr: 5.5, adv: 6 };
+  assert.deepEqual(withSpacing(m, 0.04, 10), { asc: 0.7, desc: 0.01, abl: -0.05, abr: 5.5 + 0.04 * 9, adv: 6 + 0.04 * 10 });
+});
+
+test('withSpacing leaves one character\'s ink alone, and no spacing changes nothing', () => {
+  const m = { asc: 0.7, desc: 0.01, abl: -0.05, abr: 0.5, adv: 0.6 };
+  assert.deepEqual(withSpacing(m, 0.04, 1), { ...m, adv: 0.64 });
+  assert.deepEqual(withSpacing(m, 0, 10), m);
 });

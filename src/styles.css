@@ -1,5 +1,9 @@
 /* MathTime: Blueprint theme and layout.
    See docs/superpowers/specs/2026-10-19-level1-design.md §3–§5. */
+
+/* Registered, so a bad value falls back to a length: layout.js reads it. */
+@property --gutter { syntax: '<length>'; inherits: true; initial-value: 24px; }
+
 :root {
   color-scheme: dark;
   --bg: #12407e;
@@ -13,6 +17,15 @@
   --key-press: rgba(255, 255, 255, 0.12);
   --go-press: #cfe0f7;       /* the check key while pressed */
   --font: "IBM Plex Mono", "IBM Plex Sans", ui-monospace, monospace;
+  --gutter: 24px;            /* side gutters (spec §5.3); layout.js reads it too */
+  --top-pad: 20px;           /* above the header */
+  --top-safe: max(var(--top-pad), env(safe-area-inset-top));
+  --crumb-line: 20px;        /* the breadcrumb's line */
+  --road-gap: 8px;           /* between it and the roadmap strip */
+  --road-h: 4px;             /* the roadmap strip */
+  --top-h: calc(var(--top-safe) + var(--crumb-line) + var(--road-gap) + var(--road-h));   /* the header */
+  --key-gap: 8px;
+  --pad-bottom: max(16px, env(safe-area-inset-bottom));   /* below the keypad */
 }
 
 *, *::before, *::after { box-sizing: border-box; }
@@ -53,10 +66,11 @@ body {
 /* ---------- Header: roadmap position and lives ---------- */
 .top {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
-  padding: 20px 24px 0;
+  /* Clear of any notch or rounded corner (viewport-fit=cover). */
+  padding: var(--top-safe) max(var(--gutter), env(safe-area-inset-right)) 0 max(var(--gutter), env(safe-area-inset-left));
 }
 .where { min-width: 0; }
 .crumbs {
@@ -64,7 +78,7 @@ body {
   align-items: center;
   gap: 6px;
   font-size: 14px;
-  line-height: 20px;
+  line-height: var(--crumb-line);
   letter-spacing: 0.04em;
   color: var(--muted);
   white-space: nowrap;
@@ -75,12 +89,16 @@ body {
 /* When the header gets tight, crumbs drop from the left (set by layout.js). */
 .top.tight .stage-name, .top.tight .stage-sep,
 .top.tighter .sub-name, .top.tighter .sub-sep { display: none; }
-.road { display: flex; gap: 4px; margin-top: 8px; }
-.road span { width: 20px; height: 4px; background: var(--faint); }
+.road { display: flex; gap: 4px; margin-top: var(--road-gap); }
+.road span { width: 20px; height: var(--road-h); background: var(--faint); }
 .road span.now { background: var(--amber); }
 
-.lives { display: flex; gap: 8px; color: var(--ink); flex: none; }
-.lives svg { width: 24px; height: 24px; display: block; }
+/* Each heart's viewBox is cropped to its ink, stroke included (index.html),
+   so the right ink edge is the padding edge, like the crumbs' left ink edge.
+   The hearts are centred on the crumbs' text line, whose ink sits centred in
+   its 20px line box, and keep their 12px ink gap. */
+.lives { display: flex; align-items: center; height: var(--crumb-line); gap: 12px; color: var(--ink); flex: none; }
+.lives svg { width: 20px; height: 18px; display: block; overflow: visible; }
 .lives svg path { fill: currentColor; stroke: currentColor; stroke-width: 2; stroke-linejoin: round; transition: fill .2s, stroke .2s; }
 .lives svg.lost path { fill: none; stroke: var(--heart-lost); stroke-dasharray: 2.5 2; }
 
@@ -97,15 +115,26 @@ body {
    --ink-top / --ink-h: where digit ink sits in each 1em line box
    --wide: widest digit (a problem digit's cell)
    --box-w: ink width of the widest possible answer
+   --slot-gap: extra space before the box, which has no side bearing
+   --pad: the box padding (--box-pad em) in whole device pixels
    --bw: the box border width in px (kept outside the padding)
+   --outline-offset: the dashed outline's offset, in whole device pixels as drawn
    --fs: the equation font size in px
-   --overhang: how far the box's dashed outline sticks out on the right */
+   --label-x: where "Question N" goes, so its ink is centred over what you see
+   --label-scale: shrinks the label's px minimums with the font on short screens
+   --line-scale: shrinks the box's px minimums too, when the problem area is very short */
 .eq {
   --ink-top: 0.2;
   --ink-h: 0.72;
   --wide: 0.6;
   --box-w: 1.2;
+  --slot-gap: 0;
   --box-pad: 0.17;
+  --bw-em: 0.025;            /* the box border: the larger of these two */
+  --bw-min: 2px;
+  --outline-em: 0.06;        /* the outline's offset from it: likewise */
+  --outline-min: 5px;
+  --pad: calc(var(--box-pad) * 1em);
   --bw: 3px;
   position: relative;
   display: flex;
@@ -130,11 +159,11 @@ body {
 
 .qnum {
   position: absolute;
-  left: calc(50% + var(--overhang, 0px) / 2);   /* centred over what's visible */
-  top: calc((var(--ink-top) - var(--box-pad)) * var(--fs, 100px) - var(--bw) - max(0.2 * var(--fs, 100px), 18px));
+  left: var(--label-x, 50%);   /* its ink centred over what you see */
+  top: calc(var(--ink-top) * var(--fs, 100px) - var(--pad) - var(--bw) - max(0.2 * var(--fs, 100px), 18px * var(--label-scale, 1)));
   transform: translate(-50%, -100%);
   height: auto !important;
-  font-size: max(15px, calc(var(--fs, 100px) * 0.16));
+  font-size: max(15px * var(--label-scale, 1), calc(var(--fs, 100px) * 0.16));
   line-height: 1.25;
   letter-spacing: 0.04em;
   color: var(--muted);
@@ -145,25 +174,25 @@ body {
    border on all four sides, never resizes (spec §4). */
 .slot {
   position: relative;
-  width: calc((var(--box-w) + 2 * var(--box-pad)) * 1em + 2 * var(--bw));
+  width: calc(var(--box-w) * 1em + 2 * var(--pad) + 2 * var(--bw));
+  margin-left: calc(var(--slot-gap) * 1em);
 }
 .slot::after {
   content: "";
   position: absolute;
   left: 0;
   right: 0;
-  top: calc((var(--ink-top) - var(--box-pad)) * 1em - var(--bw));
-  height: calc((var(--ink-h) + 2 * var(--box-pad)) * 1em + 2 * var(--bw));
-  border: max(0.025em, 2px) solid var(--ink);
+  top: calc(var(--ink-top) * 1em - var(--pad) - var(--bw));
+  height: calc(var(--ink-h) * 1em + 2 * var(--pad) + 2 * var(--bw));
+  border: max(calc(var(--bw-em) * 1em), calc(var(--bw-min) * var(--line-scale, 1))) solid var(--ink);
   outline: 1px dashed rgba(238, 245, 255, 0.55);
-  outline-offset: max(0.06em, 5px);
-  transition: border-color .15s;
+  outline-offset: var(--outline-offset, max(calc(var(--outline-em) * 1em), calc(var(--outline-min) * var(--line-scale, 1))));
 }
 .shown {
   position: absolute;
   z-index: 1;
   top: 0;
-  left: calc(var(--box-pad) * 1em + var(--bw));
+  left: calc(var(--pad) + var(--bw));
   height: 1em;
 }
 .caret {
@@ -176,7 +205,6 @@ body {
   background: var(--amber);
   animation: blink 1.06s steps(1) infinite;
 }
-.slot.empty .caret { left: calc(var(--box-w) * 0.5em); transform: translateX(-50%); }
 .slot:not(.focused) .caret,
 .slot.full .caret { visibility: hidden; }
 @keyframes blink { 50% { opacity: 0; } }
@@ -194,7 +222,8 @@ body {
 }
 
 .eq.correct .shown { color: var(--good); }
-.eq.correct .slot::after { border-color: var(--good); }
+/* The fade is on the way in only: the next problem's box is white at once. */
+.eq.correct .slot::after { border-color: var(--good); transition: border-color .15s; }
 .eq.correct .caret { visibility: hidden; }
 
 .eq.shake { animation: shake .32s ease; }
@@ -217,8 +246,8 @@ body {
   justify-self: center;
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 8px;
-  padding: 0 16px max(16px, env(safe-area-inset-bottom));
+  gap: var(--key-gap);
+  padding: 0 16px var(--pad-bottom);
 }
 .pad button {
   height: clamp(48px, 7.5vh, 64px);
@@ -263,6 +292,44 @@ body {
 body.at-select .stage, body.at-select .pad, body.at-select .lives { display: none; }
 body.at-select .select { display: flex; }
 
-@media (max-width: 480px) {
-  .top { padding: 16px 16px 0; }
+/* Narrow screens and phones held sideways (§3.4): 16px gutters and a tighter
+   header. Sideways, the header's right padding is the keypad's, so the
+   hearts end where the keys do. */
+@media (max-width: 480px), (orientation: landscape) and (max-height: 560px) and (min-aspect-ratio: 3/2) {
+  :root { --gutter: 16px; --top-pad: 16px; }
+}
+
+/* ---------- Landscape phones (spec §3.4) ---------- */
+/* At least 3:2 (a nearly square window would leave the equation a sliver
+   beside the keypad, so it keeps the keypad below). The problem area on the
+   left at the full height below the header, the keypad on the right. Its
+   four rows share that height, less the gutters above and below and three
+   gaps. The gutters are equal (16px, or the home bar's inset if larger), so
+   the band's centre is the problem area's. Keys are up to 64px tall, and at
+   least 40px from 264px tall up; on shorter screens they shrink rather than
+   run into the header. They are 1.5 times as wide as they are tall. Capped
+   at 64px, the keypad is centred in that band. */
+@media (orientation: landscape) and (max-height: 560px) and (min-aspect-ratio: 3/2) {
+  body {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: auto minmax(0, 1fr);
+    grid-template-areas: "top top" "stage pad";
+  }
+  .top { grid-area: top; }
+  .stage, .select { grid-area: stage; }
+  .stage { margin-left: env(safe-area-inset-left); }   /* its rect is the safe part, which layout.js centres in */
+  .pad {
+    --key-h: min(64px, (100dvh - var(--top-h) - 2 * var(--pad-bottom) - 3 * var(--key-gap)) / 4);
+    grid-area: pad;
+    width: auto;
+    max-width: none;
+    grid-template-columns: repeat(3, calc(var(--key-h) * 1.5));
+    grid-auto-rows: var(--key-h);
+    align-content: center;
+    padding: var(--pad-bottom) max(var(--gutter), env(safe-area-inset-right)) var(--pad-bottom) 0;
+  }
+  .pad button { height: auto; }
+  @supports not (height: 1dvh) {
+    .pad { --key-h: min(64px, (100vh - var(--top-h) - 2 * var(--pad-bottom) - 3 * var(--key-gap)) / 4); }
+  }
 }
