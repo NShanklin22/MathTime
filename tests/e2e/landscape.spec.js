@@ -156,3 +156,33 @@ for (const [width, height] of [[420, 390], [561, 560]]) {
     expect(await fontSize(page), 'font size').toBeGreaterThanOrEqual(25);
   });
 }
+
+test('a phone sideways with safe-area insets keeps everything inside them', async ({ page }) => {
+  // A notch on each side (left and right 47px) and a home bar (bottom 21px).
+  await open(page);
+  await freeze(page);
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send('Emulation.setSafeAreaInsetsOverride', { insets: { top: 0, left: 47, right: 47, bottom: 21 } });
+  await resize(page, 844, 390);
+  const shot = await capture(page);
+  // The header clears the insets, and its right ink edge lines up with the keypad's.
+  const crumbs = ink(shot, await rect(page, '.crumbs'), MUTED);
+  const hearts = ink(shot, await rect(page, '.lives'));
+  const pad = await keys(page);
+  const keysRight = Math.max(...pad.map(k => k.right));
+  note('crumbs ink left', crumbs.left);
+  note('hearts ink right from the edge', 844 - hearts.right);
+  expect(crumbs.left, 'crumbs clear the left inset').toBeGreaterThanOrEqual(47);
+  expect(hearts.right, 'hearts clear the right inset').toBeLessThanOrEqual(844 - 47);
+  expect(Math.abs(hearts.right - keysRight), 'hearts end where the keypad does').toBeLessThanOrEqual(0.5);
+  expect(844 - keysRight, 'keypad clears the right inset').toBeGreaterThanOrEqual(47);
+  expect(390 - Math.max(...pad.map(k => k.bottom)), 'keypad clears the home bar').toBeGreaterThanOrEqual(21 - 0.5);
+  // The problem area is the safe part of the left column, and what you see is centred in it.
+  const stage = await rect(page, '.stage');
+  expect(stage.left, 'problem area starts at the inset').toBe(47);
+  expect(stage.right, 'problem area ends at the keypad').toBeLessThanOrEqual(Math.min(...pad.map(k => k.left)) + 0.01);
+  await showOutline(page);
+  const { offset } = await groupOffset(page);
+  note('visible group right of the safe centre', offset);
+  expect(Math.abs(offset), 'centred in the safe part').toBeLessThanOrEqual(TOL);
+});
