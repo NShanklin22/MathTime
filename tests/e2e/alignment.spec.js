@@ -257,21 +257,26 @@ test('a repeat layout after a full shrink needs no new scans', async ({ page }) 
 
 test('a layout during an animation still puts the equation on whole device pixels', async ({ page }) => {
   // The shake and slide animations move #eq with a transform. Lay out while
-  // it is moved, then check where it lands once the transform is gone.
-  await page.evaluate(() => {
-    const eq = document.querySelector('#eq');
-    eq.style.transform = 'translate(13.37px, 7.77px)';
-    window.mathtime.layout.layout();
-    eq.style.transform = '';
-  });
-  const off = await page.evaluate(() => {
-    const { geo } = window.mathtime.layout;
-    const r = document.querySelector('#eq').getBoundingClientRect();
-    const fromGrid = v => Math.abs(v * devicePixelRatio - Math.round(v * devicePixelRatio));
-    return { left: fromGrid(r.left), baseline: fromGrid(r.top + geo.base * geo.fs) };
-  });
-  expect(off.left, 'left edge, device px from the grid').toBeLessThanOrEqual(0.01);
-  expect(off.baseline, 'baseline, device px from the grid').toBeLessThanOrEqual(0.01);
+  // it is moved, then check where it lands once the transform is gone. Where
+  // it goes depends on the first digit, so try each.
+  for (let a = 0; a <= 9; a++) {
+    await page.evaluate(a => {
+      const { game, layout } = window.mathtime;
+      game.state.problem = { a, b: 1, answer: a + 1 };
+      const eq = document.querySelector('#eq');
+      eq.style.transform = 'translate(13.37px, 7.77px)';
+      layout.layout();
+      eq.style.transform = '';
+    }, a);
+    const off = await page.evaluate(() => {
+      const { geo } = window.mathtime.layout;
+      const r = document.querySelector('#eq').getBoundingClientRect();
+      const fromGrid = v => Math.abs(v * devicePixelRatio - Math.round(v * devicePixelRatio));
+      return { left: fromGrid(r.left), baseline: fromGrid(r.top + geo.base * geo.fs) };
+    });
+    expect(off.left, `a = ${a}: left edge, device px from the grid`).toBeLessThanOrEqual(0.01);
+    expect(off.baseline, `a = ${a}: baseline, device px from the grid`).toBeLessThanOrEqual(0.01);
+  }
 });
 
 test('the header stays on one line at 320px wide', async ({ page }) => {

@@ -1,11 +1,9 @@
-import { centreInk, band, snapOutward, snap } from './ink.js';
+import { centreInk, band, snapOutward, snap, onLayoutGrid } from './ink.js';
 
 const DIGITS = [...'0123456789'];
 
-// A length in px, exactly on the layout grid. Chrome keeps positions in 64ths
-// of a device pixel and truncates anything finer, so a rounded or noisy
-// offset can land a whole step short of a device pixel.
-const px = v => Math.round(v * 64 * devicePixelRatio) / (64 * devicePixelRatio) + 'px';
+// A length in px, written exactly on the layout grid (see ink.js).
+const px = v => onLayoutGrid(v, devicePixelRatio) + 'px';
 
 // Measures the real ink of the equation's font and lays the screen out around
 // it (spec §6.1): box, caret and operators from measured ink; equation fitted

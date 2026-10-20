@@ -69,3 +69,9 @@ export function snapOutward(top, bottom, dpr) {
 
 // Nearest whole device pixel, in CSS px (ties round toward +Infinity; never -0).
 export const snap = (v, dpr) => Math.round(v * dpr) / dpr + 0;
+
+// Nearest point of the layout grid, in CSS px (never -0). Chrome keeps
+// positions in 64ths of a device pixel and truncates anything finer, so a
+// length written with rounding or float noise can land a whole step short.
+// Grid points are exact binary fractions, so they survive being written out.
+export const onLayoutGrid = (v, dpr) => Math.round(v * 64 * dpr) / (64 * dpr) + 0;
