@@ -53,7 +53,7 @@ body {
 /* ---------- Header: roadmap position and lives ---------- */
 .top {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
   padding: 20px 24px 0;
@@ -79,8 +79,12 @@ body {
 .road span { width: 20px; height: 4px; background: var(--faint); }
 .road span.now { background: var(--amber); }
 
-.lives { display: flex; gap: 8px; color: var(--ink); flex: none; }
-.lives svg { width: 24px; height: 24px; display: block; }
+/* Each heart's viewBox is cropped to its ink, stroke included (index.html),
+   so the right ink edge is the padding edge, like the crumbs' left ink edge.
+   The hearts are centred on the crumbs' text line, whose ink sits centred in
+   its 20px line box, and keep their 12px ink gap. */
+.lives { display: flex; align-items: center; height: 20px; gap: 12px; color: var(--ink); flex: none; }
+.lives svg { width: 20px; height: 18px; display: block; overflow: visible; }
 .lives svg path { fill: currentColor; stroke: currentColor; stroke-width: 2; stroke-linejoin: round; transition: fill .2s, stroke .2s; }
 .lives svg.lost path { fill: none; stroke: var(--heart-lost); stroke-dasharray: 2.5 2; }
 
