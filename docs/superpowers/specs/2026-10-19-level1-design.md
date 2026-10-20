@@ -54,7 +54,7 @@ The screen has three stacked bands that fill the viewport. The page never scroll
 ### 3.2 Problem area
 - The equation `a + b = [box]` is big and centred, both horizontally and vertically, between the header and the keypad. Horizontal centring is of what you see: from the first digit's ink to the box's dashed outline.
 - The space between neighbours is even: the ink gap from "=" to the box's outer edge matches the ink gaps between the other symbols.
-- If the problem area is still short (§3.4 covers phones held sideways), the equation shrinks until "Question N" and the box both fit inside it with at least 8px to spare above and below.
+- If the problem area is still short (§3.4 covers phones held sideways), the equation shrinks until "Question N" and the box both fit inside it with at least 8px to spare above and below. When the area is too short even for that (under about 49px), the 8px shrinks first, together with the font (§6.2).
 - "Question N" sits centred above the equation, in a smaller muted style.
 - The answer is typed **inside the box, inline after "="**. There is no separate input field.
 
@@ -65,9 +65,10 @@ The screen has three stacked bands that fill the viewport. The page never scroll
 - Focus always stays on the answer. Tapping anywhere, including the keypad, never steals it.
 
 ### 3.4 Landscape (wide, short screens)
-When the screen is in landscape and at most 560px tall (a phone held sideways), the stacked layout leaves too little height for the problem. The screen then splits into two columns under the full-width header:
+When the screen is in landscape, at most 560px tall and at least 3:2 (a phone held sideways), the stacked layout leaves too little height for the problem. The screen then splits into two columns under the full-width header. (A nearly square window keeps the stacked layout: beside the keypad the equation would be a sliver.)
 - **Left:** the problem area, at the full height below the header. The equation is centred and fitted in it by the same rules as portrait.
-- **Right:** the keypad, the same 3×4 grid, with its rows sharing the full height below the header. Keys are 40–64px tall, and the key width is in proportion to the height, not stretched. The keypad's right edge and bottom keep the 16px gutter.
+- **Right:** the keypad, the same 3×4 grid, with its rows sharing the full height below the header. Keys are 40–64px tall (on a screen under 264px tall they shrink further rather than run into the header), 1.5 times as wide as they are tall. The keypad's right edge and bottom keep the 16px gutter. When the keys reach 64px, the keypad is centred vertically in its column, on the same line as the problem area's centre.
+- The header, the problem area and the keypad keep clear of notches and the home bar (safe-area insets).
 - Nothing else changes: the same theme, the same alignment rules (§6), the same flows.
 
 ## 4. The answer box
@@ -114,8 +115,8 @@ The amber caret matters. In this font, a white "1" next to a white caret reads a
 
 ### 5.3 Sizing
 - Equation font size is `clamp(40px, min(17vw, 15dvh), 128px)`. It shrinks further when the full equation, including the box's construction outline, does not fit between the side gutters.
-- Side gutters are at least 16px on phones (≤480px wide) and 24px elsewhere.
-- Keys are 48–64px tall, depending on screen height.
+- Side gutters are at least 16px on phones, upright (≤480px wide) or sideways (§3.4), and 24px elsewhere.
+- Keys are 48–64px tall in the stacked layout, depending on screen height; 40–64px beside the problem (§3.4).
 
 ## 6. Alignment requirements (the quality bar)
 
@@ -136,7 +137,7 @@ Every point below was measured in real rendered pixels at 375×812 (pixel ratio 
 | Ink gap "=" → box vs mean of the other ink gaps | ≤ 0.5px |
 | Hearts centre vs breadcrumb text centre | ≤ 0.5px |
 | Header ink margins, left vs right | ≤ 0.5px apart |
-| "Question N" and box inside the problem area | ≥ 8px clear above and below, at every screen size including landscape phones |
+| "Question N" and box inside the problem area | ≥ 8px clear above and below when the area allows; otherwise the clearance shrinks before the font (§6.2) |
 
 ### 6.1 How the mockup achieves it (keep these techniques)
 Browsers position text by its character box, not by its ink, and fonts differ a lot. So alignment is measured, not assumed:
@@ -151,7 +152,8 @@ Browsers position text by its character box, not by its ink, and fonts differ a 
 ### 6.2 Known limits
 - A half-pixel at 1× screens is the floor for some measurements. The browser places text on whole pixels, so 0.5px is the best a centred position can do there.
 - Windows adds faint colour fringes to small text (ClearType). A web page cannot turn this off.
-- Not yet checked on a real 3× pixel-ratio phone (only simulated).
+- Not yet checked on a real 3× pixel-ratio phone. Layout positions are checked in real desktop windows at 3×, 2.625× and 1.5×; an emulated ratio lays out on a coarser grid (1/64 CSS px), where those device pixels don't exist.
+- A problem area under about 49px tall can't keep 8px clear with a readable equation, because the box's border (2px) and outline (5px out, 1px wide) don't shrink with the font. There the clearance and those px minimums shrink with the font instead, all together, so the whole group still fits and the font grows steadily with the area. Under about 3px nothing fits, and the layout is left as it is.
 
 ## 7. Accessibility
 - Lives are announced as "3 lives left", "2 lives left", "1 life left".
