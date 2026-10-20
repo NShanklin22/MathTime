@@ -172,6 +172,34 @@ test('the caret is centred in an empty box, a fixed gap after a digit, and hidde
   expect(await caretVisibility(page)).toBe('hidden');
 });
 
+// Switch freeze()'s hiding of the caret off (true) or back on (false).
+const caretShown = (page, on) => page.evaluate(on => {
+  for (const s of document.querySelectorAll('style')) if (s.textContent.includes('.caret{visibility:hidden')) s.disabled = on;
+}, on);
+const AMBER = [255, 214, 107];   // #ffd66b: the digits and the box score nothing against it
+
+test('the caret is drawn the same after every digit: one width, one gap to half a device pixel', async ({ page }) => {
+  await page.evaluate(() => document.querySelector('#slot').classList.add('focused'));
+  const { inner } = await boxInside(page);
+  const dpr = await page.evaluate(() => devicePixelRatio);
+  const gaps = [], widths = [];
+  for (const d of '0123456789') {
+    await showAnswer(page, d);
+    const digit = ink(await capture(page), inner);                  // caret hidden
+    await caretShown(page, true);
+    const caret = ink(await capture(page), { ...inner, right: inner.right + 20 }, AMBER);
+    await caretShown(page, false);
+    gaps.push(caret.left - digit.right);
+    widths.push(caret.right - caret.left);
+  }
+  const spread = list => Math.max(...list) - Math.min(...list);
+  test.info().annotations.push({ type: 'gaps', description: gaps.map(g => g.toFixed(3)).join(' ') });
+  test.info().annotations.push({ type: 'widths', description: widths.map(w => w.toFixed(3)).join(' ') });
+  expect(spread(widths), 'painted width').toBeLessThanOrEqual(0.05);
+  // Each gap is within half a device pixel of the design, so at most one apart.
+  expect(spread(gaps), 'gap after the ink').toBeLessThanOrEqual(1 / dpr + 0.05);
+});
+
 test('keypad digit labels are centred on their ink', async ({ page }) => {
   const shot = await capture(page);
   for (const k of '0123456789') {
