@@ -10,8 +10,8 @@ const problemSaid = page => page.evaluate(() => {
 });
 
 // An in-page log, timed with performance.now(), of what these tests time or
-// must not miss: classes added to #eq (with the caret's visibility at that
-// moment), #eq's own animations, the level selector appearing, every status
+// must not miss: classes added to #eq (with the caret's visibility and the
+// box border's colour at that moment), #eq's own animations, the level selector appearing, every status
 // text, and every key and native edit with whether it was default-prevented.
 // Install it before the action under test, once per test.
 const record = page => page.evaluate(() => {
@@ -22,7 +22,9 @@ const record = page => page.evaluate(() => {
   let had = new Set(eq.classList);
   new MutationObserver(() => {
     const has = new Set(eq.classList);
-    for (const name of has) if (!had.has(name)) at('add', { name, caret: getComputedStyle($('.caret')).visibility });
+    for (const name of has) {
+      if (!had.has(name)) at('add', { name, caret: getComputedStyle($('.caret')).visibility, border: getComputedStyle($('#slot'), '::after').borderTopColor });
+    }
     had = has;
   }).observe(eq, { attributes: true, attributeFilter: ['class'] });
   new MutationObserver(() => {
@@ -108,6 +110,13 @@ test('a correct answer turns green, then the next question slides in', async ({ 
   expect(said).toMatch(/^Question 2: \d plus \d$/);
   await seen(page, { type: 'status', text: said });
   expect((await entries(page, { type: 'status' })).map(e => e.text)).toEqual(['Correct', said]);
+});
+
+test('the next problem slides in with its box already white, not fading from green', async ({ page }) => {
+  await record(page);
+  await typeKeys(page, ['7', 'Enter']);
+  const slideIn = await seen(page, { type: 'add', name: 'in' });
+  expect(slideIn.border).toBe('rgb(238, 245, 255)');      // --ink
 });
 
 test('the answer shows green for 0.35s before sliding out', async ({ page }) => {

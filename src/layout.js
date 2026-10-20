@@ -17,7 +17,7 @@ const px = v => onLayoutGrid(v, devicePixelRatio) + 'px';
 export function createLayout(dom, scan, possibleAnswers) {
   const { eq, a, slot, caret, qnum, stage, topBar, pad } = dom;
   const geo = { fs: 0, style: null, base: 0.8, mid: 0.5, inkH: 0.72, boxW: 1.2, wide: 0.6 };
-  const api = { geo, inkOf, leadIndent, caretLeft, layout, place, afterMeasure: null };
+  const api = { geo, inkOf, leadIndent, answerAt, layout, place, afterMeasure: null };
 
   // Ink geometry of `text` centred across `width` em, at the current size
   // (all zeros before the first measurement).
@@ -36,18 +36,29 @@ export function createLayout(dom, scan, possibleAnswers) {
     return px(snap(inkOf(digit, geo.wide).off * geo.fs, devicePixelRatio));
   }
 
-  // Where the caret goes, as a CSS length from the answer's origin: a fixed
-  // gap after an answer whose ink ends `right` em into the box, or centred in
-  // an empty box (`right` null). It is put on a whole device pixel (the
-  // equation's left edge is on one), so it is drawn the same after every
-  // digit, the gap true to half a device pixel.
-  function caretLeft(right) {
-    if (!geo.style) return '';
-    const origin = caret.parentElement.getBoundingClientRect().left - eq.getBoundingClientRect().left;
-    const x = right === null
-      ? origin + (geo.boxW * geo.fs - geo.caretW) / 2
-      : origin + right * geo.fs + Math.max(0.08 * geo.fs, 4);
-    return px(snap(x, devicePixelRatio) - origin);
+  // Where the answer `typed` goes in the box, and the caret after it, as CSS
+  // lengths from the box's inside edge. The answer's ink is centred in the
+  // box as drawn, whose edges are on whole device pixels. That leaves it at
+  // a fraction of a device pixel, where the page draws its ink a little
+  // differently, so it is scanned again there (the equation's left edge is
+  // on a whole device pixel) to find where its ink really ends. The caret
+  // goes a fixed gap after that, or in the middle of an empty box, on a
+  // whole device pixel itself: it is drawn the same after every answer, the
+  // gap true to half a device pixel.
+  function answerAt(typed) {
+    if (!geo.style) return { indent: '0px', caret: '' };
+    const dpr = devicePixelRatio;
+    const left = eq.getBoundingClientRect().left;
+    const origin = caret.parentElement.getBoundingClientRect().left - left;
+    const box = slot.getBoundingClientRect();
+    // How far the box's drawn centre is from its layout centre.
+    const drift = (snap(box.left - left, dpr) + snap(box.right - left, dpr) - (box.left - left) - (box.right - left)) / 2;
+    if (!typed) return { indent: '0px', caret: px(snap(origin + (geo.boxW * geo.fs - geo.caretW) / 2 + drift, dpr) - origin) };
+    const indent = onLayoutGrid(inkOf(typed, geo.boxW).off * geo.fs + drift, dpr);
+    const start = (origin + indent) * dpr;   // in device pixels
+    const phase = Math.round((start - Math.floor(start)) * 64) % 64 / 64;
+    const end = origin + indent + scan(typed, geo.style, geo.fs * dpr, phase).abr * geo.fs;
+    return { indent: indent + 'px', caret: px(snap(end + Math.max(0.08 * geo.fs, 4), dpr) - origin) };
   }
 
   // Baseline position (em) inside a 1em, line-height 1 box, read from layout.
@@ -239,7 +250,7 @@ export function createLayout(dom, scan, possibleAnswers) {
   }
 
   function layout() {
-    fitHeader(topBar);                         // the header also shows on the level selector
+    fitHeader(topBar, scan);                   // the header also shows on the level selector
     if (!stage.clientWidth) return;            // hidden (level selector showing)
     eq.style.fontSize = '';
     eq.style.left = '';

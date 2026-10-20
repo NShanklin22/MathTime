@@ -153,6 +153,19 @@ test('the hearts are centred on the breadcrumb text, full or lost', async ({ pag
   }
 });
 
+// The first crumb's ink starts at the header's edge, where the roadmap strip
+// does, as the hearts' ink ends at the other edge: its side bearing would
+// leave it inside. Its start is on a whole device pixel, so within half of
+// one. Wide (every crumb) and narrow (the first ones dropped).
+for (const width of [1440, 360]) test(`the breadcrumb's ink starts where the roadmap strip does, ${width}px wide`, async ({ page }) => {
+  await resize(page, width, 800);
+  const crumbs = ink(await capture(page), await rect(page, '.crumbs'), MUTED);
+  const road = await rect(page, '.road');
+  const dpr = await page.evaluate(() => devicePixelRatio);
+  note('crumbs ink right of the strip', crumbs.left - road.left);
+  expect(Math.abs(crumbs.left - road.left)).toBeLessThanOrEqual(0.5 / dpr + 0.05);
+});
+
 test('the header\'s ink margins match left and right, full or lost', async ({ page }) => {
   for (const lives of [3, 2, 0]) {
     const { crumbs, hearts, width } = await header(page, lives);

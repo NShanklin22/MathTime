@@ -181,6 +181,11 @@ test('a phone sideways with safe-area insets keeps everything inside them', asyn
   const stage = await rect(page, '.stage');
   expect(stage.left, 'problem area starts at the inset').toBe(47);
   expect(stage.right, 'problem area ends at the keypad').toBeLessThanOrEqual(Math.min(...pad.map(k => k.left)) + 0.01);
+  // The keys are capped at 64px here, so the keypad is centred on the problem area's centre, home bar or not.
+  const keysMid = (Math.min(...pad.map(k => k.top)) + Math.max(...pad.map(k => k.bottom))) / 2;
+  note('keypad centre below the problem area\'s', keysMid - (stage.top + stage.bottom) / 2);
+  expect(pad[0].height, 'keys capped').toBe(64);
+  expect(Math.abs(keysMid - (stage.top + stage.bottom) / 2), 'keypad centred on the problem area').toBeLessThanOrEqual(TOL);
   await showOutline(page);
   const { offset } = await groupOffset(page);
   note('visible group right of the safe centre', offset);

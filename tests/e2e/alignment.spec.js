@@ -178,31 +178,38 @@ const caretShown = (page, on) => page.evaluate(on => {
 }, on);
 const AMBER = [255, 214, 107];   // #ffd66b: the digits and the box score nothing against it
 
-test('the caret is drawn the same after every digit: one width, one gap to half a device pixel', async ({ page }) => {
+// The gap depends on where the answer falls on the device pixel grid, which
+// moves with the box: at the start size for whatever problem is showing, and
+// at sizes that once spread it over a device pixel for every first digit.
+for (const size of [null, [740, 360], [932, 430], [561, 560]]) test(`the caret is drawn the same after every digit: one width, one gap to half a device pixel${size ? ` (${size.join('×')}, every first digit)` : ''}`, async ({ page }) => {
+  if (size) await resize(page, ...size);
   await page.evaluate(() => document.querySelector('#slot').classList.add('focused'));
-  const { inner } = await boxInside(page);
   const dpr = await page.evaluate(() => devicePixelRatio);
-  const gaps = [], widths = [];
-  for (const d of '0123456789') {
-    await showAnswer(page, d);
-    const digit = ink(await capture(page), inner);                  // caret hidden
-    await caretShown(page, true);
-    const caret = ink(await capture(page), { ...inner, right: inner.right + 20 }, AMBER);
-    await caretShown(page, false);
-    gaps.push(caret.left - digit.right);
-    widths.push(caret.right - caret.left);
-    // Laid out on whole device pixels, so what layout and tests read is what is drawn.
-    const box = await rect(page, '.caret');
-    for (const [edge, v] of [['left', box.left], ['width', box.width]]) {
-      expect(Math.abs(v * dpr - Math.round(v * dpr)), `digit ${d}: caret ${edge} on the grid`).toBeLessThanOrEqual(0.02);
-    }
-  }
   const spread = list => Math.max(...list) - Math.min(...list);
-  test.info().annotations.push({ type: 'gaps', description: gaps.map(g => g.toFixed(3)).join(' ') });
-  test.info().annotations.push({ type: 'widths', description: widths.map(w => w.toFixed(3)).join(' ') });
-  expect(spread(widths), 'painted width').toBeLessThanOrEqual(0.05);
-  // Each gap is within half a device pixel of the design, so at most one apart.
-  expect(spread(gaps), 'gap after the ink').toBeLessThanOrEqual(1 / dpr + 0.05);
+  for (const first of size ? [1, 2, 3, 4, 5, 6, 7, 8, 9] : [null]) {
+    if (first) await setProblem(page, first, 5);
+    const { inner } = await boxInside(page);
+    const gaps = [], widths = [];
+    for (const d of '0123456789') {
+      await showAnswer(page, d);
+      const digit = ink(await capture(page), inner);                  // caret hidden
+      await caretShown(page, true);
+      const caret = ink(await capture(page), { ...inner, right: inner.right + 20 }, AMBER);
+      await caretShown(page, false);
+      gaps.push(caret.left - digit.right);
+      widths.push(caret.right - caret.left);
+      // Laid out on whole device pixels, so what layout and tests read is what is drawn.
+      const box = await rect(page, '.caret');
+      for (const [edge, v] of [['left', box.left], ['width', box.width]]) {
+        expect(Math.abs(v * dpr - Math.round(v * dpr)), `digit ${d}: caret ${edge} on the grid`).toBeLessThanOrEqual(0.02);
+      }
+    }
+    const problem = first ? `${first} + 5, ` : '';
+    test.info().annotations.push({ type: `${problem}gaps`, description: gaps.map(g => g.toFixed(3)).join(' ') });
+    expect(spread(widths), `${problem}painted width`).toBeLessThanOrEqual(0.05);
+    // Each gap is within half a device pixel of the design, so at most one apart.
+    expect(spread(gaps), `${problem}gap after the ink`).toBeLessThanOrEqual(1 / dpr + 0.05);
+  }
 });
 
 test('keypad digit labels are centred on their ink', async ({ page }) => {

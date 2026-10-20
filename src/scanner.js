@@ -11,8 +11,10 @@ const NO_INK = { asc: 0, desc: 0, abl: 0, abr: 0, adv: 0, approx: true };
 // drawn in its own colour too: anti-aliasing depends on how bright the text
 // is, and light text comes out about 0.3 device px heavier per side than black.
 // style: { weight, family, color, spacing } as in computed CSS, with the
-// letter spacing in em (color defaults to black, spacing to 0). Returns em
-// metrics (ink.js).
+// letter spacing in em (color defaults to black, spacing to 0). `phase` is
+// where in a device pixel the text starts (0 to 1, default 0): the page
+// draws text at fractions of a pixel, and the ink comes out a little
+// differently at each. Returns em metrics (ink.js), from that start.
 // If the pixels can't be read, it logs that once and returns the browser's
 // rougher bounds instead (flagged `approx`), so the page still draws.
 export function createScanner() {
@@ -34,16 +36,16 @@ export function createScanner() {
     return cache;
   }
 
-  function scan(text, style, size) {
+  function scan(text, style, size, phase = 0) {
     const cache = group(style, size);
-    const key = `${style.color ?? ''}|${style.spacing ?? 0}|${text}`;
-    if (!cache.has(key)) cache.set(key, measure(text, style, size));
+    const key = `${style.color ?? ''}|${style.spacing ?? 0}|${phase}|${text}`;
+    if (!cache.has(key)) cache.set(key, measure(text, style, size, phase));
     return cache.get(key);
   }
 
-  function measure(text, style, size) {
+  function measure(text, style, size, phase) {
     try {
-      return scanPixels(text, style, size);
+      return scanPixels(text, style, size, phase);
     } catch (err) {
       if (!warned) {
         warned = true;
@@ -62,7 +64,7 @@ export function createScanner() {
   // The metrics with the letter spacing in, where the canvas left it out.
   const spaced = (m, text, style) => spacing ? m : withSpacing(m, style.spacing ?? 0, [...text].length);
 
-  function scanPixels(text, style, size) {
+  function scanPixels(text, style, size, phase) {
     setFont(style, size);
     // Size the scan area from the browser's rough (rounded) ink bounds, with
     // about 0.25em to spare on every side. The clip check below throws if
@@ -81,13 +83,13 @@ export function createScanner() {
     ctx.clearRect(0, 0, width, height);
     ctx.fillStyle = style.color ?? '#000';
     ctx.textBaseline = 'alphabetic';
-    ctx.fillText(text, x0, y0);
+    ctx.fillText(text, x0 + phase, y0);
     const edges = edgesFromAlpha(ctx.getImageData(0, 0, width, height).data, width, height);
     if (!edges) throw new Error(`No ink for "${text}"`);
     if (edges.top < 1 || edges.left < 1 || edges.bottom > height - 1 || edges.right > width - 1) {
       throw new Error(`Ink for "${text}" is clipped by the scan canvas`);
     }
-    return spaced(toMetrics(edges, x0, y0, size, t.width), text, style);
+    return spaced(toMetrics(edges, x0 + phase, y0, size, t.width), text, style);
   }
 
   // The browser's own ink bounds, in em: rounded, but close enough to draw

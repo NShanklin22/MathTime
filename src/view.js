@@ -19,23 +19,25 @@ export function createView(dom, layout, level) {
     }));
   }
 
-  // Answer: ink-centred in the fixed box, caret a fixed gap after the ink.
-  // A wrong entry wider than the box is scaled down around its centre.
+  // Answer: ink-centred in the fixed box, caret a fixed gap after the ink
+  // (layout.answerAt). A wrong entry wider than the box is scaled down
+  // around its centre.
   function renderAnswer(typed) {
     const { geo } = layout;
     const span = document.createElement('span');
     span.className = 'cell';
     span.style.width = 'calc(var(--box-w) * 1em)';
     span.textContent = typed;
-    const g = typed ? layout.inkOf(typed, geo.boxW) : { off: 0, right: 0, w: 0 };
-    span.style.textIndent = g.off.toFixed(4) + 'em';
-    if (g.w > geo.boxW + 1e-3) {
+    const g = typed ? layout.inkOf(typed, geo.boxW) : null;
+    const at = layout.answerAt(typed);
+    span.style.textIndent = at.indent;
+    if (g && g.w > geo.boxW + 1e-3) {
       span.style.transform = `scale(${(geo.boxW / g.w).toFixed(4)})`;
       span.style.transformOrigin = `50% ${geo.mid.toFixed(4)}em`;
     }
     shown.replaceChildren(span);
     ans.value = typed;                   // so screen readers hear the answer
-    caret.style.left = layout.caretLeft(typed ? g.right : null);
+    caret.style.left = at.caret;
     slot.classList.toggle('empty', typed === '');
     slot.classList.toggle('full', typed.length >= level.maxAnswerLength);
   }
