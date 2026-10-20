@@ -54,7 +54,7 @@ The screen has three stacked bands that fill the viewport. The page never scroll
 ### 3.2 Problem area
 - The equation `a + b = [box]` is big and centred, both horizontally and vertically, between the header and the keypad. Horizontal centring is of what you see: from the first digit's ink to the box's dashed outline.
 - The space between neighbours is even: the ink gap from "=" to the box's outer edge matches the ink gaps between the other symbols.
-- On short screens (for example a phone held sideways) the equation shrinks until "Question N" and the box both fit inside the problem area with at least 8px to spare above and below.
+- If the problem area is still short (§3.4 covers phones held sideways), the equation shrinks until "Question N" and the box both fit inside it with at least 8px to spare above and below.
 - "Question N" sits centred above the equation, in a smaller muted style.
 - The answer is typed **inside the box, inline after "="**. There is no separate input field.
 
@@ -63,6 +63,12 @@ The screen has three stacked bands that fill the viewport. The page never scroll
 - It is the main input on every device and **is critical for later levels**, which will need more symbols. The phone's own keyboard is suppressed.
 - A physical keyboard also works (digits, Backspace, Enter). Each accepted key press flashes the matching on-screen key. Keys that are ignored (a third digit, Enter on an empty box, input during an animation) do not flash.
 - Focus always stays on the answer. Tapping anywhere, including the keypad, never steals it.
+
+### 3.4 Landscape (wide, short screens)
+When the screen is in landscape and at most 560px tall (a phone held sideways), the stacked layout leaves too little height for the problem. The screen then splits into two columns under the full-width header:
+- **Left:** the problem area, at the full height below the header. The equation is centred and fitted in it by the same rules as portrait.
+- **Right:** the keypad, the same 3×4 grid, with its rows sharing the full height below the header. Keys are 40–64px tall, and the key width is in proportion to the height, not stretched. The keypad's right edge and bottom keep the 16px gutter.
+- Nothing else changes: the same theme, the same alignment rules (§6), the same flows.
 
 ## 4. The answer box
 
