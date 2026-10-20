@@ -5,13 +5,16 @@ export function createView(dom, layout, level) {
   const ANIMS = ['shake', 'in', 'out'];
   const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 
-  // Problem digits: one fixed cell each, nudged so the ink is centred.
+  // Problem digits: one fixed cell each, nudged so the ink is centred. The
+  // equation's first digit starts on a whole device pixel (layout.leadIndent).
   function renderDigits(el, str) {
-    el.replaceChildren(...[...str].map(c => {
+    el.replaceChildren(...[...str].map((c, i) => {
       const cell = document.createElement('span');
       cell.className = 'cell';
       cell.textContent = c;
-      cell.style.textIndent = layout.inkOf(c, layout.geo.wide).off.toFixed(4) + 'em';
+      cell.style.textIndent = el === a && i === 0
+        ? layout.leadIndent(c) + 'px'
+        : layout.inkOf(c, layout.geo.wide).off.toFixed(4) + 'em';
       return cell;
     }));
   }

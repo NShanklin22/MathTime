@@ -15,13 +15,23 @@ const px = v => onLayoutGrid(v, devicePixelRatio) + 'px';
 export function createLayout(dom, scan, possibleAnswers) {
   const { eq, a, slot, caret, qnum, stage, topBar } = dom;
   const geo = { fs: 0, style: null, base: 0.8, mid: 0.5, inkH: 0.72, boxW: 1.2, wide: 0.6 };
-  const api = { geo, inkOf, layout, place, afterMeasure: null };
+  const api = { geo, inkOf, leadIndent, layout, place, afterMeasure: null };
 
   // Ink geometry of `text` centred across `width` em, at the current size
   // (all zeros before the first measurement).
   function inkOf(text, width) {
     if (!geo.style) return { off: 0, right: 0, w: 0 };
     return centreInk(scan(text, geo.style, geo.fs * devicePixelRatio), width);
+  }
+
+  // Where the equation's first digit starts in its cell, in px: ink-centred,
+  // then put on a whole device pixel (the equation's left edge is on one).
+  // That is where the scan drew it, so its ink starts exactly where measured,
+  // which centring relies on: at other fractions of a pixel the page draws a
+  // glyph up to 0.4px off at 1x. It is at most half a device pixel off its
+  // cell's centre.
+  function leadIndent(digit) {
+    return snap(inkOf(digit, geo.wide).off * geo.fs, devicePixelRatio);
   }
 
   // Baseline position (em) inside a 1em, line-height 1 box, read from layout.
@@ -226,8 +236,8 @@ export function createLayout(dom, scan, possibleAnswers) {
     // Both ends from the equation's left edge, which lands on a device
     // pixel. The box is drawn on whole device pixels, the outline round it.
     const digit = a.textContent.charAt(0);
-    const ink = digit ? inkOf(digit, geo.wide) : { right: 0, w: 0 };
-    const start = (ink.right - ink.w) * geo.fs;
+    const ink = digit ? inkOf(digit, geo.wide) : { off: 0, right: 0, w: 0 };
+    const start = (digit ? leadIndent(digit) : 0) + (ink.right - ink.w - ink.off) * geo.fs;
     const end = snap(slot.getBoundingClientRect().right - eq.getBoundingClientRect().left, dpr) + overhang();
     eq.style.setProperty('--seen-mid', px((start + end) / 2));   // "Question N" is centred on it
     eq.style.left = px(snap(s.left + s.width / 2 - (start + end) / 2, dpr) - r.left);
