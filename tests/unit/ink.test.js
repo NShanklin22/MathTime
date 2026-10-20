@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { edgesFromAlpha, toMetrics, centreInk, band, snapOutward, snap, onLayoutGrid } from '../../src/ink.js';
+import { edgesFromAlpha, toMetrics, centreInk, band, snapOutward, snap, onLayoutGrid, withSpacing } from '../../src/ink.js';
 
 // RGBA pixel data where paint(set) sets alpha values.
 function pixels(width, height, paint) {
@@ -136,4 +136,15 @@ test('onLayoutGrid lands exactly on 64ths of a device pixel, float noise and all
 
 test('onLayoutGrid never returns negative zero', () => {
   assert.equal(onLayoutGrid(-1e-4, 1), 0);
+});
+
+test('withSpacing adds letter spacing as canvas and CSS do: the ink gains it before each later character, the advance after every one', () => {
+  const m = { asc: 0.7, desc: 0.01, abl: -0.05, abr: 5.5, adv: 6 };
+  assert.deepEqual(withSpacing(m, 0.04, 10), { asc: 0.7, desc: 0.01, abl: -0.05, abr: 5.5 + 0.04 * 9, adv: 6 + 0.04 * 10 });
+});
+
+test('withSpacing leaves one character\'s ink alone, and no spacing changes nothing', () => {
+  const m = { asc: 0.7, desc: 0.01, abl: -0.05, abr: 0.5, adv: 0.6 };
+  assert.deepEqual(withSpacing(m, 0.04, 1), { ...m, adv: 0.64 });
+  assert.deepEqual(withSpacing(m, 0, 10), m);
 });

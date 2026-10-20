@@ -45,6 +45,25 @@ test('"Question N" has its ink centred over what you see', async ({ page }) => {
   note('worst label centring', worst);
 });
 
+test('"Question N" stays centred where canvas has no letter spacing', async ({ page }) => {
+  // As in Safari before 18.4: the scanner must add the spacing itself.
+  await page.addInitScript(() => { delete CanvasRenderingContext2D.prototype.letterSpacing; });
+  await open(page);
+  await freeze(page);
+  expect(await page.evaluate(() => 'letterSpacing' in document.createElement('canvas').getContext('2d'))).toBe(false);
+  await showOutline(page);
+  let worst = 0;
+  for (const [question, a] of [[1, 5], [10, 7]]) {
+    await page.evaluate(n => { window.mathtime.game.state.question = n; }, question);
+    await setProblem(page, a, 3);
+    const { first, outline, shot } = await groupOffset(page);
+    const off = (await labelInk(page, shot)).midX - (first.left + outline.right) / 2;
+    worst = Math.max(worst, Math.abs(off));
+    expect(Math.abs(off), `Question ${question}: ${off.toFixed(3)}px`).toBeLessThanOrEqual(TOL);
+  }
+  note('worst label centring', worst);
+});
+
 test('a new problem after a correct answer is centred before it slides in', async ({ page }) => {
   // "4" and "7" have the least and the most space before their ink in Plex
   // Mono, so a placement made for one is visibly off-centre for the other.
