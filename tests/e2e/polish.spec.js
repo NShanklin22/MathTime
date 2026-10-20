@@ -1,21 +1,11 @@
 import { test, expect } from '@playwright/test';
 import {
-  open, freeze, showOutline, settle, resize, setProblem, rect, capture, ink, digitBand, groupOffset,
-  equalsGap, labelInk, clearances, typeKeys, TOL, MUTED, LOST,
+  open, freeze, showOutline, settle, resize, setProblem, layOut, rect, capture, ink, digitBand, groupOffset,
+  equalsGap, labelInk, clearances, note, fontSize, typeKeys, TOL, MUTED, LOST,
 } from './helpers.js';
 
 // The spacing, centring, header and short-screen targets of spec §3.1, §3.2
 // and §6, measured in real screenshot pixels.
-
-// A new problem, laid out in full as the first one is at startup.
-const layOut = (page, a, b) => page.evaluate(([a, b]) => {
-  const { game, layout } = window.mathtime;
-  game.state.problem = { a, b, answer: a + b };
-  layout.layout();
-}, [a, b]);
-
-// Records a measurement in the report, so drift shows.
-const note = (type, px) => test.info().annotations.push({ type, description: `${px.toFixed(3)}px` });
 
 test.beforeEach(async ({ page }) => {
   await open(page);
@@ -55,10 +45,9 @@ test('"Question N" has its ink centred over what you see', async ({ page }) => {
   note('worst label centring', worst);
 });
 
-// "4" and "7" have the least and the most space before their ink in Plex
-// Mono, so a placement made for one is visibly off-centre for the other.
-
 test('a new problem after a correct answer is centred before it slides in', async ({ page }) => {
+  // "4" and "7" have the least and the most space before their ink in Plex
+  // Mono, so a placement made for one is visibly off-centre for the other.
   await showOutline(page);
   await layOut(page, 4, 3);
   await page.evaluate(() => {
@@ -87,6 +76,7 @@ test('a new problem after a correct answer is centred before it slides in', asyn
 });
 
 test('the first problem of a restarted game is centred from its first frame', async ({ page }) => {
+  // From "4" to "7", as after a correct answer.
   await showOutline(page);
   await layOut(page, 4, 3);
   await page.evaluate(() => {
@@ -156,8 +146,6 @@ test('the header\'s ink margins match left and right, full or lost', async ({ pa
     expect(Math.abs(right - left), `${lives} lives: left ${left.toFixed(3)}px, right ${right.toFixed(3)}px`).toBeLessThanOrEqual(TOL);
   }
 });
-
-const fontSize = page => page.evaluate(() => parseFloat(getComputedStyle(document.querySelector('#eq')).fontSize));
 
 // Short portrait screens leave a short problem area (landscape ones get the
 // keypad beside it: landscape.spec.js); the tall, narrow one is a sanity

@@ -41,6 +41,30 @@ export async function resize(page, width, height) {
   await settle(page);
 }
 
+// Records a measurement in the test report, so drift shows.
+export const note = (type, px) => test.info().annotations.push({ type, description: `${px.toFixed(3)}px` });
+
+// The equation's font size as laid out (what layout.js fitted).
+export const fontSize = page => page.evaluate(() => parseFloat(getComputedStyle(document.querySelector('#eq')).fontSize));
+
+// The equation's CSS size (the clamp() in styles.css), from a probe with the same class.
+export const cssFontSize = page => page.evaluate(() => {
+  const probe = document.createElement('div');
+  probe.className = 'eq';
+  probe.style.cssText = 'position:absolute;visibility:hidden';
+  document.querySelector('.stage').appendChild(probe);
+  const size = parseFloat(getComputedStyle(probe).fontSize);
+  probe.remove();
+  return size;
+});
+
+// A new problem, laid out in full as the first one is at startup.
+export const layOut = (page, a, b) => page.evaluate(([a, b]) => {
+  const { game, layout } = window.mathtime;
+  game.state.problem = { a, b, answer: a + b };
+  layout.layout();
+}, [a, b]);
+
 // Put a known problem on screen, centred on its ink as a new problem is
 // (uses the handle main.js exposes for tests).
 export async function setProblem(page, a, b) {

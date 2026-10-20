@@ -1,5 +1,8 @@
 import { test, expect } from '@playwright/test';
-import { open, freeze, showOutline, resize, setProblem, rect, capture, ink, digitInk, digitBand, boxEdges, outlineEdges, TOL } from './helpers.js';
+import {
+  open, freeze, showOutline, resize, setProblem, rect, capture, ink, digitInk, digitBand, boxEdges, outlineEdges,
+  fontSize, cssFontSize, TOL,
+} from './helpers.js';
 
 // The box's outer edges and centre, and the area inside its border (with 1px
 // to spare) where answers are measured.
@@ -35,7 +38,6 @@ async function gutters(page) {
   return { left: first.left - s.left, right: s.right - outline.right, scroll, phone };
 }
 
-const fontSize = page => page.evaluate(() => parseFloat(getComputedStyle(document.querySelector('#eq')).getPropertyValue('--fs')));
 
 test.beforeEach(async ({ page }) => {
   await open(page);
@@ -205,17 +207,8 @@ test('a narrow screen shrinks the equation to fit, measured again', async ({ pag
   // This drops the phone project to 1x, which is fine: everything below is
   // measured in that state.
   await page.setViewportSize({ width: 280, height: 700 });
-  // Wait until the equation is smaller than its CSS size (the clamp() in
-  // styles.css, read from a probe with the same class).
-  await expect.poll(() => page.evaluate(() => {
-    const probe = document.createElement('div');
-    probe.className = 'eq';
-    probe.style.cssText = 'position:absolute;visibility:hidden';
-    document.querySelector('.stage').appendChild(probe);
-    const css = parseFloat(getComputedStyle(probe).fontSize);
-    probe.remove();
-    return parseFloat(getComputedStyle(document.querySelector('#eq')).fontSize) < css;
-  })).toBe(true);
+  // Wait until the equation is smaller than its CSS size.
+  await expect.poll(async () => await fontSize(page) < await cssFontSize(page)).toBe(true);
   const digits = await digitBand(page);
   const shot = await capture(page);
   const box = await boxEdges(page, shot);

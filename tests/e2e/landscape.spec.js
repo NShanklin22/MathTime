@@ -1,25 +1,13 @@
 import { test, expect } from '@playwright/test';
 import {
-  open, freeze, showOutline, resize, setProblem, rect, capture, ink, digitInk, digitBand, boxEdges, groupOffset,
-  equalsGap, clearances, keyLabelOffsets, labelInk, TOL, MUTED,
+  open, freeze, showOutline, resize, setProblem, rect, capture, ink, digitBand, boxEdges, groupOffset,
+  equalsGap, clearances, keyLabelOffsets, labelInk, note, fontSize, cssFontSize, TOL, MUTED,
 } from './helpers.js';
 
 // Phones held sideways (spec §3.4): the keypad beside the problem area, and
-// every alignment rule of §6 in the problem area's column. Real 2x on the
-// phone project; the desktop project checks the same sizes at 1x.
-
-const note = (type, px) => test.info().annotations.push({ type, description: `${px.toFixed(3)}px` });
-const fontSize = page => page.evaluate(() => parseFloat(getComputedStyle(document.querySelector('#eq')).fontSize));
-// The equation's CSS size (the clamp() in styles.css), from a probe with the same class.
-const cssFontSize = page => page.evaluate(() => {
-  const probe = document.createElement('div');
-  probe.className = 'eq';
-  probe.style.cssText = 'position:absolute;visibility:hidden';
-  document.querySelector('.stage').appendChild(probe);
-  const size = parseFloat(getComputedStyle(probe).fontSize);
-  probe.remove();
-  return size;
-});
+// every alignment rule of §6 in the problem area's column. On the phone
+// project the size is a CDP override on top of a real 2x window, which keeps
+// the 2x; the desktop project checks the same sizes at 1x.
 const keys = page => page.evaluate(() => [...document.querySelectorAll('.pad button')].map(b => {
   const r = b.getBoundingClientRect();
   return { k: b.dataset.k, left: r.left, right: r.right, top: r.top, bottom: r.bottom, width: r.width, height: r.height };
