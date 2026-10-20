@@ -1,4 +1,4 @@
-import { edgesFromAlpha, toMetrics } from './ink.js';
+import { edgesFromAlpha, toMetrics, withSpacing } from './ink.js';
 
 // How many font/size groups to keep. One layout can use five: the CSS size,
 // up to three fitted sizes and the keypad. Older ones are stale.
@@ -18,6 +18,9 @@ const NO_INK = { asc: 0, desc: 0, abl: 0, abr: 0, adv: 0, approx: true };
 export function createScanner() {
   const canvas = document.createElement('canvas');
   const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  // Canvas letter spacing is missing in some browsers (Safari before 18.4):
+  // there the text is drawn without it and the spacing added to the metrics.
+  const spacing = 'letterSpacing' in ctx;
   const groups = new Map();          // "weight|family|size" → Map("color|spacing|text" → metrics), oldest first
   let warned = false;
 
@@ -53,8 +56,11 @@ export function createScanner() {
   // The font and letter spacing of `style` at `size` px.
   function setFont(style, size) {
     ctx.font = `${style.weight} ${size}px ${style.family}`;
-    ctx.letterSpacing = (style.spacing ?? 0) * size + 'px';
+    if (spacing) ctx.letterSpacing = (style.spacing ?? 0) * size + 'px';
   }
+
+  // The metrics with the letter spacing in, where the canvas left it out.
+  const spaced = (m, text, style) => spacing ? m : withSpacing(m, style.spacing ?? 0, [...text].length);
 
   function scanPixels(text, style, size) {
     setFont(style, size);
@@ -81,7 +87,7 @@ export function createScanner() {
     if (edges.top < 1 || edges.left < 1 || edges.bottom > height - 1 || edges.right > width - 1) {
       throw new Error(`Ink for "${text}" is clipped by the scan canvas`);
     }
-    return toMetrics(edges, x0, y0, size, t.width);
+    return spaced(toMetrics(edges, x0, y0, size, t.width), text, style);
   }
 
   // The browser's own ink bounds, in em: rounded, but close enough to draw
@@ -97,7 +103,7 @@ export function createScanner() {
         abr: t.actualBoundingBoxRight / size,
         adv: t.width / size,
       };
-      if (Object.values(m).every(Number.isFinite)) return { ...m, approx: true };
+      if (Object.values(m).every(Number.isFinite)) return { ...spaced(m, text, style), approx: true };
     } catch {
       // fall through to zeros
     }

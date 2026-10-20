@@ -40,6 +40,15 @@ export function toMetrics(edges, x0, y0, size, advance) {
   };
 }
 
+// Metrics `m` of text measured without letter spacing, as they are with
+// `spacing` em after each of its `chars` characters (canvas and CSS letter
+// spacing both work this way): the ink ends that much further right for
+// every character but the first, and the advance includes the last one too.
+export function withSpacing(m, spacing, chars) {
+  if (!spacing || chars < 1) return m;
+  return { ...m, abr: m.abr + spacing * (chars - 1), adv: m.adv + spacing * chars };
+}
+
 // Where text must start so its ink is centred across `width` em.
 // off: the text indent (may be negative); right: where the ink ends; w: ink width.
 export function centreInk(m, width) {
