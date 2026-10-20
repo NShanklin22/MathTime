@@ -278,17 +278,18 @@ body.at-select .select { display: flex; }
 
 /* Phones, upright or sideways: 16px gutters and a tighter header. Sideways,
    the header's right edge then lines up with the keypad's. */
-@media (max-width: 480px), (orientation: landscape) and (max-height: 560px) {
+@media (max-width: 480px), (orientation: landscape) and (max-height: 560px) and (min-aspect-ratio: 3/2) {
   :root { --gutter: 16px; --top-pad: 16px; }
 }
 
 /* ---------- Landscape phones (spec §3.4) ---------- */
-/* The problem area on the left at the full height below the header, the
+/* At least 3:2: a nearly square window would leave the equation a sliver
+   beside the keypad, so it keeps the keypad below. The problem area on the left at the full height below the header, the
    keypad on the right. Its four rows share that height, less the 16px
    gutters above and below and three 8px gaps; the header is its top padding,
    the 20px crumb line and the 12px roadmap strip. Keys are 40-64px tall and
    1.5 times as wide as they are tall. */
-@media (orientation: landscape) and (max-height: 560px) {
+@media (orientation: landscape) and (max-height: 560px) and (min-aspect-ratio: 3/2) {
   body {
     grid-template-columns: minmax(0, 1fr) auto;
     grid-template-rows: auto minmax(0, 1fr);
