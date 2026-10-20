@@ -1,4 +1,6 @@
 import { centreInk, band, snapOutward, snap, onLayoutGrid } from './ink.js';
+import { fitHeader } from './header.js';
+import { centreKeys } from './keypad.js';
 
 const DIGITS = [...'0123456789'];
 
@@ -7,13 +9,13 @@ const px = v => onLayoutGrid(v, devicePixelRatio) + 'px';
 
 // Measures the real ink of the equation's font and lays the screen out around
 // it (spec §6.1): box, caret and operators from measured ink; equation fitted
-// between the gutters and snapped to device pixels; header fitted; keypad
-// labels centred. `afterMeasure` runs once per layout, after the last
+// and snapped to device pixels; header fitted (header.js); keypad labels
+// centred (keypad.js). `afterMeasure` runs once per layout, after the last
 // measurement, so the view can re-render digits with the new geometry.
 // `place` centres the equation on its ink, which depends on the problem: the
 // view calls it again after drawing a new one.
 export function createLayout(dom, scan, possibleAnswers) {
-  const { eq, a, slot, caret, qnum, stage, topBar } = dom;
+  const { eq, a, slot, caret, qnum, stage, topBar, pad } = dom;
   const geo = { fs: 0, style: null, base: 0.8, mid: 0.5, inkH: 0.72, boxW: 1.2, wide: 0.6 };
   const api = { geo, inkOf, leadIndent, caretLeft, layout, place, afterMeasure: null };
 
@@ -236,56 +238,8 @@ export function createLayout(dom, scan, possibleAnswers) {
     }
   }
 
-  // Drop breadcrumb parts from the left until the header fits on one line.
-  function fitHeader() {
-    topBar.classList.remove('tight', 'tighter');
-    const where = topBar.querySelector('.where');
-    const crumbs = topBar.querySelector('.crumbs');
-    if (crumbs.scrollWidth > where.clientWidth) topBar.classList.add('tight');
-    if (crumbs.scrollWidth > where.clientWidth) topBar.classList.add('tighter');
-  }
-
-  // Centre each digit key's label on its real ink. Labels are much smaller
-  // than the equation and snap to pixels differently, so each is scanned at
-  // its own device size. Text baselines snap to whole device pixels, so the
-  // vertical shift is a whole number of device pixels too. A pressed key is
-  // scaled down, so its label keeps its last position. All the reads happen
-  // in one pass, between the writes.
-  function centreKeys() {
-    const dpr = devicePixelRatio;
-    const labels = [...document.querySelectorAll('.pad .kl')].filter(kl => {
-      const key = kl.parentElement;
-      return key.getBoundingClientRect().width && !key.classList.contains('pressed') && !key.matches(':active');
-    });
-    const probes = labels.map(kl => {
-      kl.style.transform = 'none';
-      const probe = document.createElement('span');
-      probe.style.cssText = 'display:inline-block;width:0;height:0;vertical-align:baseline';
-      kl.appendChild(probe);
-      return probe;
-    });
-    const found = labels.map((kl, i) => {
-      const cs = getComputedStyle(kl);
-      return {
-        key: kl.parentElement.getBoundingClientRect(),
-        label: kl.getBoundingClientRect(),
-        baseY: snap(probes[i].getBoundingClientRect().top, dpr),
-        kfs: parseFloat(cs.fontSize),
-        style: { weight: cs.fontWeight, family: cs.fontFamily, color: cs.color },
-      };
-    });
-    probes.forEach(probe => probe.remove());
-    labels.forEach((kl, i) => {
-      const { key, label, baseY, kfs, style } = found[i];
-      const m = scan(kl.textContent, style, kfs * dpr);
-      const dy = snap(key.top + key.height / 2 - (baseY - (m.asc - m.desc) / 2 * kfs), dpr);
-      const dx = key.left + key.width / 2 - (m.abr - m.abl) / 2 * kfs - label.left;
-      kl.style.transform = `translate(${dx.toFixed(3)}px, ${dy.toFixed(3)}px)`;
-    });
-  }
-
   function layout() {
-    fitHeader();                               // the header also shows on the level selector
+    fitHeader(topBar);                         // the header also shows on the level selector
     if (!stage.clientWidth) return;            // hidden (level selector showing)
     eq.style.fontSize = '';
     eq.style.left = '';
@@ -297,19 +251,29 @@ export function createLayout(dom, scan, possibleAnswers) {
     // Draw the problem and answer with the final geometry, then place them.
     api.afterMeasure?.();
     place();
-    centreKeys();
+    centreKeys(pad, scan);
   }
 
-  // Centre what you see of the equation, from the first digit's ink to the
-  // box's dashed outline, in the problem area (spec §3.2), with the baseline
-  // and the left edge on whole device pixels. Only a new problem changes the
-  // first digit, so the equation never moves while you type or after a miss.
+  // Place the equation for the problem on screen: what you see centred in
+  // the problem area, "Question N" over it, the baseline on a whole device
+  // pixel. Only a new problem changes the first digit, so the equation never
+  // moves while you type or after a miss.
   function place() {
     if (!stage.clientWidth || !geo.style) return;
     eq.style.left = '';
     eq.style.top = '';
-    const dpr = devicePixelRatio;
     const r = eqBox();
+    placeLabel(centreGroup(r));
+    const baseY = r.top + geo.base * geo.fs;
+    eq.style.top = px(snap(baseY, devicePixelRatio) - baseY);
+  }
+
+  // Centre what you see of the equation, from the first digit's ink to the
+  // box's dashed outline, in the problem area (spec §3.2), with the left edge
+  // on a whole device pixel. `r` is the equation's unplaced box. Returns the
+  // middle of what you see, from the equation's left edge.
+  function centreGroup(r) {
+    const dpr = devicePixelRatio;
     const s = stage.getBoundingClientRect();
     // Both ends from the equation's left edge, which lands on a device
     // pixel: the first digit's ink starts at the indent render() gave it, less
@@ -320,16 +284,21 @@ export function createLayout(dom, scan, possibleAnswers) {
     const end = snap(slot.getBoundingClientRect().right - eq.getBoundingClientRect().left, dpr) + overhang();
     const mid = (start + end) / 2;
     eq.style.left = px(snap(s.left + s.width / 2 - mid, dpr) - r.left);
-    // "Question N" goes over the same middle, centred on its own ink: its
-    // trailing letter spacing and side bearings would leave it off-centre.
+    return mid;
+  }
+
+  // "Question N" over the middle `mid` (from the equation's left edge),
+  // centred on its own ink: its trailing letter spacing and side bearings
+  // would leave it off-centre. (Snapping its start to a device pixel, as for
+  // the first digit, would trade its 0.1-0.2px for up to half a device pixel.)
+  function placeLabel(mid) {
+    const dpr = devicePixelRatio;
     const ls = getComputedStyle(qnum);
     const lfs = parseFloat(ls.fontSize);
     const style = { weight: ls.fontWeight, family: ls.fontFamily, color: ls.color, spacing: (parseFloat(ls.letterSpacing) || 0) / lfs };
     // Under a device pixel it shows nothing, and there is no ink to scan.
     const label = lfs * dpr >= 1 ? scan(qnum.textContent, style, lfs * dpr) : { abl: 0, abr: 0 };
     eq.style.setProperty('--label-x', px(mid + qnum.getBoundingClientRect().width / 2 - (label.abr - label.abl) / 2 * lfs));
-    const baseY = r.top + geo.base * geo.fs;
-    eq.style.top = px(snap(baseY, dpr) - baseY);
   }
 
   return api;
