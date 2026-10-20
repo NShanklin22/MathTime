@@ -186,3 +186,15 @@ test('a phone sideways with safe-area insets keeps everything inside them', asyn
   note('visible group right of the safe centre', offset);
   expect(Math.abs(offset), 'centred in the safe part').toBeLessThanOrEqual(TOL);
 });
+
+test('a very short landscape window shrinks the keys rather than overlap the header', async ({ page }) => {
+  // 240px tall: four 40px rows and the gutters need more than there is.
+  await open(page);
+  await resize(page, 600, 240);
+  const top = await rect(page, '.top');
+  const pad = await keys(page);
+  note('key height', pad[0].height);
+  expect(Math.min(...pad.map(k => k.top)) - top.bottom, 'room below the header').toBeGreaterThanOrEqual(16 - 0.5);
+  expect(240 - Math.max(...pad.map(k => k.bottom)), 'bottom gutter').toBeGreaterThanOrEqual(16 - 0.5);
+  expect(Math.abs(pad[0].width / pad[0].height - 1.5), 'still in proportion').toBeLessThanOrEqual(0.01);
+});

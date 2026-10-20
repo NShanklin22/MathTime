@@ -374,3 +374,17 @@ test('a new device pixel ratio alone is measured again', async ({ page }, info) 
   // Secondary: the new height is on the 2x grid (the 1x height was too).
   expect(Number.isInteger((await caretHeight()) * 2)).toBe(true);
 });
+
+test('a malformed --gutter cannot break the width fit', async ({ page }) => {
+  // The gutter is read from CSS; a bad value must fall back to a length.
+  await page.addStyleTag({ content: ':root{--gutter:oops}' });
+  await page.setViewportSize({ width: 280, height: 700 });   // drops the phone to 1x; measures no pixels
+  await expect.poll(async () => await fontSize(page) < await cssFontSize(page)).toBe(true);
+  const g = await page.evaluate(() => {
+    const e = document.querySelector('#eq').getBoundingClientRect();
+    return { left: e.left, right: innerWidth - e.right, scroll: document.documentElement.scrollWidth - innerWidth };
+  });
+  expect(g.left).toBeGreaterThanOrEqual(0);
+  expect(g.right).toBeGreaterThanOrEqual(0);
+  expect(g.scroll).toBeLessThanOrEqual(0);
+});
