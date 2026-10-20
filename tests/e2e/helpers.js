@@ -9,11 +9,21 @@ export async function open(page) {
 // For pixel measurement: plain background (no grid), a hidden caret (its rect
 // still works) and a transparent dashed outline (it still counts in layout).
 // None of these change layout.
+const HIDE_OUTLINE = '.slot::after{outline-color:transparent!important}';
 export async function freeze(page) {
   await page.addStyleTag({
-    content: 'body{background:#12407e!important}.caret{visibility:hidden!important}.slot::after{outline-color:transparent!important}',
+    content: 'body{background:#12407e!important}.caret{visibility:hidden!important}' + HIDE_OUTLINE,
   });
 }
+
+// Undo freeze()'s transparent outline, to measure the outline itself.
+export const showOutline = page => page.evaluate(rule => {
+  for (const style of document.querySelectorAll('style')) style.textContent = style.textContent.replace(rule, '');
+}, HIDE_OUTLINE);
+
+// Wait out a resize: ResizeObserver reports it, then the layout runs in the
+// next animation frame.
+export const settle = page => page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(r)))));
 
 // Put a known problem on screen (uses the handle main.js exposes for tests).
 export async function setProblem(page, a, b) {
@@ -31,6 +41,54 @@ export async function rect(page, selector, index = 0) {
   }, [selector, index]);
 }
 
+// Ink of a problem digit's cells (#a or #b), with room above and below their 1em box.
+export async function digitInk(page, shot, selector) {
+  const r = await rect(page, selector);
+  return ink(shot, { ...r, top: r.top - 4, bottom: r.bottom + 4 });
+}
+
+// The digit ink band is the union of all ten digits (spec §6), so render the
+// digits in pairs and combine their ink.
+export async function digitBand(page) {
+  let top = Infinity, bottom = -Infinity;
+  for (const [a, b] of [[0, 1], [2, 3], [4, 5], [6, 7], [8, 9]]) {
+    await setProblem(page, a, b);
+    const shot = await capture(page);
+    for (const sel of ['#a', '#b']) {
+      const box = await digitInk(page, shot, sel);
+      top = Math.min(top, box.top);
+      bottom = Math.max(bottom, box.bottom);
+    }
+  }
+  return { top, bottom, mid: (top + bottom) / 2 };
+}
+
+// The window around the answer box for pixel measurement: room for the
+// dashed outline at the sides and below, starting below the "Question N"
+// label (it comes within reach of the box on narrow screens), and inside
+// the problem area (the keypad's key rings are ink-coloured too).
+async function boxWindow(page) {
+  const s = await rect(page, '#slot');
+  const q = await rect(page, '#qnum');
+  const stage = await rect(page, '.stage');
+  const fs = await page.evaluate(() => parseFloat(getComputedStyle(document.querySelector('#eq')).fontSize));
+  const top = Math.max(s.top - fs / 2, q.bottom, stage.top);
+  return { s, top, bottom: Math.min(s.bottom + fs / 2, stage.bottom), side: Math.max(fs / 4, 8) };
+}
+
+// The answer box's outer edges, measured from pixels (it is a pseudo-element).
+// Needs freeze(), which hides the dashed outline.
+export async function boxEdges(page, shot) {
+  const { s, top, bottom } = await boxWindow(page);
+  return ink(shot, { left: s.left - 2, right: s.right + 2, top, bottom });
+}
+
+// The dashed outline's outer edges, from pixels. Needs showOutline() after freeze().
+export async function outlineEdges(page, shot) {
+  const { s, top, bottom, side } = await boxWindow(page);
+  return ink(shot, { left: s.left - side, right: s.right + side, top, bottom }, OUTLINE);
+}
+
 export async function capture(page) {
   const dpr = await page.evaluate(() => devicePixelRatio);
   return { png: PNG.sync.read(await page.screenshot({ animations: 'disabled' })), dpr };
@@ -38,6 +96,10 @@ export async function capture(page) {
 
 const BG = [18, 64, 126];       // #12407e
 const INK = [238, 245, 255];   // #eef5ff
+export const MUTED = [182, 205, 238];     // #b6cdee: operators, crumbs, "Question N"
+export const LOST = [143, 176, 221];      // #8fb0dd: a lost heart
+// The dashed outline, ink at 55% opacity (stored as 140/255) over the background.
+export const OUTLINE = INK.map((c, i) => Math.round(BG[i] + (c - BG[i]) * 140 / 255));
 
 // Sub-pixel bounds (CSS px) of `colour` ink inside `area` (CSS px), from real
 // screenshot pixels. A pixel's coverage is the average over R, G and B of how

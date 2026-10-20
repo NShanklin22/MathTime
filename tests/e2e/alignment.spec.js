@@ -1,32 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { open, freeze, setProblem, rect, capture, ink, TOL } from './helpers.js';
-
-// The digit ink band is the union of all ten digits (spec §6), so render the
-// digits in pairs and combine their ink.
-async function digitBand(page) {
-  let top = Infinity, bottom = -Infinity;
-  for (const [a, b] of [[0, 1], [2, 3], [4, 5], [6, 7], [8, 9]]) {
-    await setProblem(page, a, b);
-    const shot = await capture(page);
-    for (const sel of ['#a', '#b']) {
-      const r = await rect(page, sel);
-      const box = ink(shot, { ...r, top: r.top - 4, bottom: r.bottom + 4 });
-      top = Math.min(top, box.top);
-      bottom = Math.max(bottom, box.bottom);
-    }
-  }
-  return { top, bottom, mid: (top + bottom) / 2 };
-}
-
-// The answer box's outer edges, measured from pixels (it is a pseudo-element).
-// The window starts below the "Question N" label, which comes within reach of
-// the box on narrow screens.
-async function boxEdges(page, shot) {
-  const s = await rect(page, '#slot');
-  const q = await rect(page, '#qnum');
-  const fs = await page.evaluate(() => parseFloat(getComputedStyle(document.querySelector('#eq')).fontSize));
-  return ink(shot, { left: s.left - 2, right: s.right + 2, top: Math.max(s.top - fs / 2, q.bottom), bottom: s.bottom + fs / 2 });
-}
+import { open, freeze, showOutline, setProblem, rect, capture, ink, digitInk, digitBand, boxEdges, outlineEdges, TOL } from './helpers.js';
 
 // The box's outer edges and centre, and the area inside its border (with 1px
 // to spare) where answers are measured.
@@ -49,14 +22,18 @@ function borderInner(shot, outer, bw) {
   };
 }
 
-// Space between the stage edges and the equation, its dashed outline included.
-const gutters = page => page.evaluate(() => {
-  const eq = document.querySelector('#eq');
-  const e = eq.getBoundingClientRect();
-  const s = document.querySelector('.stage').getBoundingClientRect();
-  const over = parseFloat(getComputedStyle(eq).getPropertyValue('--overhang')) || 0;
-  return { left: e.left - s.left, right: s.right - (e.right + over), scroll: document.documentElement.scrollWidth - innerWidth, phone: innerWidth <= 480 };
-});
+// Space between the stage edges and what you see of the equation, from
+// pixels: the first digit's ink on the left, the box's dashed outline on the
+// right. The equation is centred on that, not on its layout box (spec §3.2).
+async function gutters(page) {
+  await showOutline(page);
+  const shot = await capture(page);
+  const first = await digitInk(page, shot, '#a');
+  const outline = await outlineEdges(page, shot);
+  const s = await rect(page, '.stage');
+  const { scroll, phone } = await page.evaluate(() => ({ scroll: document.documentElement.scrollWidth - innerWidth, phone: innerWidth <= 480 }));
+  return { left: first.left - s.left, right: s.right - outline.right, scroll, phone };
+}
 
 const fontSize = page => page.evaluate(() => parseFloat(getComputedStyle(document.querySelector('#eq')).getPropertyValue('--fs')));
 
@@ -239,16 +216,17 @@ test('a narrow screen shrinks the equation to fit, measured again', async ({ pag
     probe.remove();
     return parseFloat(getComputedStyle(document.querySelector('#eq')).fontSize) < css;
   })).toBe(true);
-  const g = await gutters(page);
-  expect(g.left).toBeGreaterThanOrEqual(16 - 0.01);
-  expect(g.right).toBeGreaterThanOrEqual(16 - 0.01);
-  expect(g.scroll).toBeLessThanOrEqual(0);
   const digits = await digitBand(page);
   const shot = await capture(page);
   const box = await boxEdges(page, shot);
   const plus = ink(shot, await rect(page, '.op', 0), [182, 205, 238]);   // muted #b6cdee
   expect(Math.abs(box.midY - digits.mid), 'box').toBeLessThanOrEqual(TOL);
   expect(Math.abs(plus.midY - digits.mid), '+').toBeLessThanOrEqual(TOL);
+  // Last: this shows the dashed outline, which the box measurement hides.
+  const g = await gutters(page);
+  expect(g.left).toBeGreaterThanOrEqual(16 - 0.01);
+  expect(g.right).toBeGreaterThanOrEqual(16 - 0.01);
+  expect(g.scroll).toBeLessThanOrEqual(0);
 });
 
 test('a repeat layout after a full shrink needs no new scans', async ({ page }) => {
