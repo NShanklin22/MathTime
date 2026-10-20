@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { chromium } from 'playwright-core';
 import {
   open, freeze, showOutline, resize, setProblem, rect, capture, ink, digitInk, digitBand, boxEdges, outlineEdges,
   fontSize, cssFontSize, TOL,
@@ -281,6 +282,24 @@ test('the equation lands on whole device pixels at an odd width too', async ({ p
   // length written with too few digits is cut short (see onLayoutGrid).
   await resize(page, 381, 812);
   await laidOutOnGrid(page);
+});
+
+test('the equation lands on whole device pixels at ratios that are not powers of two', async ({ baseURL }) => {
+  // In real windows at these ratios (a launch flag): emulating the ratio lays
+  // out on a coarser grid, 1/64 CSS px, on which these device pixels don't
+  // exist. The two projects share the ratios out.
+  for (const dpr of test.info().project.name === 'phone' ? [3] : [2.625, 1.5]) {
+    const browser = await chromium.launch({ args: [`--force-device-scale-factor=${dpr}`, '--window-size=400,860', '--disable-lcd-text'] });
+    try {
+      const page = await browser.newPage({ viewport: null, deviceScaleFactor: undefined });   // not the project's
+      await page.goto(baseURL + '/');
+      await page.waitForFunction(() => !document.documentElement.classList.contains('loading'));
+      expect(await page.evaluate(() => devicePixelRatio)).toBe(dpr);
+      await laidOutOnGrid(page);
+    } finally {
+      await browser.close();
+    }
+  }
 });
 
 test('the header stays on one line at 320px wide', async ({ page }) => {
