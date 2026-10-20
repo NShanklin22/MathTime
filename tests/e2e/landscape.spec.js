@@ -198,3 +198,46 @@ test('a very short landscape window shrinks the keys rather than overlap the hea
   expect(240 - Math.max(...pad.map(k => k.bottom)), 'bottom gutter').toBeGreaterThanOrEqual(16 - 0.5);
   expect(Math.abs(pad[0].width / pad[0].height - 1.5), 'still in proportion').toBeLessThanOrEqual(0.01);
 });
+
+test('the header\'s ink margins match left and right in landscape', async ({ page }) => {
+  await open(page);
+  await freeze(page);
+  await resize(page, 844, 390);
+  const shot = await capture(page);
+  const left = ink(shot, await rect(page, '.crumbs'), MUTED).left;
+  const right = 844 - ink(shot, await rect(page, '.lives')).right;
+  note('left ink margin', left);
+  note('right ink margin', right);
+  expect(Math.abs(right - left)).toBeLessThanOrEqual(TOL);
+});
+
+// The layout at a size: where the keypad is, the font, and how centred what you see is.
+async function laidOut(page) {
+  await showOutline(page);
+  const stage = await rect(page, '.stage');
+  const pad = await rect(page, '.pad');
+  return { beside: pad.left >= stage.right - 0.01, fs: await fontSize(page), offset: (await groupOffset(page)).offset };
+}
+
+test('crossing 560px tall lays out as a fresh page at the new size does', async ({ page, browser }) => {
+  await open(page);
+  await freeze(page);
+  for (const [width, height, beside] of [[844, 390, true], [844, 600, false], [844, 390, true]]) {
+    await resize(page, width, height);
+    const now = await laidOut(page);
+    // A fresh page at the same size (and ratio) for comparison.
+    const fresh = await page.context().newPage();
+    try {
+      await open(fresh);
+      await freeze(fresh);
+      await resize(fresh, width, height);
+      const want = await laidOut(fresh);
+      expect(now.beside, `${width}×${height}: keypad beside`).toBe(beside);
+      expect(want.beside).toBe(beside);
+      expect(now.fs, `${width}×${height}: font`).toBe(want.fs);
+      expect(Math.abs(now.offset), `${width}×${height}: centred`).toBeLessThanOrEqual(TOL);
+    } finally {
+      await fresh.close();
+    }
+  }
+});
