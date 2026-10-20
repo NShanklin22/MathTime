@@ -29,7 +29,9 @@ bindInput(dom, key => {
   if (result === 'typed') view.renderAnswer(game.state.typed);
   if (result === 'wrong') view.showWrong(game.state);
   if (result === 'correct') view.showCorrect(game.state, () => game.next());
-  if (result === 'out') view.showOut(game.state).then(() => $('#level1').focus({ preventScroll: true }));
+  if (result === 'out') {
+    view.showOut(game.state).then(shown => { if (shown) $('#level1').focus({ preventScroll: true }); });
+  }
   return result;
 }, () => game.state.typed);
 
@@ -84,12 +86,17 @@ $('#level1').addEventListener('click', () => {
   game.restart();
   document.body.classList.remove('at-select');
   safeLayout();
+  view.render(game.state);           // drawn even if the layout failed
   view.announceProblem(game.state);
   dom.ans.focus({ preventScroll: true });
 });
+// The Enter that made the third miss may still be held: its key repeat
+// (about 0.5s) would otherwise press "Level 1" as soon as it has focus.
+$('#level1').addEventListener('keydown', e => { if (e.repeat) e.preventDefault(); });
 
 fontsReady().then(() => {
   safeLayout();
+  view.announceProblem(game.state);
   document.documentElement.classList.remove('loading');
   // The header too: on the level selector the stage is hidden, so it alone
   // would never report a resize. Fitting the header only changes which

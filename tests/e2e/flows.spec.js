@@ -36,6 +36,8 @@ const record = page => page.evaluate(() => {
   // On window, bubbling: these run after the answer field's own handlers.
   addEventListener('keydown', e => at('key', {
     key: e.key,
+    repeat: e.repeat,
+    target: e.target.id || e.target.tagName,
     shift: e.shiftKey,
     prevented: e.defaultPrevented,
     pressed: !!$(`.pad button[data-k="${CSS.escape(e.key)}"]`)?.classList.contains('pressed'),
@@ -105,7 +107,7 @@ test('a correct answer turns green, then the next question slides in', async ({ 
   const said = await problemSaid(page);
   expect(said).toMatch(/^Question 2: \d plus \d$/);
   await seen(page, { type: 'status', text: said });
-  expect((await entries(page, { type: 'status' })).map(e => e.text)).toEqual(['Question 1 correct', said]);
+  expect((await entries(page, { type: 'status' })).map(e => e.text)).toEqual(['Correct', said]);
 });
 
 test('the answer shows green for 0.35s before sliding out', async ({ page }) => {
@@ -147,9 +149,27 @@ test('the next problem waits for the slide-out to finish', async ({ page }) => {
   expect(await page.evaluate(() => window.atSwap)).toEqual({ slide: 'finished', opacity: '0' });
 });
 
-test('with the slide animation off, the next problem still arrives', async ({ page }) => {
+test('with the slide animation off, the next problem arrives at once', async ({ page }) => {
   await page.addStyleTag({ content: '.eq.out { animation: none !important; }' });
+  await record(page);
   await typeKeys(page, ['7', 'Enter']);
+  // Straight after the green: 'out' comes and goes within one task here,
+  // so time the swap from the Enter.
+  const enter = await seen(page, { type: 'key', key: 'Enter' });
+  const swap = await seen(page, { type: 'add', name: 'in' });   // the next problem slides in
+  near(swap.t - enter.t, 350);
+  await expect(page.locator('#qnum')).toHaveText('Question 2');
+});
+
+test('a slide-out that never finishes gives way after 1s', async ({ page }) => {
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send('Animation.enable');
+  await cdp.send('Animation.setPlaybackRate', { playbackRate: 0 });   // animations frozen
+  await record(page);
+  await typeKeys(page, ['7', 'Enter']);
+  const out = await seen(page, { type: 'add', name: 'out' });
+  const swap = await seen(page, { type: 'add', name: 'in' });
+  near(swap.t - out.t, 1000);
   await expect(page.locator('#qnum')).toHaveText('Question 2');
 });
 
@@ -175,7 +195,7 @@ test('you can type as the next problem slides in', async ({ page }) => {
 test('digits are ignored and do not flash while a correct answer is locked in', async ({ page }) => {
   await record(page);
   // During the green (at once and 0.2s in), then during the slide-out.
-  await pressWhenSaid(page, 'Question 1 correct', [['5', 0], ['6', 200]]);
+  await pressWhenSaid(page, 'Correct', [['5', 0], ['6', 200]]);
   await page.evaluate(() => {
     const eq = document.querySelector('#eq');
     const watch = new MutationObserver(() => {
@@ -240,6 +260,65 @@ test('three misses go to the level selector; Level 1 restarts at question 1', as
   expect(await lostHearts(page)).toBe(0);
   await expect(page.locator('#ans')).toBeFocused();
   await expect(page.locator('#status')).toHaveText(await problemSaid(page));
+});
+
+test('a held Enter on the third miss does not press "Level 1"', async ({ page }) => {
+  await typeKeys(page, ['7', 'Enter']);                  // to question 2, so a restart would show
+  await expect(page.locator('#qnum')).toHaveText('Question 2');
+  await setProblem(page, 3, 4);
+  await record(page);
+  for (let i = 0; i < 2; i++) await typeKeys(page, ['9', 'Enter']);
+  await typeKeys(page, ['9']);
+  await page.keyboard.down('Enter');                     // the third miss, held
+  await expect(page.locator('#level1')).toBeFocused();
+  // The operating system's key repeat, arriving once the selector has focus.
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send('Input.dispatchKeyEvent', {
+    type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, text: '\r', unmodifiedText: '\r', autoRepeat: true,
+  });
+  await page.keyboard.up('Enter');
+  expect(await seen(page, { type: 'key', key: 'Enter', repeat: true })).toMatchObject({ target: 'level1' });
+  await expect(page.locator('#level1')).toBeVisible();
+  await expect(page.locator('#qnum')).toHaveText('Question 2');
+  await expect(page.locator('.lives')).toHaveAttribute('aria-label', '0 lives left');
+});
+
+test('the selector does not appear if the game restarted while it waited', async ({ page }) => {
+  await record(page);
+  // Restart the moment the third miss is announced, then wait out the 0.45s
+  // in the page: its timer is due after the selector's.
+  await page.evaluate(() => {
+    const status = document.querySelector('#status');
+    const watch = new MutationObserver(() => {
+      if (status.textContent !== 'Out of lives') return;
+      watch.disconnect();
+      const { game, view } = window.mathtime;
+      game.restart();
+      view.render(game.state);
+      setTimeout(() => { window.waitedOut = true; }, 500);
+    });
+    watch.observe(status, { childList: true, characterData: true, subtree: true });
+  });
+  for (let i = 0; i < 3; i++) await typeKeys(page, ['9', 'Enter']);
+  await page.waitForFunction(() => window.waitedOut === true);
+  expect(await entries(page, { type: 'selector' })).toEqual([]);
+  await expect(page.locator('#ans')).toBeFocused();
+  await expect(page.locator('.lives')).toHaveAttribute('aria-label', '3 lives left');
+});
+
+test('Level 1 draws the new game even if the layout fails', async ({ page }) => {
+  await typeKeys(page, ['7', 'Enter']);
+  await expect(page.locator('#qnum')).toHaveText('Question 2');
+  await setProblem(page, 3, 4);
+  for (let i = 0; i < 3; i++) await typeKeys(page, ['9', 'Enter']);
+  await expect(page.locator('#level1')).toBeFocused();
+  await page.evaluate(() => { window.mathtime.layout.layout = () => { throw new Error('layout failed (test)'); }; });
+  await page.locator('#level1').click();
+  await expect(page.locator('#qnum')).toHaveText('Question 1');
+  expect(await lostHearts(page)).toBe(0);
+  const { a, b } = await page.evaluate(() => window.mathtime.game.state.problem);
+  await expect(page.locator('#a')).toHaveText(String(a));
+  await expect(page.locator('#b')).toHaveText(String(b));
 });
 
 test('the level selector appears 0.45s after the third miss', async ({ page }) => {
@@ -310,6 +389,25 @@ test('Meta and Alt shortcuts are left alone too', async ({ page }) => {
   await expect(page.locator('#ans')).toHaveValue('');
 });
 
+test('focus that lands anywhere else comes back to the answer, so typing still works', async ({ page }) => {
+  // On a keypad key (a screen reader or the browser can put it there)...
+  await page.evaluate(() => document.querySelector('.pad button[data-k="3"]').focus());
+  await page.keyboard.press('5');
+  expect(await answerText(page)).toBe('5');
+  await expect(page.locator('#ans')).toBeFocused();
+  // ...or dropped to the page itself.
+  await page.evaluate(() => document.activeElement.blur());
+  await page.keyboard.press('6');
+  expect(await answerText(page)).toBe('56');
+  await expect(page.locator('#ans')).toBeFocused();
+});
+
+test('the keypad keys are not in the tab order', async ({ page }) => {
+  const keys = page.locator('.pad button');
+  await expect(keys).toHaveCount(12);
+  for (const key of await keys.all()) await expect(key).toHaveAttribute('tabindex', '-1');
+});
+
 test('Tab and Shift+Tab are trapped in the answer', async ({ page }) => {
   await record(page);
   await page.keyboard.press('Tab');
@@ -324,6 +422,31 @@ test('Tab and Shift+Tab are trapped in the answer', async ({ page }) => {
 test('the answer field asks for no on-screen keyboard', async ({ page }) => {
   // inputmode="none" is the only thing that keeps the phone's keyboard away.
   await expect(page.locator('#ans')).toHaveAttribute('inputmode', 'none');
+});
+
+test('the typed answer is heard once, from the answer field', async ({ page }) => {
+  // The box's digits are drawn for the eye; #ans carries the same value.
+  await expect(page.locator('.shown')).toHaveAttribute('aria-hidden', 'true');
+});
+
+test('the first problem is announced when the game starts', async ({ page }) => {
+  await open(page);                                       // fresh: beforeEach replaced the problem
+  await expect(page.locator('#status')).toHaveText(await problemSaid(page));
+  expect(await problemSaid(page)).toMatch(/^Question 1: \d plus \d$/);
+});
+
+test('a quick second press of a key flashes for its full time', async ({ page }) => {
+  // 5 at once and again at 60ms: at 140ms the second flash (until about
+  // 170ms) must still show, though the first flash's time is up.
+  const flashing = await page.evaluate(() => new Promise(resolve => {
+    const press = () => document.querySelector('#ans').dispatchEvent(new KeyboardEvent('keydown', { key: '5', bubbles: true, cancelable: true }));
+    const five = document.querySelector('.pad button[data-k="5"]');
+    press();
+    setTimeout(press, 60);
+    setTimeout(() => resolve(five.classList.contains('pressed')), 140);
+  }));
+  expect(flashing).toBe(true);
+  await expect(page.locator('.pad button[data-k="5"]')).not.toHaveClass(/pressed/);   // and it ends
 });
 
 test('accepted physical keys flash their key; ignored ones do not', async ({ page }) => {

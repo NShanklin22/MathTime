@@ -56,35 +56,23 @@ export function createView(dom, layout, level) {
     if (e.target === eq && e.animationName !== 'out') eq.classList.remove(...ANIMS);
   });
 
-  // Resolves when the equation's `name` animation ends, or after `ms` if it
-  // never does (animations turned off).
-  function ended(name, ms) {
-    return new Promise(resolve => {
-      const done = () => {
-        clearTimeout(timer);
-        eq.removeEventListener('animationend', onEnd);
-        resolve();
-      };
-      const onEnd = e => { if (e.target === eq && e.animationName === name) done(); };
-      const timer = setTimeout(done, ms);
-      eq.addEventListener('animationend', onEnd);
-    });
-  }
-
   // Tell screen readers which problem is now on screen.
   function announceProblem(state) {
     status.textContent = `Question ${state.question}: ${state.problem.a} plus ${state.problem.b}`;
   }
 
   // Green for 0.35s, slide out, swap in the next problem, slide in. The swap
-  // waits for the slide-out itself: its first frame comes a little after it
-  // is asked for, so a timer would cut it short.
+  // waits for the slide-out animation itself: its first frame comes a little
+  // after it is asked for, so a timer would cut it short. With animations
+  // off there is none, so the swap is at once; the long timer is only a
+  // last resort for one that never ends.
   async function showCorrect(state, next) {
-    status.textContent = `Question ${state.question} correct`;   // differs each time, so it is re-announced
+    status.textContent = 'Correct';      // always differs from the problem before it, so it is announced
     eq.classList.add('correct');
     await wait(350);
     play('out');
-    await ended('out', 400);
+    const slide = eq.getAnimations().find(anim => anim.animationName === 'out');
+    if (slide) await Promise.race([slide.finished.catch(() => {}), wait(1000)]);
     next();
     eq.classList.remove('correct');
     render(state);
@@ -98,14 +86,17 @@ export function createView(dom, layout, level) {
     play('shake');
   }
 
-  // Third miss: shake, then the level selector 0.45s later.
+  // Third miss: shake, then the level selector 0.45s later, unless the game
+  // was restarted meanwhile. Resolves true if the selector is showing.
   async function showOut(state) {
     render(state);
     status.textContent = 'Out of lives';
     play('shake');
     await wait(450);
+    if (state.phase !== 'out') return false;
     eq.classList.remove(...ANIMS);
     document.body.classList.add('at-select');
+    return true;
   }
 
   return { render, renderAnswer, announceProblem, showCorrect, showWrong, showOut };
