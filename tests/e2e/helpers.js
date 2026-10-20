@@ -25,12 +25,14 @@ export const showOutline = page => page.evaluate(rule => {
 // next animation frame.
 export const settle = page => page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(r)))));
 
-// Put a known problem on screen (uses the handle main.js exposes for tests).
+// Put a known problem on screen, centred on its ink as a new problem is
+// (uses the handle main.js exposes for tests).
 export async function setProblem(page, a, b) {
   await page.evaluate(([a, b]) => {
-    const { game, view } = window.mathtime;
+    const { game, view, layout } = window.mathtime;
     game.state.problem = { a, b, answer: a + b };
     view.render(game.state);
+    layout.place();
   }, [a, b]);
 }
 

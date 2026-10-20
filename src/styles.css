@@ -101,8 +101,9 @@ body {
    --slot-nudge: centres the box between the device pixels it is drawn on
    --pad: the box padding (--box-pad em) rounded up to whole device pixels
    --bw: the box border width in px (kept outside the padding)
+   --outline-offset: the dashed outline's offset, in whole device pixels as drawn
    --fs: the equation font size in px
-   --overhang: how far the box's dashed outline sticks out on the right */
+   --seen-mid: the middle of what you see, first digit's ink to outline */
 .eq {
   --ink-top: 0.2;
   --ink-h: 0.72;
@@ -135,7 +136,7 @@ body {
 
 .qnum {
   position: absolute;
-  left: calc(50% + var(--overhang, 0px) / 2);   /* centred over what's visible */
+  left: var(--seen-mid, 50%);   /* centred over what you see */
   top: calc(var(--ink-top) * var(--fs, 100px) - var(--pad) - var(--bw) - max(0.2 * var(--fs, 100px), 18px));
   transform: translate(-50%, -100%);
   height: auto !important;
@@ -162,7 +163,7 @@ body {
   height: calc(var(--ink-h) * 1em + 2 * var(--pad) + 2 * var(--bw));
   border: max(0.025em, 2px) solid var(--ink);
   outline: 1px dashed rgba(238, 245, 255, 0.55);
-  outline-offset: max(0.06em, 5px);
+  outline-offset: var(--outline-offset, max(0.06em, 5px));
   transition: border-color .15s;
 }
 .shown {

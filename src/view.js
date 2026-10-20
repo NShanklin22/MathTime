@@ -65,7 +65,8 @@ export function createView(dom, layout, level) {
   // waits for the slide-out animation itself: its first frame comes a little
   // after it is asked for, so a timer would cut it short. With animations
   // off there is none, so the swap is at once; the long timer is only a
-  // last resort for one that never ends.
+  // last resort for one that never ends. The new problem is centred on its
+  // own ink before it slides in.
   async function showCorrect(state, next) {
     status.textContent = 'Correct';      // always differs from the problem before it, so it is announced
     eq.classList.add('correct');
@@ -76,6 +77,7 @@ export function createView(dom, layout, level) {
     next();
     eq.classList.remove('correct');
     render(state);
+    layout.place();
     announceProblem(state);
     play('in');
   }

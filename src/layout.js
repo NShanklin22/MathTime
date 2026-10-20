@@ -12,10 +12,12 @@ const px = v => Math.round(v * 64 * devicePixelRatio) / (64 * devicePixelRatio) 
 // between the gutters and snapped to device pixels; header fitted; keypad
 // labels centred. `afterMeasure` runs once per layout, after the last
 // measurement, so the view can re-render digits with the new geometry.
+// `place` centres the equation on its ink, which depends on the problem: the
+// view calls it again after drawing a new one.
 export function createLayout(dom, scan, possibleAnswers) {
-  const { eq, slot, caret, stage, topBar } = dom;
+  const { eq, a, slot, caret, stage, topBar } = dom;
   const geo = { fs: 0, style: null, base: 0.8, mid: 0.5, boxW: 1.2, wide: 0.6 };
-  const api = { geo, inkOf, layout, afterMeasure: null };
+  const api = { geo, inkOf, layout, place, afterMeasure: null };
 
   // Ink geometry of `text` centred across `width` em, at the current size
   // (all zeros before the first measurement).
@@ -54,6 +56,11 @@ export function createLayout(dom, scan, possibleAnswers) {
     eq.style.setProperty('--wide', geo.wide.toFixed(4));
     eq.style.setProperty('--box-w', geo.boxW.toFixed(4));
     eq.style.setProperty('--bw', getComputedStyle(slot, '::after').borderTopWidth);
+    // The outline is drawn a whole number of device pixels out from the box,
+    // rounded down. Set exactly that, so centring knows where it is drawn.
+    eq.style.removeProperty('--outline-offset');
+    const offset = parseFloat(getComputedStyle(slot, '::after').outlineOffset) * devicePixelRatio;
+    eq.style.setProperty('--outline-offset', Math.floor(offset + 1e-3) / devicePixelRatio + 'px');
     // The box padding, rounded up to whole device pixels. The box's edges are
     // drawn on whole pixels, and with the baseline on one too, the padding
     // then comes out the same on all four sides. Up, because the page draws
@@ -165,10 +172,7 @@ export function createLayout(dom, scan, possibleAnswers) {
       eq.style.fontSize = (geo.fs * avail / width) + 'px';
       measure();
     }
-    // Draw the problem and answer with the final geometry, then place the
-    // equation: baseline and left edge on whole device pixels, shifted left
-    // by half the overhang so the visible group (equation plus outline) is
-    // centred.
+    // Draw the problem and answer with the final geometry, then place them.
     api.afterMeasure?.();
     const dpr = devicePixelRatio;
     // The box border is drawn on whole device pixels, its width rounded up.
@@ -178,12 +182,31 @@ export function createLayout(dom, scan, possibleAnswers) {
     const local = box.left - eq.getBoundingClientRect().left;
     const spare = Math.ceil(box.width * dpr - 1e-3) / dpr - box.width;
     eq.style.setProperty('--slot-nudge', px(snap(local, dpr) - local + spare / 2));
+    place();
+    centreKeys();
+  }
+
+  // Centre what you see of the equation, from the first digit's ink to the
+  // box's dashed outline, in the problem area (spec §3.2), with the baseline
+  // and the left edge on whole device pixels. Only a new problem changes the
+  // first digit, so the equation never moves while you type or after a miss.
+  function place() {
+    if (!stage.clientWidth) return;
+    eq.style.left = '';
+    eq.style.top = '';
+    const dpr = devicePixelRatio;
     const r = eqBox();
-    eq.style.setProperty('--overhang', overhang() + 'px');
-    eq.style.left = px(snap(r.left - overhang() / 2, dpr) - r.left);
+    const s = stage.getBoundingClientRect();
+    // Both ends from the equation's left edge, which lands on a device
+    // pixel. The box is drawn on whole device pixels, the outline round it.
+    const digit = a.textContent.charAt(0);
+    const ink = digit ? inkOf(digit, geo.wide) : { right: 0, w: 0 };
+    const start = (ink.right - ink.w) * geo.fs;
+    const end = snap(slot.getBoundingClientRect().right - eq.getBoundingClientRect().left, dpr) + overhang();
+    eq.style.setProperty('--seen-mid', px((start + end) / 2));   // "Question N" is centred on it
+    eq.style.left = px(snap(s.left + s.width / 2 - (start + end) / 2, dpr) - r.left);
     const baseY = r.top + geo.base * geo.fs;
     eq.style.top = px(snap(baseY, dpr) - baseY);
-    centreKeys();
   }
 
   return api;
