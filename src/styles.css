@@ -288,7 +288,8 @@ body.at-select .select { display: flex; }
    keypad on the right. Its four rows share that height, less the 16px
    gutters above and below and three 8px gaps; the header is its top padding,
    the 20px crumb line and the 12px roadmap strip. Keys are 40-64px tall and
-   1.5 times as wide as they are tall. */
+   1.5 times as wide as they are tall. Capped at 64px, the keypad is centred
+   in that band, whose centre is the problem area's. */
 @media (orientation: landscape) and (max-height: 560px) and (min-aspect-ratio: 3/2) {
   body {
     grid-template-columns: minmax(0, 1fr) auto;
@@ -304,7 +305,7 @@ body.at-select .select { display: flex; }
     max-width: none;
     grid-template-columns: repeat(3, calc(var(--key-h) * 1.5));
     grid-auto-rows: var(--key-h);
-    align-content: end;
+    align-content: center;
     padding: 16px max(var(--gutter), env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) 0;
   }
   .pad button { height: auto; }
