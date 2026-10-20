@@ -13,7 +13,7 @@ export function createView(dom, layout, level) {
       cell.className = 'cell';
       cell.textContent = c;
       cell.style.textIndent = el === a && i === 0
-        ? layout.leadIndent(c) + 'px'
+        ? layout.leadIndent(c)
         : layout.inkOf(c, layout.geo.wide).off.toFixed(4) + 'em';
       return cell;
     }));

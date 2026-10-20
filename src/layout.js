@@ -24,14 +24,14 @@ export function createLayout(dom, scan, possibleAnswers) {
     return centreInk(scan(text, geo.style, geo.fs * devicePixelRatio), width);
   }
 
-  // Where the equation's first digit starts in its cell, in px: ink-centred,
-  // then put on a whole device pixel (the equation's left edge is on one).
-  // That is where the scan drew it, so its ink starts exactly where measured,
-  // which centring relies on: at other fractions of a pixel the page draws a
-  // glyph up to 0.4px off at 1x. It is at most half a device pixel off its
-  // cell's centre.
+  // How far into its cell the equation's first digit starts, as a CSS length:
+  // ink-centred, then put on a whole device pixel (the equation's left edge
+  // is on one). That is where the scan drew it, so its ink starts exactly
+  // where measured, which centring relies on: at other fractions of a pixel
+  // the page draws a glyph up to 0.4px off at 1x. It is at most half a device
+  // pixel off its cell's centre.
   function leadIndent(digit) {
-    return snap(inkOf(digit, geo.wide).off * geo.fs, devicePixelRatio);
+    return px(snap(inkOf(digit, geo.wide).off * geo.fs, devicePixelRatio));
   }
 
   // Baseline position (em) inside a 1em, line-height 1 box, read from layout.
@@ -74,7 +74,7 @@ export function createLayout(dom, scan, possibleAnswers) {
     // whole pixels, and with the baseline on one too, the padding then comes
     // out the same on all four sides.
     const pad = parseFloat(cs.getPropertyValue('--box-pad')) * geo.fs;
-    eq.style.setProperty('--pad', snap(pad, devicePixelRatio) + 'px');
+    eq.style.setProperty('--pad', px(snap(pad, devicePixelRatio)));
     const ops = [...eq.querySelectorAll('.op')].map(op => {
       const m = scan(op.textContent, { ...geo.style, color: getComputedStyle(op).color }, size);
       op.style.top = (digits.mid - band(m, geo.base).mid).toFixed(4) + 'em';
@@ -94,8 +94,8 @@ export function createLayout(dom, scan, possibleAnswers) {
     // The caret spans the digit ink, snapped outward to whole device pixels
     // around the (pixel-aligned) baseline, so it never comes up short.
     const cap = snapOutward((digits.top - geo.base) * geo.fs, (digits.top + digits.h - geo.base) * geo.fs, devicePixelRatio);
-    caret.style.top = (geo.base * geo.fs + cap.top).toFixed(3) + 'px';
-    caret.style.height = (cap.bottom - cap.top).toFixed(3) + 'px';
+    caret.style.top = px(geo.base * geo.fs + cap.top);
+    caret.style.height = px(cap.bottom - cap.top);
   }
 
   // The equation's box without its live transform. The shake and slide
@@ -227,17 +227,18 @@ export function createLayout(dom, scan, possibleAnswers) {
   // and the left edge on whole device pixels. Only a new problem changes the
   // first digit, so the equation never moves while you type or after a miss.
   function place() {
-    if (!stage.clientWidth) return;
+    if (!stage.clientWidth || !geo.style) return;
     eq.style.left = '';
     eq.style.top = '';
     const dpr = devicePixelRatio;
     const r = eqBox();
     const s = stage.getBoundingClientRect();
     // Both ends from the equation's left edge, which lands on a device
-    // pixel. The box is drawn on whole device pixels, the outline round it.
-    const digit = a.textContent.charAt(0);
-    const ink = digit ? inkOf(digit, geo.wide) : { off: 0, right: 0, w: 0 };
-    const start = (digit ? leadIndent(digit) : 0) + (ink.right - ink.w - ink.off) * geo.fs;
+    // pixel: the first digit's ink starts at the indent render() gave it, less
+    // the ink's left bearing; the box is drawn on whole device pixels, the
+    // outline round it.
+    const cell = a.firstElementChild;
+    const start = cell ? parseFloat(getComputedStyle(cell).textIndent) - scan(cell.textContent, geo.style, geo.fs * dpr).abl * geo.fs : 0;
     const end = snap(slot.getBoundingClientRect().right - eq.getBoundingClientRect().left, dpr) + overhang();
     const mid = (start + end) / 2;
     eq.style.left = px(snap(s.left + s.width / 2 - mid, dpr) - r.left);

@@ -373,7 +373,8 @@ test('fonts that arrive after the load timeout are measured again', async ({ pag
 
 test('a new device pixel ratio alone is measured again', async ({ page }, info) => {
   test.skip(info.project.name !== 'desktop', 'the phone ratio is forced by a launch flag, so it cannot be emulated');
-  const caretHeight = () => page.evaluate(() => parseFloat(document.querySelector('.caret').style.height));
+  // As laid out: the written length carries a quarter-step bias (onLayoutGrid).
+  const caretHeight = () => page.evaluate(() => document.querySelector('.caret').getBoundingClientRect().height);
   const before = await caretHeight();
   // Count finished layouts from here on.
   await page.evaluate(() => {

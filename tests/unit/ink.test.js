@@ -122,13 +122,13 @@ test('snap never returns negative zero', () => {
   assert.equal(snap(-0.2, 1), 0);   // strict equal compares with Object.is, so -0 would fail
 });
 
-test('onLayoutGrid lands exactly on 64ths of a device pixel, float noise and all', () => {
-  for (const dpr of [1, 2]) {
+test('onLayoutGrid lands on the nearest 64th of a device pixel once Chrome truncates it, at any ratio', () => {
+  for (const dpr of [1, 2, 3, 2.625, 1.5]) {
     for (let k = -500; k <= 500; k++) {
-      for (const noise of [0, 1e-7, -1e-7, 0.4 / (64 * dpr)]) {
+      for (const noise of [0, 1e-7, -1e-7, 0.4 / (64 * dpr), -0.4 / (64 * dpr)]) {
         const v = onLayoutGrid(k / (64 * dpr) + noise, dpr);
-        // Exactly k steps once written out and read back, so truncation can't move it.
-        assert.equal(Number(String(v)) * 64 * dpr, k, `dpr ${dpr}, k ${k}, noise ${noise}`);
+        // Written out, read back and truncated toward zero, as Chrome stores it.
+        assert.equal(Math.trunc(Number(String(v)) * 64 * dpr), k, `dpr ${dpr}, k ${k}, noise ${noise}`);
       }
     }
   }
