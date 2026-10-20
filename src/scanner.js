@@ -7,14 +7,17 @@ const MAX_GROUPS = 8;
 const NO_INK = { asc: 0, desc: 0, abl: 0, abr: 0, adv: 0, approx: true };
 
 // Measures a string's ink by drawing it offscreen at its real on-screen size
-// in device pixels, so font hinting matches what is drawn (spec §6.1).
-// style: { weight, family } as in computed CSS. Returns em metrics (ink.js).
+// in device pixels, so font hinting matches what is drawn (spec §6.1). It is
+// drawn in its own colour too: anti-aliasing depends on how bright the text
+// is, and light text comes out about 0.3 device px heavier per side than black.
+// style: { weight, family, color } as in computed CSS (color defaults to
+// black). Returns em metrics (ink.js).
 // If the pixels can't be read, it logs that once and returns the browser's
 // rougher bounds instead (flagged `approx`), so the page still draws.
 export function createScanner() {
   const canvas = document.createElement('canvas');
   const ctx = canvas.getContext('2d', { willReadFrequently: true });
-  const groups = new Map();          // "weight|family|size" → Map(text → metrics), oldest first
+  const groups = new Map();          // "weight|family|size" → Map("color|text" → metrics), oldest first
   let warned = false;
 
   // The cache for one font and size, marked as the most recently used.
@@ -29,8 +32,9 @@ export function createScanner() {
 
   function scan(text, style, size) {
     const cache = group(style, size);
-    if (!cache.has(text)) cache.set(text, measure(text, style, size));
-    return cache.get(text);
+    const key = `${style.color ?? ''}|${text}`;
+    if (!cache.has(key)) cache.set(key, measure(text, style, size));
+    return cache.get(key);
   }
 
   function measure(text, style, size) {
@@ -63,6 +67,7 @@ export function createScanner() {
       ctx.font = font;
     }
     ctx.clearRect(0, 0, width, height);
+    ctx.fillStyle = style.color ?? '#000';
     ctx.textBaseline = 'alphabetic';
     ctx.fillText(text, x0, y0);
     const edges = edgesFromAlpha(ctx.getImageData(0, 0, width, height).data, width, height);

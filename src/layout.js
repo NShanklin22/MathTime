@@ -40,7 +40,7 @@ export function createLayout(dom, scan, possibleAnswers) {
   function measure() {
     const cs = getComputedStyle(eq);
     geo.fs = parseFloat(cs.fontSize);
-    geo.style = { weight: cs.fontWeight, family: cs.fontFamily };
+    geo.style = { weight: cs.fontWeight, family: cs.fontFamily, color: cs.color };
     const size = geo.fs * devicePixelRatio;
     geo.base = domBaseline();
     // The digit ink band is the union of the ten digits. Fonts' "tabular"
@@ -61,14 +61,13 @@ export function createLayout(dom, scan, possibleAnswers) {
     eq.style.removeProperty('--outline-offset');
     const offset = parseFloat(getComputedStyle(slot, '::after').outlineOffset) * devicePixelRatio;
     eq.style.setProperty('--outline-offset', Math.floor(offset + 1e-3) / devicePixelRatio + 'px');
-    // The box padding, rounded up to whole device pixels. The box's edges are
-    // drawn on whole pixels, and with the baseline on one too, the padding
-    // then comes out the same on all four sides. Up, because the page draws
-    // glyphs a little heavier than the scan does.
+    // The box padding in whole device pixels. The box's edges are drawn on
+    // whole pixels, and with the baseline on one too, the padding then comes
+    // out the same on all four sides.
     const pad = parseFloat(cs.getPropertyValue('--box-pad')) * geo.fs;
-    eq.style.setProperty('--pad', Math.ceil(pad * devicePixelRatio - 1e-3) / devicePixelRatio + 'px');
+    eq.style.setProperty('--pad', snap(pad, devicePixelRatio) + 'px');
     const ops = [...eq.querySelectorAll('.op')].map(op => {
-      const m = scan(op.textContent, geo.style, size);
+      const m = scan(op.textContent, { ...geo.style, color: getComputedStyle(op).color }, size);
       op.style.top = (digits.mid - band(m, geo.base).mid).toFixed(4) + 'em';
       return m;
     });
@@ -143,7 +142,7 @@ export function createLayout(dom, scan, possibleAnswers) {
         label: kl.getBoundingClientRect(),
         baseY: snap(probes[i].getBoundingClientRect().top, dpr),
         kfs: parseFloat(cs.fontSize),
-        style: { weight: cs.fontWeight, family: cs.fontFamily },
+        style: { weight: cs.fontWeight, family: cs.fontFamily, color: cs.color },
       };
     });
     probes.forEach(probe => probe.remove());
@@ -175,13 +174,12 @@ export function createLayout(dom, scan, possibleAnswers) {
     // Draw the problem and answer with the final geometry, then place them.
     api.afterMeasure?.();
     const dpr = devicePixelRatio;
-    // The box border is drawn on whole device pixels, its width rounded up.
+    // The box border is drawn on whole device pixels, its width rounded.
     // Centre the box between those pixels (the equation's left edge will be
     // on one), so an answer centred in the box is centred on what is drawn.
     const box = slot.getBoundingClientRect();
     const local = box.left - eq.getBoundingClientRect().left;
-    const spare = Math.ceil(box.width * dpr - 1e-3) / dpr - box.width;
-    eq.style.setProperty('--slot-nudge', px(snap(local, dpr) - local + spare / 2));
+    eq.style.setProperty('--slot-nudge', px(snap(local, dpr) - local + (snap(box.width, dpr) - box.width) / 2));
     place();
     centreKeys();
   }

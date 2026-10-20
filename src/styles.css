@@ -99,7 +99,7 @@ body {
    --box-w: ink width of the widest possible answer
    --slot-gap: extra space before the box, which has no side bearing
    --slot-nudge: centres the box between the device pixels it is drawn on
-   --pad: the box padding (--box-pad em) rounded up to whole device pixels
+   --pad: the box padding (--box-pad em) in whole device pixels
    --bw: the box border width in px (kept outside the padding)
    --outline-offset: the dashed outline's offset, in whole device pixels as drawn
    --fs: the equation font size in px
