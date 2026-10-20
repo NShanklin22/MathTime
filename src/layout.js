@@ -184,7 +184,7 @@ export function createLayout(dom, scan, possibleAnswers) {
     // two. Shrinking for height shrinks the label's px minimums too, so the
     // whole group shrinks together. Parts that keep their px size make a
     // round fall short, so it takes a few.
-    const gutter = innerWidth <= 480 ? 16 : 24;
+    const gutter = parseFloat(getComputedStyle(stage).getPropertyValue('--gutter'));   // 16px on phones
     const across = stage.clientWidth - 2 * gutter - 1;   // 1px slack for pixel snapping
     const down = stage.clientHeight / 2 - 8 - 0.5;        // 0.5px slack for pixel snapping
     let labelScale = 1;
