@@ -178,7 +178,6 @@ export function createLayout(dom, scan, possibleAnswers) {
     eq.style.fontSize = '';
     eq.style.left = '';
     eq.style.top = '';
-    eq.style.removeProperty('--slot-nudge');
     eq.style.removeProperty('--label-scale');
     measure();
     // Shrink to fit: across, between the gutters; down, with "Question N"
@@ -205,13 +204,6 @@ export function createLayout(dom, scan, possibleAnswers) {
     }
     // Draw the problem and answer with the final geometry, then place them.
     api.afterMeasure?.();
-    const dpr = devicePixelRatio;
-    // The box border is drawn on whole device pixels, its width rounded.
-    // Centre the box between those pixels (the equation's left edge will be
-    // on one), so an answer centred in the box is centred on what is drawn.
-    const box = slot.getBoundingClientRect();
-    const local = box.left - eq.getBoundingClientRect().left;
-    eq.style.setProperty('--slot-nudge', px(snap(local, dpr) - local + (snap(box.width, dpr) - box.width) / 2));
     place();
     centreKeys();
   }

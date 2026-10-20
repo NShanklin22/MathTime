@@ -102,7 +102,6 @@ body {
    --wide: widest digit (a problem digit's cell)
    --box-w: ink width of the widest possible answer
    --slot-gap: extra space before the box, which has no side bearing
-   --slot-nudge: centres the box between the device pixels it is drawn on
    --pad: the box padding (--box-pad em) in whole device pixels
    --bw: the box border width in px (kept outside the padding)
    --outline-offset: the dashed outline's offset, in whole device pixels as drawn
@@ -157,7 +156,7 @@ body {
 .slot {
   position: relative;
   width: calc(var(--box-w) * 1em + 2 * var(--pad) + 2 * var(--bw));
-  margin-left: calc(var(--slot-gap) * 1em + var(--slot-nudge, 0px));
+  margin-left: calc(var(--slot-gap) * 1em);
 }
 .slot::after {
   content: "";
