@@ -478,3 +478,12 @@ test('nothing in the equation moves while typing or after a wrong answer', async
   await seen(page, { type: 'animationend', name: 'shake' });   // the shake has finished
   expect(await positions()).toEqual(before);
 });
+
+test('the next problem slides in even if placing it fails', async ({ page }) => {
+  await record(page);
+  await page.evaluate(() => { window.mathtime.layout.place = () => { throw new Error('place failed (test)'); }; });
+  await typeKeys(page, ['7', 'Enter']);
+  await seen(page, { type: 'add', name: 'in' });
+  await expect(page.locator('#qnum')).toHaveText('Question 2');
+  await expect.poll(() => page.evaluate(() => getComputedStyle(document.querySelector('#eq')).opacity)).toBe('1');
+});
