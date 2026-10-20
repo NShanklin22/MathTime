@@ -15,7 +15,7 @@ const px = v => onLayoutGrid(v, devicePixelRatio) + 'px';
 export function createLayout(dom, scan, possibleAnswers) {
   const { eq, a, slot, caret, qnum, stage, topBar } = dom;
   const geo = { fs: 0, style: null, base: 0.8, mid: 0.5, inkH: 0.72, boxW: 1.2, wide: 0.6 };
-  const api = { geo, inkOf, leadIndent, layout, place, afterMeasure: null };
+  const api = { geo, inkOf, leadIndent, caretLeft, layout, place, afterMeasure: null };
 
   // Ink geometry of `text` centred across `width` em, at the current size
   // (all zeros before the first measurement).
@@ -32,6 +32,20 @@ export function createLayout(dom, scan, possibleAnswers) {
   // pixel off its cell's centre.
   function leadIndent(digit) {
     return px(snap(inkOf(digit, geo.wide).off * geo.fs, devicePixelRatio));
+  }
+
+  // Where the caret goes, as a CSS length from the answer's origin: a fixed
+  // gap after an answer whose ink ends `right` em into the box, or centred in
+  // an empty box (`right` null). It is put on a whole device pixel (the
+  // equation's left edge is on one), so it is drawn the same after every
+  // digit, the gap true to half a device pixel.
+  function caretLeft(right) {
+    if (!geo.style) return '';
+    const origin = caret.parentElement.getBoundingClientRect().left - eq.getBoundingClientRect().left;
+    const x = right === null
+      ? origin + (geo.boxW * geo.fs - geo.caretW) / 2
+      : origin + right * geo.fs + Math.max(0.08 * geo.fs, 4);
+    return px(snap(x, devicePixelRatio) - origin);
   }
 
   // Baseline position (em) inside a 1em, line-height 1 box, read from layout.
@@ -97,6 +111,9 @@ export function createLayout(dom, scan, possibleAnswers) {
     const cap = snapOutward((digits.top - geo.base) * geo.fs, (digits.top + digits.h - geo.base) * geo.fs, devicePixelRatio);
     caret.style.top = px(geo.base * geo.fs + cap.top);
     caret.style.height = px(cap.bottom - cap.top);
+    // A whole number of device pixels wide, so it is drawn the same wherever it goes.
+    geo.caretW = snap(Math.max(0.05 * geo.fs, 2), devicePixelRatio);
+    caret.style.width = px(geo.caretW);
   }
 
   // The equation's box without its live transform. The shake and slide

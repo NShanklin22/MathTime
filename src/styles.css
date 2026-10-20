@@ -206,7 +206,6 @@ body {
   background: var(--amber);
   animation: blink 1.06s steps(1) infinite;
 }
-.slot.empty .caret { left: calc(var(--box-w) * 0.5em); transform: translateX(-50%); }
 .slot:not(.focused) .caret,
 .slot.full .caret { visibility: hidden; }
 @keyframes blink { 50% { opacity: 0; } }

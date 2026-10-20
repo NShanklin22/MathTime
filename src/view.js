@@ -35,7 +35,7 @@ export function createView(dom, layout, level) {
     }
     shown.replaceChildren(span);
     ans.value = typed;                   // so screen readers hear the answer
-    caret.style.left = typed ? `calc(${g.right.toFixed(4)}em + max(0.08em, 4px))` : '';
+    caret.style.left = layout.caretLeft(typed ? g.right : null);
     slot.classList.toggle('empty', typed === '');
     slot.classList.toggle('full', typed.length >= level.maxAnswerLength);
   }
