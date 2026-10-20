@@ -80,7 +80,11 @@ export function createView(dom, layout, level) {
     next();
     eq.classList.remove('correct');
     render(state);
-    layout.place();
+    try {
+      layout.place();
+    } catch (err) {
+      console.error(err);                // still slide in, wherever it is
+    }
     announceProblem(state);
     play('in');
   }
