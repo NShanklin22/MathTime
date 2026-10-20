@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import {
   open, freeze, showOutline, settle, resize, setProblem, layOut, rect, capture, ink, digitBand, groupOffset,
-  equalsGap, labelInk, clearances, note, fontSize, typeKeys, TOL, MUTED, LOST,
+  equalsGap, labelInk, clearances, note, fontSize, cssFontSize, typeKeys, TOL, MUTED, LOST,
 } from './helpers.js';
 
 // The spacing, centring, header and short-screen targets of spec §3.1, §3.2
@@ -240,4 +240,73 @@ test('a problem area too short even for the box still shows the digits whole', a
   note('digit ink band inside, worst side', Math.min(digits.above, digits.below));
   expect(Math.min(digits.above, digits.below), 'digit ink band inside').toBeGreaterThanOrEqual(0);
   expect(digits.drawn, 'drawn digits not cut by the edge').toBeGreaterThan(0.25);
+});
+
+// Forces the problem area to `height` px (null: as laid out), then waits for the layout.
+async function forceStage(page, height) {
+  await page.evaluate(h => {
+    let style = document.getElementById('force-stage');
+    if (!style) {
+      style = document.createElement('style');
+      style.id = 'force-stage';
+      document.head.appendChild(style);
+    }
+    style.textContent = h === null ? '' : `.stage{max-height:${h}px!important}`;
+  }, height);
+  await settle(page);
+}
+
+// How far "Question N" (its box), the box's outline and the digits' ink band
+// stay inside the problem area, from the layout (pixels can't show what the
+// problem area clips), and the font size.
+const inside = page => page.evaluate(() => {
+  const eq = document.querySelector('#eq');
+  const cs = getComputedStyle(eq);
+  const fs = parseFloat(cs.fontSize);
+  const stage = document.querySelector('.stage').getBoundingClientRect();
+  const slot = document.querySelector('#slot').getBoundingClientRect();
+  const after = getComputedStyle(document.querySelector('#slot'), '::after');
+  const band = eq.getBoundingClientRect().top + parseFloat(cs.getPropertyValue('--ink-top')) * fs;
+  return {
+    fs,
+    label: document.querySelector('#qnum').getBoundingClientRect().top - stage.top,
+    outline: stage.bottom - (slot.top + parseFloat(after.top) + parseFloat(after.height) + parseFloat(after.outlineOffset) + parseFloat(after.outlineWidth)),
+    digits: Math.min(band - stage.top, stage.bottom - band - parseFloat(cs.getPropertyValue('--ink-h')) * fs),
+  };
+});
+
+test('the fit grows steadily with the problem area, and nothing is cut', async ({ page }) => {
+  let last = null;
+  for (const height of [8, 12, 16, 20, 25, 30, 34, 40, 48, 56, 64, 80, 100, 120]) {
+    await forceStage(page, height);
+    const m = await inside(page);
+    note(`font at ${height}px`, m.fs);
+    for (const part of ['label', 'outline', 'digits']) {
+      expect(m[part], `${height}px: ${part} inside`).toBeGreaterThanOrEqual(-0.01);
+    }
+    if (last) expect(m.fs, `${height}px: font no smaller than at ${last.height}px`).toBeGreaterThanOrEqual(last.fs - 0.05);
+    last = { height, fs: m.fs };
+  }
+});
+
+test('a problem area of 2px or less leaves the scanner alone', async ({ page }) => {
+  const errors = [];
+  page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
+  page.on('pageerror', error => errors.push(error.message));
+  for (const height of [2, 1, 0]) await forceStage(page, height);
+  await forceStage(page, null);
+  expect(errors).toEqual([]);
+  expect(await fontSize(page), 'measured again at full size').toBe(await cssFontSize(page));
+});
+
+test('shrinking for height stops at 8px clear, big font or small', async ({ page }) => {
+  // At 1440x900 the font starts at 128px, where the box border (0.025em)
+  // grows with it: it must not be taken for a fixed 2px when shrinking.
+  for (const height of [150, 120]) {
+    await forceStage(page, height);
+    const m = await inside(page);
+    note(`label box clear at ${height}px`, m.label);
+    expect(m.label, `${height}px: 8px clear`).toBeGreaterThanOrEqual(8 - 0.01);
+    expect(m.label, `${height}px: no more than the slack and a pixel snap beyond`).toBeLessThanOrEqual(8 + 0.5 + 0.5 + 0.01);
+  }
 });
