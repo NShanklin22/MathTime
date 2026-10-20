@@ -97,6 +97,9 @@ body {
    --ink-top / --ink-h: where digit ink sits in each 1em line box
    --wide: widest digit (a problem digit's cell)
    --box-w: ink width of the widest possible answer
+   --slot-gap: extra space before the box, which has no side bearing
+   --slot-nudge: centres the box between the device pixels it is drawn on
+   --pad: the box padding (--box-pad em) rounded up to whole device pixels
    --bw: the box border width in px (kept outside the padding)
    --fs: the equation font size in px
    --overhang: how far the box's dashed outline sticks out on the right */
@@ -105,7 +108,9 @@ body {
   --ink-h: 0.72;
   --wide: 0.6;
   --box-w: 1.2;
+  --slot-gap: 0;
   --box-pad: 0.17;
+  --pad: calc(var(--box-pad) * 1em);
   --bw: 3px;
   position: relative;
   display: flex;
@@ -131,7 +136,7 @@ body {
 .qnum {
   position: absolute;
   left: calc(50% + var(--overhang, 0px) / 2);   /* centred over what's visible */
-  top: calc((var(--ink-top) - var(--box-pad)) * var(--fs, 100px) - var(--bw) - max(0.2 * var(--fs, 100px), 18px));
+  top: calc(var(--ink-top) * var(--fs, 100px) - var(--pad) - var(--bw) - max(0.2 * var(--fs, 100px), 18px));
   transform: translate(-50%, -100%);
   height: auto !important;
   font-size: max(15px, calc(var(--fs, 100px) * 0.16));
@@ -145,15 +150,16 @@ body {
    border on all four sides, never resizes (spec §4). */
 .slot {
   position: relative;
-  width: calc((var(--box-w) + 2 * var(--box-pad)) * 1em + 2 * var(--bw));
+  width: calc(var(--box-w) * 1em + 2 * var(--pad) + 2 * var(--bw));
+  margin-left: calc(var(--slot-gap) * 1em + var(--slot-nudge, 0px));
 }
 .slot::after {
   content: "";
   position: absolute;
   left: 0;
   right: 0;
-  top: calc((var(--ink-top) - var(--box-pad)) * 1em - var(--bw));
-  height: calc((var(--ink-h) + 2 * var(--box-pad)) * 1em + 2 * var(--bw));
+  top: calc(var(--ink-top) * 1em - var(--pad) - var(--bw));
+  height: calc(var(--ink-h) * 1em + 2 * var(--pad) + 2 * var(--bw));
   border: max(0.025em, 2px) solid var(--ink);
   outline: 1px dashed rgba(238, 245, 255, 0.55);
   outline-offset: max(0.06em, 5px);
@@ -163,7 +169,7 @@ body {
   position: absolute;
   z-index: 1;
   top: 0;
-  left: calc(var(--box-pad) * 1em + var(--bw));
+  left: calc(var(--pad) + var(--bw));
   height: 1em;
 }
 .caret {

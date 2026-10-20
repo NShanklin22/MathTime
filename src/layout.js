@@ -2,6 +2,11 @@ import { centreInk, band, snapOutward, snap } from './ink.js';
 
 const DIGITS = [...'0123456789'];
 
+// A length in px, exactly on the layout grid. Chrome keeps positions in 64ths
+// of a device pixel and truncates anything finer, so a rounded or noisy
+// offset can land a whole step short of a device pixel.
+const px = v => Math.round(v * 64 * devicePixelRatio) / (64 * devicePixelRatio) + 'px';
+
 // Measures the real ink of the equation's font and lays the screen out around
 // it (spec §6.1): box, caret and operators from measured ink; equation fitted
 // between the gutters and snapped to device pixels; header fitted; keypad
@@ -49,10 +54,26 @@ export function createLayout(dom, scan, possibleAnswers) {
     eq.style.setProperty('--wide', geo.wide.toFixed(4));
     eq.style.setProperty('--box-w', geo.boxW.toFixed(4));
     eq.style.setProperty('--bw', getComputedStyle(slot, '::after').borderTopWidth);
-    for (const op of eq.querySelectorAll('.op')) {
-      const opMid = band(scan(op.textContent, geo.style, size), geo.base).mid;
-      op.style.top = (digits.mid - opMid).toFixed(4) + 'em';
-    }
+    // The box padding, rounded up to whole device pixels. The box's edges are
+    // drawn on whole pixels, and with the baseline on one too, the padding
+    // then comes out the same on all four sides. Up, because the page draws
+    // glyphs a little heavier than the scan does.
+    const pad = parseFloat(cs.getPropertyValue('--box-pad')) * geo.fs;
+    eq.style.setProperty('--pad', Math.ceil(pad * devicePixelRatio - 1e-3) / devicePixelRatio + 'px');
+    const ops = [...eq.querySelectorAll('.op')].map(op => {
+      const m = scan(op.textContent, geo.style, size);
+      op.style.top = (digits.mid - band(m, geo.base).mid).toFixed(4) + 'em';
+      return m;
+    });
+    // Even spacing (spec §3.2): the flex gap sits between side bearings, and
+    // the box has none, so it gets a margin. With it, the ink gap from "=" to
+    // the box is the mean of the ink gaps either side of the second number,
+    // "+" → digit and digit → "=", over all ten digits. A digit is
+    // ink-centred in its cell, so its bearing is half the cell's spare width.
+    const plus = ops[0], equals = ops[ops.length - 1];
+    const bearing = each.reduce((sum, m) => sum + (geo.wide - m.abl - m.abr) / 2, 0) / each.length;
+    const around = bearing + (plus.adv - plus.abr - equals.abl) / 2;
+    eq.style.setProperty('--slot-gap', (around - (equals.adv - equals.abr)).toFixed(4));
     // Centre the digits' ink, not the line box, in the problem area.
     eq.style.marginTop = ((0.5 - digits.mid) * 2).toFixed(4) + 'em';
     // The caret spans the digit ink, snapped outward to whole device pixels
@@ -134,6 +155,7 @@ export function createLayout(dom, scan, possibleAnswers) {
     eq.style.fontSize = '';
     eq.style.left = '';
     eq.style.top = '';
+    eq.style.removeProperty('--slot-nudge');
     measure();
     const gutter = innerWidth <= 480 ? 16 : 24;
     const avail = stage.clientWidth - 2 * gutter - 1;   // 1px slack for pixel snapping
@@ -149,11 +171,18 @@ export function createLayout(dom, scan, possibleAnswers) {
     // centred.
     api.afterMeasure?.();
     const dpr = devicePixelRatio;
+    // The box border is drawn on whole device pixels, its width rounded up.
+    // Centre the box between those pixels (the equation's left edge will be
+    // on one), so an answer centred in the box is centred on what is drawn.
+    const box = slot.getBoundingClientRect();
+    const local = box.left - eq.getBoundingClientRect().left;
+    const spare = Math.ceil(box.width * dpr - 1e-3) / dpr - box.width;
+    eq.style.setProperty('--slot-nudge', px(snap(local, dpr) - local + spare / 2));
     const r = eqBox();
     eq.style.setProperty('--overhang', overhang() + 'px');
-    eq.style.left = (snap(r.left - overhang() / 2, dpr) - r.left).toFixed(3) + 'px';
+    eq.style.left = px(snap(r.left - overhang() / 2, dpr) - r.left);
     const baseY = r.top + geo.base * geo.fs;
-    eq.style.top = (snap(baseY, dpr) - baseY).toFixed(3) + 'px';
+    eq.style.top = px(snap(baseY, dpr) - baseY);
     centreKeys();
   }
 
