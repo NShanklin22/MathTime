@@ -48,6 +48,7 @@ export function createLayout(dom, scan, possibleAnswers) {
   function measure() {
     const cs = getComputedStyle(eq);
     geo.fs = parseFloat(cs.fontSize);
+    if (!(geo.fs > 0)) return;                 // nothing to measure
     geo.style = { weight: cs.fontWeight, family: cs.fontFamily, color: cs.color };
     const size = geo.fs * devicePixelRatio;
     geo.base = domBaseline();
@@ -117,20 +118,105 @@ export function createLayout(dom, scan, possibleAnswers) {
     return after.outlineStyle === 'none' ? 0 : parseFloat(after.outlineOffset) + parseFloat(after.outlineWidth);
   }
 
-  // How much the font must shrink so that "Question N" (above) and the box's
-  // outline (below) reach at most `room` px from the digit ink's centre,
-  // which is the problem area's centre (1 or more: no need). The label
-  // shrinks with the font (see --label-scale); the box border and outline
-  // keep their px widths, so they are taken off first.
-  function heightFit(room) {
-    const e = eq.getBoundingClientRect();
-    const mid = e.top + geo.mid * geo.fs;
+  // The box's px minimums from styles.css (each has an em size too, and the
+  // larger wins), and how far they are scaled down (--line-scale).
+  function minimums() {
+    const cs = getComputedStyle(eq);
+    const num = name => parseFloat(cs.getPropertyValue(name));
+    return { bwEm: num('--bw-em'), bwMin: num('--bw-min'), outEm: num('--outline-em'), outMin: num('--outline-min') };
+  }
+
+  // How much the font must shrink (1 or more: not at all) for the equation to
+  // be `across` px wide at most, outline included, and for "Question N"
+  // (above) and the box's outline (below) to reach at most `room` px from the
+  // digit ink's centre, which is the problem area's; and whether the label's
+  // side is the one that decides. The label's px minimums shrink with the
+  // font when it does (--label-scale). The box border and outline offset held
+  // at their px minimums (scaled by `line`) and the outline's own width don't
+  // shrink with the font: they are taken off at their design size. The page
+  // draws them up to a device pixel finer, so the result still fits and moves
+  // smoothly with the room.
+  function fits(across, room, line) {
+    const m = minimums();
     const after = getComputedStyle(slot, '::after');
     const bw = parseFloat(after.borderTopWidth);
-    const fixed = bw + overhang();
+    const offset = parseFloat(after.outlineOffset);
+    const hair = parseFloat(after.outlineWidth);
+    const bwHeld = m.bwEm * geo.fs < m.bwMin * line;
+    const offsetHeld = m.outEm * geo.fs < m.outMin * line;
+    // (A border is never drawn less than one device pixel wide.)
+    const border = { now: bwHeld ? bw : 0, design: bwHeld ? Math.max(m.bwMin * line, 1 / devicePixelRatio) : 0 };
+    const out = { now: (offsetHeld ? offset : 0) + hair, design: (offsetHeld ? m.outMin * line : 0) + hair };
+    const width = eqBox().width + offset + hair;
+    const w = (across - 2 * border.design - out.design) / (width - 2 * border.now - out.now);
+    const mid = eq.getBoundingClientRect().top + geo.mid * geo.fs;
     const above = mid - qnum.getBoundingClientRect().top;
-    const below = slot.getBoundingClientRect().top + parseFloat(after.top) + parseFloat(after.height) + overhang() - mid;
-    return Math.min((room - bw) / (above - bw), (room - fixed) / (below - fixed));
+    const below = slot.getBoundingClientRect().top + parseFloat(after.top) + parseFloat(after.height) + offset + hair - mid;
+    const ha = (room - border.design) / (above - border.now);
+    const hb = (room - border.design - out.design) / (below - border.now - out.now);
+    return { w, h: Math.min(ha, hb), label: ha <= hb };
+  }
+
+  // Shrink the equation to fit (spec §3.2): across, between the gutters;
+  // down, with "Question N" and the box 8px clear of the problem area's
+  // edges, either side of the centred digit ink. Each round takes the
+  // tighter of the two; parts that keep their px size make a round fall a
+  // little short, so there are up to four, each checked.
+  // A problem area too short for 8px clear (under about 49px) shares out
+  // what it has: the clearance and the box's px minimums shrink together,
+  // so the whole group still fits and the font grows steadily with the area.
+  // The font never goes under a device pixel; under about 3px nothing fits
+  // at all, and it is left as it is.
+  function fitSize() {
+    const gutter = parseFloat(getComputedStyle(stage).getPropertyValue('--gutter'));   // 16px on phones
+    const across = stage.clientWidth - 2 * gutter - 1;   // 1px slack for pixel snapping
+    const half = stage.clientHeight / 2 - 0.5;           // 0.5px slack for pixel snapping
+    const m = minimums();
+    const hair = parseFloat(getComputedStyle(slot, '::after').outlineWidth);
+    const line = Math.min(1, Math.max(0, (half - hair) / (m.bwMin + m.outMin + 16)));
+    if (line < 1) {
+      eq.style.setProperty('--line-scale', line.toFixed(4));
+      measure();
+    }
+    const room = half - 8 * line;
+    let labelScale = 1;
+    for (let round = 0; round <= 4; round++) {
+      const { w, h, label } = fits(across, room, line);
+      const s = Math.min(w, h);
+      if (s >= 1 - 1e-4 || round === 4 || !(s > 0)) break;   // fits, out of rounds, or nothing fits at all
+      const shrinkLabel = h < w && label;
+      if (shrinkLabel) {
+        labelScale *= h;
+        eq.style.setProperty('--label-scale', labelScale.toFixed(4));
+      }
+      const next = Math.max(geo.fs * s, 1 / devicePixelRatio);   // never under a device pixel
+      if (next >= geo.fs && !shrinkLabel) break;
+      eq.style.fontSize = next + 'px';
+      measure();
+    }
+    if (labelScale < 1) fitLabel(room, labelScale);
+  }
+
+  // With the font settled, "Question N" as large as its side now allows: a
+  // later round may have shrunk the font for the outline's side and left the
+  // label room. Its reach grows with its px minimums along a convex line
+  // (they are max()es), so stepping along the straight line to full size
+  // never overshoots; a few steps close in.
+  function fitLabel(room, k0) {
+    const reach = k => {
+      eq.style.setProperty('--label-scale', (Math.floor(k * 1e4) / 1e4).toFixed(4));
+      return eq.getBoundingClientRect().top + geo.mid * geo.fs - qnum.getBoundingClientRect().top;
+    };
+    const r1 = reach(1);
+    if (r1 <= room) {
+      eq.style.removeProperty('--label-scale');
+      return;
+    }
+    let k = k0, r = reach(k0);
+    for (let i = 0; i < 3 && r < room - 0.01; i++) {
+      k += (room - r) / (r1 - r) * (1 - k);
+      r = reach(k);
+    }
   }
 
   // Drop breadcrumb parts from the left until the header fits on one line.
@@ -188,34 +274,9 @@ export function createLayout(dom, scan, possibleAnswers) {
     eq.style.left = '';
     eq.style.top = '';
     eq.style.removeProperty('--label-scale');
+    eq.style.removeProperty('--line-scale');
     measure();
-    // Shrink to fit: across, between the gutters; down, with "Question N"
-    // and the box 8px clear of the problem area's edges, either side of the
-    // centred digit ink (spec §3.2). Each round takes the tighter of the
-    // two. Shrinking for height shrinks the label's px minimums too, so the
-    // whole group shrinks together. Parts that keep their px size make a
-    // round fall short, so it takes a few.
-    const gutter = parseFloat(getComputedStyle(stage).getPropertyValue('--gutter'));   // 16px on phones
-    const across = stage.clientWidth - 2 * gutter - 1;   // 1px slack for pixel snapping
-    const half = stage.clientHeight / 2 - 0.5;           // 0.5px slack for pixel snapping
-    let labelScale = 1;
-    for (let i = 0; i < 3; i++) {
-      const w = across / (eqBox().width + overhang());
-      // 8px clear if any size can be. Below about 33px the box border and
-      // outline leave no room for that, so the clearance goes instead and the
-      // whole group just fits. Below about 17px not even that: only the digits
-      // are fitted, with a whole pixel to spare, so they are never cut.
-      let h = heightFit(half - 8);
-      if (!(h > 0)) h = heightFit(half);
-      if (!(h > 0)) h = (half - 0.5) / (geo.inkH / 2 * geo.fs);
-      if (Math.min(w, h) >= 1) break;
-      if (h < w) {
-        labelScale *= h;
-        eq.style.setProperty('--label-scale', labelScale.toFixed(4));
-      }
-      eq.style.fontSize = (geo.fs * Math.min(w, h)) + 'px';
-      measure();
-    }
+    fitSize();
     // Draw the problem and answer with the final geometry, then place them.
     api.afterMeasure?.();
     place();
@@ -247,7 +308,8 @@ export function createLayout(dom, scan, possibleAnswers) {
     const ls = getComputedStyle(qnum);
     const lfs = parseFloat(ls.fontSize);
     const style = { weight: ls.fontWeight, family: ls.fontFamily, color: ls.color, spacing: (parseFloat(ls.letterSpacing) || 0) / lfs };
-    const label = scan(qnum.textContent, style, lfs * dpr);
+    // Under a device pixel it shows nothing, and there is no ink to scan.
+    const label = lfs * dpr >= 1 ? scan(qnum.textContent, style, lfs * dpr) : { abl: 0, abr: 0 };
     eq.style.setProperty('--label-x', px(mid + qnum.getBoundingClientRect().width / 2 - (label.abr - label.abl) / 2 * lfs));
     const baseY = r.top + geo.base * geo.fs;
     eq.style.top = px(snap(baseY, dpr) - baseY);

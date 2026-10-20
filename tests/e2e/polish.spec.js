@@ -269,6 +269,7 @@ const inside = page => page.evaluate(() => {
   const band = eq.getBoundingClientRect().top + parseFloat(cs.getPropertyValue('--ink-top')) * fs;
   return {
     fs,
+    labelFont: parseFloat(getComputedStyle(document.querySelector('#qnum')).fontSize),
     label: document.querySelector('#qnum').getBoundingClientRect().top - stage.top,
     outline: stage.bottom - (slot.top + parseFloat(after.top) + parseFloat(after.height) + parseFloat(after.outlineOffset) + parseFloat(after.outlineWidth)),
     digits: Math.min(band - stage.top, stage.bottom - band - parseFloat(cs.getPropertyValue('--ink-h')) * fs),
@@ -285,6 +286,13 @@ test('the fit grows steadily with the problem area, and nothing is cut', async (
       expect(m[part], `${height}px: ${part} inside`).toBeGreaterThanOrEqual(-0.01);
     }
     if (last) expect(m.fs, `${height}px: font no smaller than at ${last.height}px`).toBeGreaterThanOrEqual(last.fs - 0.05);
+    // A label shrunk below its 15px minimum is only as small as its side
+    // needs: that side ends within a pixel of its clearance (8px, less under
+    // a 49px area, plus the 0.5px slack).
+    if (m.labelFont < 15 - 0.01) {
+      const half = height / 2 - 0.5, clear = 8 * Math.min(1, Math.max(0, (half - 1) / 23));
+      expect(m.label, `${height}px: label side tight`).toBeLessThanOrEqual(clear + 0.5 + 1);
+    }
     last = { height, fs: m.fs };
   }
 });
@@ -307,6 +315,8 @@ test('shrinking for height stops at 8px clear, big font or small', async ({ page
     const m = await inside(page);
     note(`label box clear at ${height}px`, m.label);
     expect(m.label, `${height}px: 8px clear`).toBeGreaterThanOrEqual(8 - 0.01);
-    expect(m.label, `${height}px: no more than the slack and a pixel snap beyond`).toBeLessThanOrEqual(8 + 0.5 + 0.5 + 0.01);
+    // Within a pixel of the target (8px and the 0.5px slack): snapping and
+    // rounding make a round fall a little short or long.
+    expect(m.label, `${height}px: within a pixel of 8.5px clear`).toBeLessThanOrEqual(8 + 0.5 + 1);
   }
 });

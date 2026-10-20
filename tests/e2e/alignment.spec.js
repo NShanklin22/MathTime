@@ -224,9 +224,9 @@ test('a narrow screen shrinks the equation to fit, measured again', async ({ pag
 });
 
 test('a repeat layout after a full shrink needs no new scans', async ({ page }) => {
-  // At 280px wide and 2x the fitting loop tries the CSS size and three
-  // smaller ones, so with the keypad one layout uses five font sizes. All of
-  // them must stay cached. The ratio is emulated, because setViewportSize
+  // At 280px wide and 2x the fitting loop tries the CSS size and smaller
+  // ones, so with the keypad and "Question N" one layout uses up to seven
+  // font sizes. All of them must stay cached. The ratio is emulated, because setViewportSize
   // would drop the phone project to 1x.
   const cdp = await page.context().newCDPSession(page);
   await cdp.send('Emulation.setDeviceMetricsOverride', { width: 280, height: 700, deviceScaleFactor: 2, mobile: false });

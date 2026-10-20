@@ -1,7 +1,7 @@
 import { edgesFromAlpha, toMetrics, withSpacing } from './ink.js';
 
-// How many font/size groups to keep. One layout can use five: the CSS size,
-// up to three fitted sizes and the keypad. Older ones are stale.
+// How many font/size groups to keep. One layout can use seven: the CSS size,
+// up to four fitted sizes, the keypad and "Question N". Older ones are stale.
 const MAX_GROUPS = 8;
 
 const NO_INK = { asc: 0, desc: 0, abl: 0, abr: 0, adv: 0, approx: true };

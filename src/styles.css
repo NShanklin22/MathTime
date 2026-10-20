@@ -121,7 +121,8 @@ body {
    --outline-offset: the dashed outline's offset, in whole device pixels as drawn
    --fs: the equation font size in px
    --label-x: where "Question N" goes, so its ink is centred over what you see
-   --label-scale: shrinks the label's px minimums with the font on short screens */
+   --label-scale: shrinks the label's px minimums with the font on short screens
+   --line-scale: shrinks the box's px minimums too, when the problem area is very short */
 .eq {
   --ink-top: 0.2;
   --ink-h: 0.72;
@@ -129,6 +130,10 @@ body {
   --box-w: 1.2;
   --slot-gap: 0;
   --box-pad: 0.17;
+  --bw-em: 0.025;            /* the box border: the larger of these two */
+  --bw-min: 2px;
+  --outline-em: 0.06;        /* the outline's offset from it: likewise */
+  --outline-min: 5px;
   --pad: calc(var(--box-pad) * 1em);
   --bw: 3px;
   position: relative;
@@ -179,9 +184,9 @@ body {
   right: 0;
   top: calc(var(--ink-top) * 1em - var(--pad) - var(--bw));
   height: calc(var(--ink-h) * 1em + 2 * var(--pad) + 2 * var(--bw));
-  border: max(0.025em, 2px) solid var(--ink);
+  border: max(calc(var(--bw-em) * 1em), calc(var(--bw-min) * var(--line-scale, 1))) solid var(--ink);
   outline: 1px dashed rgba(238, 245, 255, 0.55);
-  outline-offset: var(--outline-offset, max(0.06em, 5px));
+  outline-offset: var(--outline-offset, max(calc(var(--outline-em) * 1em), calc(var(--outline-min) * var(--line-scale, 1))));
   transition: border-color .15s;
 }
 .shown {
