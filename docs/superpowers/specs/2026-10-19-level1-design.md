@@ -22,7 +22,7 @@ Development goes **one piece at a time**: one level, one problem. This spec cove
 | Out of lives | Go to the level selector |
 | Level selector | Bare minimum: one "Level 1" button. Pressing it starts again at Question 1 with 3 lives. A real selector is a later piece. |
 | Checking an empty box | Does nothing; no life is lost. |
-| Timing | Green holds for 0.35s, then the slide out and in takes about 0.22s each way. The shake takes 0.32s. After the third miss, the selector appears 0.45s later. Input is ignored from a correct answer until the next problem has slid in, and from the third miss until the selector appears. During a wrong-answer shake you can type again right away. |
+| Timing | Green holds for 0.35s, then the slide out and in takes about 0.22s each way. The shake takes 0.32s. After the third miss, the selector appears 0.45s later. Input is ignored from a correct answer until the next problem is drawn (you can type as it slides in), and from the third miss until the selector appears. During a wrong-answer shake you can type again right away. |
 
 ## 3. Screen layout
 
@@ -88,13 +88,13 @@ An engineering-drawing look: white line work on blueprint-blue grid paper. It po
 | Ink (digits, current crumb) | `#eef5ff` |
 | Muted (operators, other crumbs, question label) | `#b6cdee` |
 | Answer box line | `#eef5ff`, 2px or 0.025em (whichever is larger), square corners |
-| Construction outline | 1px dashed white at 55% opacity, offset 5px or 0.06em (whichever is larger) outside the box |
+| Construction outline | 1px dashed, ink colour (`#eef5ff`) at 55% opacity, offset 5px or 0.06em (whichever is larger) outside the box |
 | Caret, current roadmap segment | amber `#ffd66b` |
 | Upcoming roadmap segments | `#6f95cc` (3:1 against the background) |
 | Correct | `#8ff0c0` (answer digits and box line) |
 | Hearts | `#eef5ff` solid; a lost heart is a dashed `#8fb0dd` outline |
-| Keys | Transparent, 1.5px inset outline in white at 80% opacity, square corners. Pressed: white 12% fill. |
-| Check key | Solid `#eef5ff` with a `#12407e` icon |
+| Keys | Transparent, 1.5px inset outline in the ink colour (`#eef5ff`) at 80% opacity, square corners. Pressed: white 12% fill. |
+| Check key | Solid `#eef5ff` with a `#12407e` icon. Pressed: `#cfe0f7`. |
 
 The amber caret matters. In this font, a white "1" next to a white caret reads as "11"; the colour difference prevents that.
 
@@ -120,7 +120,7 @@ Every point below was measured in real rendered pixels at 375×812 (pixel ratio 
 | Answer baseline vs problem baseline | 0px |
 | Caret top and bottom vs digit ink | Reaches the ink at both ends, never short |
 | Answer horizontal centring (every answer 0–18) | ≤ 0.5px |
-| Box padding, widest answer | Equal on all four sides, within about 0.5px |
+| Box padding, widest answer | Equal on all four sides, within about 0.5px. Left and right are measured from the answer's ink; top and bottom from the ink band of all ten digits, since the box must fit every digit. Flat-topped answers like "14" therefore sit about 1 device pixel inside that band. |
 | Keypad digit labels vs key centre (ink) | ≤ 0.5px both ways |
 | Equation position while typing or after a wrong answer | 0px movement |
 | Gutters | ≥ 16px phone, ≥ 24px desktop, overhangs included; no horizontal scroll |

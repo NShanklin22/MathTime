@@ -1,0 +1,268 @@
+/* MathTime: Blueprint theme and layout.
+   See docs/superpowers/specs/2026-10-19-level1-design.md §3–§5. */
+:root {
+  color-scheme: dark;
+  --bg: #12407e;
+  --ink: #eef5ff;
+  --muted: #b6cdee;
+  --faint: #6f95cc;          /* upcoming roadmap segments, 3:1 on the background */
+  --amber: #ffd66b;          /* caret and current roadmap segment */
+  --good: #8ff0c0;
+  --heart-lost: #8fb0dd;
+  --key-ring: inset 0 0 0 1.5px rgba(238, 245, 255, 0.8);
+  --key-press: rgba(255, 255, 255, 0.12);
+  --go-press: #cfe0f7;       /* the check key while pressed */
+  --font: "IBM Plex Mono", "IBM Plex Sans", ui-monospace, monospace;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+html.loading .top, html.loading .stage, html.loading .pad { visibility: hidden; }
+body {
+  background:
+    linear-gradient(rgba(255, 255, 255, 0.14) 1px, transparent 1px) -1px -1px / 100px 100px,
+    linear-gradient(90deg, rgba(255, 255, 255, 0.14) 1px, transparent 1px) -1px -1px / 100px 100px,
+    linear-gradient(rgba(255, 255, 255, 0.06) 1px, transparent 1px) -1px -1px / 20px 20px,
+    linear-gradient(90deg, rgba(255, 255, 255, 0.06) 1px, transparent 1px) -1px -1px / 20px 20px,
+    var(--bg);
+  color: var(--ink);
+  font-family: var(--font);
+  overflow: hidden;
+  height: 100dvh;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  grid-template-columns: minmax(0, 1fr);
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+
+/* Visually hidden, still read by screen readers (live region for answers). */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* ---------- Header: roadmap position and lives ---------- */
+.top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 20px 24px 0;
+}
+.where { min-width: 0; }
+.crumbs {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  line-height: 20px;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.crumbs .here { color: var(--ink); font-weight: 600; }
+.crumbs .sep { width: 12px; height: 12px; flex: none; }
+.crumbs .sep path { fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+/* When the header gets tight, crumbs drop from the left (set by layout.js). */
+.top.tight .stage-name, .top.tight .stage-sep,
+.top.tighter .sub-name, .top.tighter .sub-sep { display: none; }
+.road { display: flex; gap: 4px; margin-top: 8px; }
+.road span { width: 20px; height: 4px; background: var(--faint); }
+.road span.now { background: var(--amber); }
+
+.lives { display: flex; gap: 8px; color: var(--ink); flex: none; }
+.lives svg { width: 24px; height: 24px; display: block; }
+.lives svg path { fill: currentColor; stroke: currentColor; stroke-width: 2; stroke-linejoin: round; transition: fill .2s, stroke .2s; }
+.lives svg.lost path { fill: none; stroke: var(--heart-lost); stroke-dasharray: 2.5 2; }
+
+/* ---------- Problem area ---------- */
+.stage {
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+/* Ink metrics measured from the real font by layout.js:
+   --ink-top / --ink-h: where digit ink sits in each 1em line box
+   --wide: widest digit (a problem digit's cell)
+   --box-w: ink width of the widest possible answer
+   --bw: the box border width in px (kept outside the padding)
+   --fs: the equation font size in px
+   --overhang: how far the box's dashed outline sticks out on the right */
+.eq {
+  --ink-top: 0.2;
+  --ink-h: 0.72;
+  --wide: 0.6;
+  --box-w: 1.2;
+  --box-pad: 0.17;
+  --bw: 3px;
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.3em;
+  font-weight: 500;
+  font-size: clamp(40px, min(17vw, 15vh), 128px);
+  font-size: clamp(40px, min(17vw, 15dvh), 128px);
+}
+.eq > * { display: block; height: 1em; line-height: 1; }
+.op { color: var(--muted); position: relative; }
+
+/* Every digit sits in a fixed cell, nudged so its ink is centred. */
+#a, #b, .shown, #shown { display: flex; }
+.cell {
+  display: block;
+  flex: none;
+  width: calc(var(--wide) * 1em);
+  height: 1em;
+  white-space: pre;
+}
+
+.qnum {
+  position: absolute;
+  left: calc(50% + var(--overhang, 0px) / 2);   /* centred over what's visible */
+  top: calc((var(--ink-top) - var(--box-pad)) * var(--fs, 100px) - var(--bw) - max(0.2 * var(--fs, 100px), 18px));
+  transform: translate(-50%, -100%);
+  height: auto !important;
+  font-size: max(15px, calc(var(--fs, 100px) * 0.16));
+  line-height: 1.25;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+/* The answer box: one fixed size for the level, equal padding inside the
+   border on all four sides, never resizes (spec §4). */
+.slot {
+  position: relative;
+  width: calc((var(--box-w) + 2 * var(--box-pad)) * 1em + 2 * var(--bw));
+}
+.slot::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc((var(--ink-top) - var(--box-pad)) * 1em - var(--bw));
+  height: calc((var(--ink-h) + 2 * var(--box-pad)) * 1em + 2 * var(--bw));
+  border: max(0.025em, 2px) solid var(--ink);
+  outline: 1px dashed rgba(238, 245, 255, 0.55);
+  outline-offset: max(0.06em, 5px);
+  transition: border-color .15s;
+}
+.shown {
+  position: absolute;
+  z-index: 1;
+  top: 0;
+  left: calc(var(--box-pad) * 1em + var(--bw));
+  height: 1em;
+}
+.caret {
+  position: absolute;
+  left: 100%;
+  top: calc(var(--ink-top) * 1em);      /* layout.js replaces with a snapped px value */
+  width: 0.05em;
+  min-width: 2px;
+  height: calc(var(--ink-h) * 1em);
+  background: var(--amber);
+  animation: blink 1.06s steps(1) infinite;
+}
+.slot.empty .caret { left: calc(var(--box-w) * 0.5em); transform: translateX(-50%); }
+.slot:not(.focused) .caret,
+.slot.full .caret { visibility: hidden; }
+@keyframes blink { 50% { opacity: 0; } }
+.slot input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  opacity: 0;
+  font: inherit;
+  caret-color: transparent;
+}
+
+.eq.correct .shown { color: var(--good); }
+.eq.correct .slot::after { border-color: var(--good); }
+.eq.correct .caret { visibility: hidden; }
+
+.eq.shake { animation: shake .32s ease; }
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-0.12em); }
+  40% { transform: translateX(0.1em); }
+  60% { transform: translateX(-0.06em); }
+  80% { transform: translateX(0.04em); }
+}
+.eq.out { animation: out .22s ease-in forwards; }
+.eq.in { animation: in .22s ease-out; }
+@keyframes out { to { transform: translateX(-40vw); opacity: 0; } }
+@keyframes in { from { transform: translateX(40vw); opacity: 0; } }
+
+/* ---------- Keypad ---------- */
+.pad {
+  width: 100%;
+  max-width: 420px;
+  justify-self: center;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  padding: 0 16px max(16px, env(safe-area-inset-bottom));
+}
+.pad button {
+  height: clamp(48px, 7.5vh, 64px);
+  height: clamp(48px, 7.5dvh, 64px);
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: var(--key-ring);
+  color: var(--ink);
+  font: 500 26px/1 var(--font);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: background .08s, transform .08s;
+}
+/* Digit labels sit in their own box so layout.js can centre their ink. */
+.pad .kl { display: block; height: 1em; line-height: 1; }
+.pad button svg { width: 28px; height: 28px; display: block; }
+.pad button svg path { fill: none; stroke: currentColor; stroke-width: 2.25; stroke-linecap: round; stroke-linejoin: round; }
+.pad button.go { background: var(--ink); color: var(--bg); box-shadow: none; }
+.pad button:active, .pad button.pressed { background: var(--key-press); transform: scale(0.97); }
+.pad button.go:active, .pad button.go.pressed { background: var(--go-press); }
+.pad button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+
+/* ---------- Level selector (bare minimum) ---------- */
+.select { display: none; align-items: center; justify-content: center; }
+.select button {
+  font: 500 20px/1 var(--font);
+  color: var(--ink);
+  background: transparent;
+  border: 1.5px solid var(--ink);
+  border-radius: 0;
+  padding: 16px 40px;
+  cursor: pointer;
+}
+.select button:hover { background: var(--key-press); }
+/* Amber, so it reads as focus rather than a second white border. */
+.select button:focus-visible { outline: 2px solid var(--amber); outline-offset: 4px; }
+body.at-select .stage, body.at-select .pad, body.at-select .lives { display: none; }
+body.at-select .select { display: flex; }
+
+@media (max-width: 480px) {
+  .top { padding: 16px 16px 0; }
+}
