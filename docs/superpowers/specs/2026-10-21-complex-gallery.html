@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Complex levels</title>
+<style>
+  /* Six exploratory mockups of the multi-box levels ahead, side by side at
+     phone size. Each is playable; "Open full screen" shows it at desktop size. */
+  :root { --frame-w: 375px; --frame-h: 812px; --col: calc(var(--frame-w) + 2px); --cols: 3; }
+  @media (max-width: 1250px) { :root { --cols: 2; } }
+  @media (max-width: 840px) { :root { --cols: 1; } }
+  *, *::before, *::after { box-sizing: border-box; }
+  body { margin: 0; background: #f2f1ed; color: #1f1e1b; font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  .wrap { width: calc(var(--cols) * var(--col) + (var(--cols) - 1) * 32px + 48px); max-width: 100%; margin: 0 auto; padding: 40px 24px 64px; }
+  h1 { font-size: 28px; line-height: 36px; font-weight: 600; margin: 0 0 8px; }
+  .lede { color: #6b6861; margin: 0 0 40px; max-width: 680px; }
+  .grid { display: grid; grid-template-columns: repeat(var(--cols), var(--col)); gap: 48px 32px; }
+  .head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 4px; }
+  .name { font-weight: 600; white-space: nowrap; }
+  .num { color: #6b6861; margin-right: 6px; font-variant-numeric: tabular-nums; }
+  .head a { font-size: 14px; color: #2559ad; text-decoration: none; white-space: nowrap; }
+  .head a:hover { text-decoration: underline; }
+  .desc { font-size: 14px; line-height: 20px; color: #6b6861; margin: 0 0 12px; min-height: 60px; }
+  .frame { box-sizing: content-box; width: var(--frame-w); height: var(--frame-h); border-radius: 20px; overflow: hidden; border: 1px solid #d9d6ce; background: #12407e; }
+  .frame iframe { display: block; width: 100%; height: 100%; border: 0; }
+  /* On a phone a 375px frame can't fit beside the gutters, and a smaller one
+     would change the mockups' layouts, so each card opens its mockup full
+     screen instead. */
+  @media (max-width: 420px) {
+    :root { --col: 100%; }
+    .wrap { padding: 32px 16px 48px; }
+    .grid { grid-template-columns: 1fr; gap: 32px; }
+    .frame { display: none; }
+    .desc { min-height: 0; margin: 0; }
+  }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>The complex levels: six mockups</h1>
+    <p class="lede">Where the problem gets filled out across many boxes. Each one is playable: type on the keypad or keyboard. They are explorations of the mechanic, not decisions; each card notes the questions it raises.</p>
+    <div class="grid" id="grid"></div>
+  </div>
+<script>
+  const MOCKUPS = [
+    ['column-addition', 'Column addition', '47 + 38, right to left. A carry cell is always offered (dashed), so it gives nothing away; each column is checked on Enter.'],
+    ['column-subtraction', 'Column subtraction', '52 − 27. Tap the 5 (or press Up) to borrow: it is struck, you write the 4 above, and a small 1 turns the 2 into 12.'],
+    ['long-multiplication', 'Long multiplication', '34 × 26 in three steps: × 6, × 20 (you type the place-holder 0), then the sum. Carries go in small boxes above, as on paper.'],
+    ['long-division', 'Long division', '156 ÷ 12, US layout. Each round: a quotient digit, multiply, subtract; then the check key becomes ↓ to bring the next digit down.'],
+    ['fraction-addition', 'Adding fractions', '1/3 + 1/4 = 4/12 + 3/12 = 7/12. Denominators first, as on paper; steps aligned on “=”, one per line on a phone.'],
+    ['equation-steps', 'Solving an equation', '3x + 5 = 20: write the operation in the margin (−5), then the next line. The keypad grows a row of symbols (x ÷ − +) above the digits.'],
+  ];
+  document.getElementById('grid').innerHTML = MOCKUPS.map(([slug, name, desc], i) => {
+    const url = `2026-10-21-complex-${slug}-mockup.html`;
+    return `<article>
+      <div class="head"><span class="name"><span class="num">${i + 1}</span>${name}</span><a href="${url}" target="_blank" rel="noopener">Open full screen</a></div>
+      <p class="desc">${desc}</p>
+      <div class="frame"><iframe src="${url}" title="${name} mockup" loading="lazy"></iframe></div>
+    </article>`;
+  }).join('');
+</script>
+</body>
+</html>

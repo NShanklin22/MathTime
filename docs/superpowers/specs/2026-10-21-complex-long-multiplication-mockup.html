@@ -1,0 +1,1146 @@
+<!doctype html>
+<html lang="en" class="loading">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Long multiplication mockup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<!--
+  Exploratory mockup: long multiplication (two-digit × two-digit), the
+  standard written method, on the game's own scanner, header and keypad
+  code (src/). Served by the dev server.
+
+  Default problem 34 × 26 = 884. URL parameters:
+    ?random=1                   random two-digit × two-digit problems
+    ?p=99x99                    a given problem
+    ?state=empty|carry|partial|wrong|done
+                                fixed states for review
+    ?zero=given                 the place-holder zero pre-filled and dimmed,
+                                to compare with typing it (the default)
+
+  The mechanic
+  - Three steps, worked as on paper: 34 × 6, then 34 × 20, then the sum.
+    Enter checks the step you are on.
+  - Within a step the cursor goes right to left. Right after the digit
+    that makes a carry, the cursor goes up into that carry's box, then on
+    to the next column.
+  - Every place a carry can go is a small dashed construction box over its
+    column: two above the 34 (× 6's nearest the digits, × 20's above them,
+    the "write the new ones above" habit), and two above the first partial
+    product for the sum. A box inks in when the cursor reaches it. Used
+    carries dim once their row is done; an unused carry row closes up from
+    above (the row being worked never moves), and the finished board
+    settles, centred, with no empty rows.
+  - The place-holder zero is typed: it is the moment the row becomes × 20.
+  - A row may end in empty cells (a leading zero is not written), so Enter
+    says when it is done. Right: green, then the boxes fade and leave the
+    digits, as written on paper. Wrong: the step shakes and clears, a heart
+    goes. Three misses: the level selector.
+  - Tap a cell of the current step to move the cursor; Backspace steps back.
+  - Cells are Level 1's box at digit size (0.1em padding round the ink on
+    all four sides), all identical; a row of them is one segmented box with
+    shared borders, so the column pitch is a cell less one border. Each
+    digit is centred on its ink,
+    starting on a quarter device pixel (where the page draws a glyph exactly
+    as scanned).
+-->
+<link rel="stylesheet" href="/src/styles.css">
+<style>
+  /* The way back, as in the Level 2 play mockup: "Levels" (or Esc) goes to
+     the level selector. A faint underline from its first ink to its last. */
+  .crumbs .back { position: relative; color: var(--muted); text-decoration: none; }
+  .crumbs .back::before {
+    content: "";
+    position: absolute;
+    left: var(--ul-left, 0);
+    right: var(--ul-right, 0);
+    top: 19px;
+    height: 1px;
+    background: var(--faint);
+  }
+  .crumbs .back::after {
+    content: "";
+    position: absolute;
+    top: calc(-1 * var(--top-safe));
+    bottom: calc(1px - var(--road-gap));
+    left: calc(-1 * var(--gutter));
+    right: -8px;
+  }
+  .crumbs .back:focus-visible { outline: 2px solid var(--ink); outline-offset: 4px; }
+  @media (hover: hover) { .crumbs .back:hover::before { background: currentColor; } }
+
+  /* ---------- The working sheet ----------
+     Everything is placed by the script on whole device pixels, from the
+     digits' measured ink: cells, rules, the bracket, digits centred on their
+     ink in their column. Sizes and positions are written as inline styles. */
+  :root { --ghost: #7c97bc; }   /* ink at 48% on the background, opaque so shared edges don't double up: 3.4:1 */
+  .stage { position: relative; }
+  .sheet { position: absolute; left: 0; top: 0; font-family: var(--font); font-weight: 500; line-height: 1; }
+  .sheet > *, .cell > * { position: absolute; left: 0; top: 0; }
+  .g, .dg { display: block; height: 1em; line-height: 1; white-space: pre; }
+  .g.op, .g.rem-r { color: var(--muted); }
+  .g.dropped { opacity: 0; transition: opacity .2s; }
+
+  /* A cell is Level 1's answer box at digit size: the border outside equal
+     padding round the digit ink band. Upcoming cells are construction lines
+     (dashed, faint); the step you are on is drawn solid; a checked step goes
+     green, then its boxes fade and leave the digits, as written on paper. */
+  .cell::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border: var(--b, 2px) solid var(--ink);
+    transition: border-color .15s, opacity .25s;
+  }
+  .cell.up::before { border: 1px dashed var(--ghost); inset: var(--di, 0); }
+  .cell.no-l::before { border-left-width: 0 !important; }
+  .cell.no-r::before { border-right-width: 0 !important; }
+  .cell.act.filled::before { border-color: var(--amber); }
+  .cell.done::before, .cell.pre::before { opacity: 0; }
+  .cell.good::before { opacity: 1; border-color: var(--good); }
+  .cell.good:not(.filled)::before { opacity: 0; }
+  .cell .dg { transition: color .15s; }
+  .cell.used .dg { color: var(--muted); }
+  .cell.good .dg, .sheet.correct .cell .dg { color: var(--good); }
+  .cell.pre .dg, .sheet.correct .cell.pre .dg { color: var(--muted); }
+  .cell.hide:not(.shaking) { visibility: hidden; }
+  .cell.landing .dg { visibility: hidden; }
+  .cell.shake { animation: shake .32s ease; }
+  .ghost { animation: ghost .32s ease forwards; }
+  @keyframes ghost { to { opacity: 0; } }
+  .flying { position: absolute; transition: transform .25s cubic-bezier(.3, 0, .2, 1); }
+
+  .caret { background: var(--amber); animation: blink 1.06s steps(1) infinite; min-width: 0; }   /* sized by the script, on whole device pixels */
+  body:not(.focused) .caret, .sheet.shaking-step .caret { visibility: hidden; }
+  .rule { background: var(--ink); }
+  .sheet svg { display: block; overflow: visible; pointer-events: none; }
+  .bracket path { fill: none; stroke: var(--ink); stroke-linejoin: round; stroke-linecap: butt; }
+  .arrow path { fill: none; stroke: var(--amber); stroke-linecap: butt; stroke-linejoin: miter; transition: stroke .2s, opacity .2s; }
+  .arrow.up { opacity: 0; }
+  .arrow.spent path { stroke: var(--faint); }
+
+  .qlabel { color: var(--muted); letter-spacing: 0.04em; line-height: 1.25; white-space: nowrap; }
+
+  .sheet.out { animation: out .22s ease-in forwards; }
+  .sheet.in { animation: in .22s ease-out; }
+
+  /* The check key turns into "bring down" when that is the next step. */
+  .pad .go .i-down { display: none; }
+  .pad.bring .go .i-check { display: none; }
+  .pad.bring .go .i-down { display: block; }
+
+  /* Keyboard focus lives here (phone keyboard suppressed); screen readers
+     hear the step from its label. */
+  #ans {
+    position: absolute; left: 0; top: 0; width: 1px; height: 1px;
+    margin: 0; padding: 0; border: 0; opacity: 0; caret-color: transparent;
+  }
+</style>
+</head>
+<body>
+  <header class="top">
+    <div class="where">
+      <nav class="crumbs" aria-label="Breadcrumb">
+        <a class="back" href="2026-10-21-level2-selector-mockup.html?concept=a" aria-keyshortcuts="Escape">Levels</a>
+        <svg class="sep" viewBox="0 0 12 12" aria-hidden="true"><path d="M4.5 2.5L8 6l-3.5 3.5"/></svg>
+        <span class="stage-name">Multiplication</span>
+        <svg class="sep stage-sep" viewBox="0 0 12 12" aria-hidden="true"><path d="M4.5 2.5L8 6l-3.5 3.5"/></svg>
+        <span class="here" aria-current="step">Level N</span>
+      </nav>
+      <div class="road" role="img" aria-label="Roadmap stage 1 of 7: Arithmetic. Then fractions, algebra, geometry, trigonometry, calculus, physics.">
+        <span class="now" title="Arithmetic"></span>
+        <span title="Fractions"></span>
+        <span title="Algebra"></span>
+        <span title="Geometry"></span>
+        <span title="Trigonometry"></span>
+        <span title="Calculus"></span>
+        <span title="Physics"></span>
+      </div>
+    </div>
+    <div class="lives" role="img" aria-label="3 lives left">
+      <svg viewBox="2 3 20 18" aria-hidden="true"><path d="M19.5 12.572l-7.5 7.428l-7.5 -7.428a5 5 0 1 1 7.5 -6.566a5 5 0 1 1 7.5 6.572"/></svg>
+      <svg viewBox="2 3 20 18" aria-hidden="true"><path d="M19.5 12.572l-7.5 7.428l-7.5 -7.428a5 5 0 1 1 7.5 -6.566a5 5 0 1 1 7.5 6.572"/></svg>
+      <svg viewBox="2 3 20 18" aria-hidden="true"><path d="M19.5 12.572l-7.5 7.428l-7.5 -7.428a5 5 0 1 1 7.5 -6.566a5 5 0 1 1 7.5 6.572"/></svg>
+    </div>
+  </header>
+
+  <main class="stage">
+    <div class="sheet" id="sheet" aria-hidden="true"></div>
+    <input id="ans" inputmode="none" autocomplete="off" aria-label="Answer">
+  </main>
+
+  <p class="sr-only" role="status" id="status"></p>
+
+  <div class="pad" role="group" aria-label="Keypad">
+    <button tabindex="-1" data-k="1"><span class="kl">1</span></button>
+    <button tabindex="-1" data-k="2"><span class="kl">2</span></button>
+    <button tabindex="-1" data-k="3"><span class="kl">3</span></button>
+    <button tabindex="-1" data-k="4"><span class="kl">4</span></button>
+    <button tabindex="-1" data-k="5"><span class="kl">5</span></button>
+    <button tabindex="-1" data-k="6"><span class="kl">6</span></button>
+    <button tabindex="-1" data-k="7"><span class="kl">7</span></button>
+    <button tabindex="-1" data-k="8"><span class="kl">8</span></button>
+    <button tabindex="-1" data-k="9"><span class="kl">9</span></button>
+    <button tabindex="-1" data-k="Backspace" aria-label="Delete"><svg viewBox="0 0 24 24" aria-hidden="true"><g transform="translate(-0.5 0)"><path d="M20 6H9l-5 6l5 6h11a1 1 0 0 0 1-1V7a1 1 0 0 0-1-1z"/><path d="M12.25 10.25l3.5 3.5m0-3.5l-3.5 3.5"/></g></svg></button>
+    <button tabindex="-1" data-k="0"><span class="kl">0</span></button>
+    <button tabindex="-1" data-k="Enter" class="go" aria-label="Check step"><svg class="i-check" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 12.5l5.5 5.5l11.5-11.5"/></svg><svg class="i-down" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5v16M5.75 13.25L12 19.5l6.25-6.25"/></svg></button>
+  </div>
+
+<script type="module">
+import { fontsReady } from '/src/fonts.js';
+import { createScanner } from '/src/scanner.js';
+import { fitHeader } from '/src/header.js';
+import { centreKeys } from '/src/keypad.js';
+import { snap, onLayoutGrid } from '/src/ink.js';
+
+// ====================================================================
+// Long multiplication: two-digit × two-digit, the standard written method.
+//
+//        ²            carries for × 2 (tens)    row cB
+//        ²            carries for × 6 (ones)    row cA
+//        3 4
+//    ×   2 6
+//    ───────
+//      ¹ ¹            carries for the sum       row cS
+//      2 0 4          34 × 6
+//      6 8 0          34 × 20 (the 0 holds the place)
+//    ───────
+//      8 8 4
+//
+// Steps, each checked with Enter: the first partial product, the second,
+// the sum. Within a step the cursor goes right to left as you write on
+// paper; a carry cell appears and takes the cursor right after the digit
+// that makes it, then the cursor goes on to the next column.
+// ====================================================================
+
+const LEVEL = {
+  options: params => ({ zeroGiven: params.get('zero') === 'given' }),
+  first: () => ({ a: 34, b: 26 }),
+  parse: s => { const m = /^(\d{2})x(\d{2})$/.exec(s ?? ''); return m && { a: +m[1], b: +m[2] }; },
+  // Two two-digit numbers, neither ending in 0 (that would make a partial
+  // product of nothing but zeros).
+  random(rng) {
+    const pick = () => { for (;;) { const n = 11 + Math.floor(rng() * 89); if (n % 10) return n; } };
+    return { a: pick(), b: pick() };
+  },
+  say: p => `${p.a} times ${p.b}`,
+
+  spec({ a, b }, opt) {
+    const dig = (n, i) => Math.floor(n / 10 ** i) % 10;
+    const a0 = dig(a, 0), a1 = dig(a, 1), b0 = dig(b, 0), b1 = dig(b, 1);
+    const p1 = a * b0, p2 = a * b1 * 10, sum = a * b;
+    const cA = Math.floor(a0 * b0 / 10);                         // into the tens, × ones digit
+    const cB = Math.floor(a0 * b1 / 10);                         // into the hundreds, × tens digit
+    const cH = Math.floor((dig(p1, 1) + dig(p2, 1)) / 10);       // the sum, tens into hundreds
+    const cTh = Math.floor((dig(p1, 2) + dig(p2, 2) + cH) / 10); // the sum, hundreds into thousands
+    // A number's digit in place i, '' where it has none (the ones always count).
+    const place = (n, i) => (i === 0 || n >= 10 ** i) ? String(dig(n, i)) : '';
+    const PLACES = ['O', 'T', 'H', 'Th'];
+    const cells = [];
+    const cell = (id, row, col, answer, more) => cells.push({ id, row, col, answer, ...more });
+    PLACES.slice(0, 3).forEach((c, i) => cell('p1.' + c, 'p1', c, place(p1, i)));
+    PLACES.forEach((c, i) => cell('p2.' + c, 'p2', c, place(p2, i)));
+    PLACES.forEach((c, i) => cell('s.' + c, 's', c, place(sum, i)));
+    // Every place a carry can go is drawn as a small construction box over
+    // the column it is added in. The cursor stops in one only when the
+    // method makes a carry there; an unused one fades with its step.
+    const carry = (id, row, col, n, step) => cell(id, row, col, n ? String(n) : '', { small: true, carry: true, step });
+    carry('cA', 'cA', 'T', cA, 0);
+    carry('cB', 'cB', 'T', cB, 1);
+    carry('cS.H', 'cS', 'H', cH, 2);
+    carry('cS.Th', 'cS', 'Th', cTh, 2);
+    if (opt.zeroGiven) Object.assign(cells.find(c => c.id === 'p2.O'), { pre: '0', step: 1 });
+    const only = (...ids) => ids.filter(id => cells.some(c => c.id === id && (c.answer !== '' || !c.carry)));
+
+    return {
+      cols: [{ key: 'Th' }, { key: 'H' }, { key: 'T' }, { key: 'O' }],
+      rows: [
+        { key: 'cB', kind: 'small', carry: true },
+        { key: 'cA', kind: 'small', carry: true },
+        { key: 'a', kind: 'big' },
+        { key: 'b', kind: 'big' },
+        { key: 'L1', kind: 'rule', gap: 'carry' },   // midway: the room the sum's carries take below it
+        { key: 'cS', kind: 'small', carry: true, gap: 'near' },
+        { key: 'p1', kind: 'big' },
+        { key: 'p2', kind: 'big' },
+        { key: 'L2', kind: 'rule' },
+        { key: 's', kind: 'big' },
+      ],
+      givens: [
+        { id: 'a1', row: 'a', col: 'T', text: String(a1) },
+        { id: 'a0', row: 'a', col: 'O', text: String(a0) },
+        { id: 'x', row: 'b', col: 'H', text: '×', kind: 'op', before: 'b1', gap: 0.5 },   // before the 26, as on paper
+        { id: 'b1', row: 'b', col: 'T', text: String(b1) },
+        { id: 'b0', row: 'b', col: 'O', text: String(b0) },
+      ],
+      rules: [{ row: 'L1', from: 'Th', to: 'O' }, { row: 'L2', from: 'Th', to: 'O' }],
+      cells,
+      steps: [
+        {
+          kind: 'row', say: `Multiply ${a} by ${b0}, from the ones.`,
+          path: only('p1.O', 'cA', 'p1.T', 'p1.H'), digits: ['p1.O', 'p1.T', 'p1.H'], value: p1,
+        },
+        {
+          kind: 'row', say: `Multiply ${a} by ${b1}0, from the ones.`,
+          path: only(...(opt.zeroGiven ? [] : ['p2.O']), 'p2.T', 'cB', 'p2.H', 'p2.Th'),
+          digits: ['p2.O', 'p2.T', 'p2.H', 'p2.Th'], value: p2,
+        },
+        {
+          kind: 'row', say: `Add ${p1} and ${p2}, from the ones.`,
+          path: only('s.O', 's.T', 'cS.H', 's.H', 'cS.Th', 's.Th'), digits: ['s.O', 's.T', 's.H', 's.Th'], value: sum,
+        },
+      ],
+    };
+  },
+
+  // Review states (?state=…), keyed in on the default problem.
+  states: {
+    carry: (steps, keys) => keys(steps[0]).slice(0, 1),
+    partial: (steps, keys) => [...keys(steps[0]), 'Enter', ...keys(steps[1]).slice(0, 2)],
+    wrong: (steps, keys, wrongLast) => [...keys(steps[0]), 'Enter', ...wrongLast(keys(steps[1])), 'Enter'],
+  },
+};
+
+// ====================================================================
+// The engine: a written method as a sheet of cells on a strict grid.
+// The level (above) says what goes where (spec) and in which order it is
+// worked (steps). Everything is placed here on whole device pixels from
+// the digits' scanned ink, as the game's layout.js does for Level 1.
+// ====================================================================
+
+const $ = sel => document.querySelector(sel);
+const params = new URLSearchParams(location.search);
+const STATE = params.get('state');
+const SELECTOR = '2026-10-21-level2-selector-mockup.html?concept=a';
+const DIGITS = [...'0123456789'];
+const LIVES = 3;
+const INK = '#eef5ff', MUTED = '#b6cdee';
+
+// Proportions of the digit size F (em). Each is drawn in whole device pixels.
+const K = {
+  pad: 0.1,      // a cell's padding round the digit ink, all four sides (Level 1's lone box: 0.17)
+  gx: 0.12,      // between a digit column and another kind (bracket, "r")
+  gy: 0.12,      // between rows (the same: a regular grid)
+  gl: 0.17,      // either side of a rule
+  small: 0.46,   // carry digits, as a fraction of F
+  gsb: 0.07,     // from a carry cell down to the cell or digit it belongs to
+  gss: 0.06,     // between two rows of carries
+  ...(LEVEL.K ?? {}),
+};
+
+const dom = {
+  stage: $('.stage'), sheet: $('#sheet'), pad: $('.pad'), topBar: $('.top'), ans: $('#ans'),
+  status: $('#status'), lives: $('.lives'), hearts: [...document.querySelectorAll('.lives svg')],
+};
+const scan = createScanner();
+const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+const R = Math.round;
+// A device-pixel length, written exactly on Chrome's layout grid.
+const css = d => onLayoutGrid(d / devicePixelRatio, devicePixelRatio) + 'px';
+
+let family = '';
+let instant = false;       // set while a review state is keyed in
+let G = null;              // geometry at the fitted size (device px)
+let P = null;              // where everything goes (device px, from the sheet's origin)
+let els = null;            // the current problem's elements
+const game = {
+  question: 1, lives: LIVES, phase: 'playing', problem: null, spec: null, cells: {},
+  si: 0, ci: 0, values: {}, good: new Set(),
+};
+const OPTIONS = LEVEL.options?.(params) ?? {};
+
+// ---------- measuring ----------
+
+const styleOf = color => ({ weight: '500', family, color });
+
+// Baseline position in a 1em, line-height 1 box (em), read from the live layout.
+const bases = new Map();
+function baseAt(size) {
+  const key = String(size);
+  if (!bases.has(key)) {
+    const box = document.createElement('span');
+    box.style.cssText = `position:absolute;left:0;top:0;visibility:hidden;display:block;height:1em;line-height:1;white-space:pre;font-size:${size}px`;
+    box.innerHTML = '0<span style="display:inline-block;width:0;height:0;vertical-align:baseline"></span>';
+    dom.sheet.appendChild(box);
+    bases.set(key, (box.lastChild.getBoundingClientRect().top - box.getBoundingClientRect().top) / size);
+    box.remove();
+  }
+  return bases.get(key);
+}
+
+// Where `text` at `size` (CSS px) starts for its ink to be centred on cx,
+// with its baseline at `base` (device px from the sheet's origin, which is
+// on a whole device pixel). Text is drawn at fractions of a device pixel and
+// its ink comes out a little differently at each (Level 1 spec §6.1, point
+// 5). Measured: the page draws a glyph exactly as the scanner does when it
+// starts on a quarter of a device pixel, and up to half a pixel apart in
+// between. So the start goes on a quarter pixel, scanned there.
+const q4 = v => Math.round(v * 4) / 4;
+function textAt(text, size, color, cx, base) {
+  const S = size * devicePixelRatio;
+  let m = scan(text, styleOf(color), S);
+  let left = q4(cx - (m.abr - m.abl) / 2 * S);
+  for (let i = 0; i < 3; i++) {
+    m = scan(text, styleOf(color), S, left - Math.floor(left));
+    const next = q4(cx - (m.abr - m.abl) / 2 * S);
+    if (next === left) break;
+    left = next;
+  }
+  m = scan(text, styleOf(color), S, left - Math.floor(left));
+  return {
+    size, left, top: base - baseAt(size) * S,
+    ink: { l: left - m.abl * S, r: left + m.abr * S, t: base - m.asc * S, b: base + m.desc * S },
+  };
+}
+
+// The ten digits' ink at `size`: the band they share and the widest.
+function digitInk(size) {
+  const each = DIGITS.map(c => scan(c, styleOf(INK), size * devicePixelRatio));
+  return {
+    asc: Math.max(...each.map(m => m.asc)),
+    desc: Math.max(...each.map(m => m.desc)),
+    w: Math.max(...each.map(m => m.abl + m.abr)),
+  };
+}
+
+// ---------- geometry ----------
+
+// Every length in device pixels. A cell is the widest digit's ink across
+// and the ten digits' ink band down, padded equally on all four sides (to
+// within half a device pixel), with the border outside the padding. Cells
+// side by side in a row join into one segmented box: they share a border,
+// so the column pitch is a cell's outer width less one border.
+function geometry(F) {
+  const spec = game.spec;
+  const D = devicePixelRatio, S = F * D;
+  const g = { F, S };
+  const big = digitInk(F);
+  g.bw = Math.max(R(0.025 * S), R(2 * D));
+  const Wi = Math.max(1, R(big.w * S + 2 * K.pad * S));      // inner width, whole pixels
+  g.padH = (Wi - big.w * S) / 2;                             // the padding as drawn, across
+  g.top = R(-big.asc * S - g.padH);                          // inner box, from the baseline:
+  g.bottom = R(big.desc * S + g.padH);                       // the same padding down
+  g.Wc = Wi + 2 * g.bw;
+  g.Hc = g.bottom - g.top + 2 * g.bw;
+  g.tOff = Math.floor(-big.asc * S + 1e-3);                  // the ink band, snapped outward (the caret)
+  g.bOff = Math.ceil(big.desc * S - 1e-3);
+  g.mid = (big.desc - big.asc) / 2 * S;                      // the digit ink's centre, from the baseline
+  // Carry cells: the same build at the carry size, centred on the column
+  // (so their inner width has the parity of a cell's).
+  g.Fs = F * K.small;
+  const Ss = g.Fs * D;
+  const small = digitInk(g.Fs);
+  g.bws = Math.max(1, R(g.bw * 0.6));
+  const want = small.w * Ss + 2 * K.pad * Ss;
+  let Wis = R(want);
+  if (Math.abs(Wis - Wi) % 2) Wis += want > Wis ? 1 : -1;
+  g.padHs = (Wis - small.w * Ss) / 2;
+  g.tops = R(-small.asc * Ss - g.padHs);
+  g.bottoms = R(small.desc * Ss + g.padHs);
+  g.Wcs = Wis + 2 * g.bws;
+  g.Hcs = g.bottoms - g.tops + 2 * g.bws;
+  g.tOffs = Math.floor(-small.asc * Ss + 1e-3);
+  g.bOffs = Math.ceil(small.desc * Ss - 1e-3);
+  // Carets: as tall as the ink band, centred in the cell on whole pixels.
+  g.cw = R(Math.max(0.05 * S, 2 * D));
+  if (Math.abs(Wi - g.cw) % 2) g.cw += 1;
+  g.cws = R(Math.max(0.05 * Ss, 1.5 * D));
+  if (Math.abs(Wis - g.cws) % 2) g.cws += 1;
+  const len = em => Math.max(1, R(em * S));
+  g.gx = len(K.gx); g.gy = len(K.gy); g.gl = len(K.gl); g.gsb = len(K.gsb); g.gss = len(K.gss);
+
+  // Columns, left to right: digit columns a cell wide, one pitch apart.
+  g.col = {};
+  let x = 0;
+  spec.cols.forEach((c, i) => {
+    const prev = spec.cols[i - 1];
+    if (i) x += c.gap != null ? R(c.gap * S) : c.em == null && prev.em == null ? -g.bw : g.gx;
+    const w = c.em != null ? R(c.em * S) : g.Wc;
+    g.col[c.key] = { left: x, w, cx: x + w / 2 };
+    x += w;
+  });
+  g.width = x;
+  g.open = rowsAt(g);
+  return g;
+}
+
+// Rows, top to bottom; given digits sit where a cell would put them. A
+// closed row (an unused carry row) takes no room.
+function rowsAt(g, closed = []) {
+  const rows = {};
+  let y = 0, prev = null, waiting = [];
+  for (const r of game.spec.rows) {
+    if (closed.includes(r.key)) { waiting.push(r.key); continue; }
+    if (prev) y += r.gap === 'carry' ? g.gss + g.Hcs + g.gsb : r.gap === 'near' ? g.gss : r.gap != null ? R(r.gap * g.S) : gapBetween(g, prev.kind, r.kind);
+    for (const k of waiting) rows[k] = { top: y, base: y, bottom: y };
+    waiting = [];
+    if (r.kind === 'small') rows[r.key] = { top: y, base: y + g.bws - g.tops, bottom: y + g.Hcs };
+    else if (r.kind === 'rule') rows[r.key] = { top: y, bottom: y + g.bw };
+    else rows[r.key] = { top: y, base: y + g.bw - g.top, bottom: y + g.Hc };
+    y = rows[r.key].bottom;
+    prev = r;
+  }
+  for (const k of waiting) rows[k] = { top: y, base: y, bottom: y };
+  rows.$top = rows[game.spec.rows.find(r => !closed.includes(r.key)).key].top;
+  rows.$bottom = y;
+  return rows;
+}
+
+function gapBetween(g, a, b) {
+  if (a === 'rule' || b === 'rule') return g.gl;
+  if (a === 'small') return b === 'small' ? g.gss : g.gsb;
+  return g.gy;
+}
+
+function bounds() {
+  const b = { l: Infinity, t: Infinity, r: -Infinity, b: -Infinity };
+  b.add = (l, t, r, bt) => {
+    b.l = Math.min(b.l, l); b.t = Math.min(b.t, t);
+    b.r = Math.max(b.r, r); b.b = Math.max(b.b, bt);
+  };
+  return b;
+}
+
+// Where everything goes at geometry g. `fit` is the structure, the same for
+// every problem of the level (so the size never changes or hints); `seen`
+// is what you see across, which is centred.
+function plan(g, rows = g.open) {
+  const spec = game.spec;
+  const p = { rows, cells: {}, givens: {}, rules: [], bracket: null, arrows: {}, fit: bounds(), seen: bounds() };
+  p.fit.add(0, rows.$top, g.width, rows.$bottom);
+  for (const c of spec.cells) {
+    const k = g.col[c.col], r = rows[c.row];
+    const w = c.small ? g.Wcs : g.Wc, h = c.small ? g.Hcs : g.Hc;
+    const left = k.left + (k.w - w) / 2;
+    p.cells[c.id] = { left, top: r.top, w, h, cx: k.cx, base: r.base };
+    if (!c.lazy) p.seen.add(left, r.top, left + w, r.top + h);
+  }
+  // Givens placed against another one (an operator before its number) go last.
+  const order = [...spec.givens.filter(v => !v.before), ...spec.givens.filter(v => v.before)];
+  for (const v of order) {
+    const k = g.col[v.col], r = rows[v.row];
+    const color = v.kind === 'op' || v.kind === 'word' ? MUTED : INK;
+    let base = r.base;
+    if (v.kind === 'op') {
+      // An operator is centred on the digit ink, its baseline on a whole pixel.
+      const m = scan(v.text, styleOf(color), g.S);
+      base = R(r.base + g.mid - (m.desc - m.asc) / 2 * g.S);
+    }
+    let t = textAt(v.text, g.F, color, k.cx, base);
+    if (v.before) {
+      // Its ink ends `gap` em before the number's ink starts, so it reads as
+      // an operation, not a sign (as in the column methods).
+      const end = p.givens[v.before].ink.l - v.gap * g.S - 0.5;   // half a device pixel spare: never short
+      t = textAt(v.text, g.F, color, t.ink.l + end - t.ink.r + (t.ink.r - t.ink.l) / 2, base);
+    }
+    p.givens[v.id] = t;
+    p.fit.add(t.ink.l, t.ink.t, t.ink.r, t.ink.b);
+    p.seen.add(t.ink.l, t.ink.t, t.ink.r, t.ink.b);
+  }
+  for (const u of spec.rules) {
+    const a = g.col[u.from], z = g.col[u.to], r = rows[u.row];
+    const rect = { left: a.left, top: r.top, w: z.left + z.w - a.left, h: g.bw };
+    p.rules.push(rect);
+    p.seen.add(rect.left, rect.top, rect.left + rect.w, rect.top + rect.h);
+  }
+  if (spec.bracket) {
+    // The long-division bracket: the overline and the ")" below its left
+    // end, one stroke as thick as a cell's border. The overline lies on
+    // whole device pixels and ends square on its column's edge.
+    const b = spec.bracket, k = g.col[b.col], end = g.col[b.end];
+    const top = rows[b.row].top, bottom = rows[b.down].bottom;
+    const half = g.bw / 2, h = bottom - top, w = end.left + end.w - k.left;
+    const kx = (k.w - g.bw) / 0.75;               // both handles out kx: the curve bulges 0.75·kx
+    const y1 = h - half, span = y1 - half;
+    p.bracket = {
+      left: k.left, top, w, h,
+      d: `M${w} ${half}H${half}C${half + kx} ${half + span * 0.28} ${half + kx} ${y1 - span * 0.28} ${half} ${y1}`,
+    };
+    p.seen.add(k.left, top, k.left + w, bottom);
+  }
+  for (const a of spec.arrows ?? []) {
+    // Bring-down: a dashed line from under the digit to the cell it goes to.
+    const cell = p.cells[a.to], from = rows[a.fromRow];
+    const sw = Math.max(1, R(g.bw / 2));
+    const head = Math.max(3, R(0.1 * g.S));
+    const x0 = R(cell.cx - sw / 2);               // the shaft's left edge, on a whole pixel
+    const top = from.bottom + g.gss, bottom = cell.top - g.gss;
+    const c = head + sw / 2, h = bottom - top;
+    const tip = h - sw * 0.71;                    // the mitred point reaches h
+    const dash = Math.max(2, R(0.07 * g.S));
+    p.arrows[a.id] = {
+      left: x0 - head, top, w: 2 * head + sw, h, sw, dash,
+      shaft: `M${c} 0V${tip - sw}`,
+      head: `M${c - head + sw / 2} ${tip - head + sw / 2}L${c} ${tip}L${c + head - sw / 2} ${tip - head + sw / 2}`,
+    };
+  }
+  return p;
+}
+
+// "Question N" above the sheet: Level 1's sizes and gap (its line box ends
+// about `gap` above the sheet). Its baseline goes on a whole device pixel,
+// where small text is drawn as scanned; `below` is from there down to the
+// sheet's top (device px), `block` how far its ink reaches above the sheet.
+const labelOf = F => {
+  const D = devicePixelRatio;
+  const size = Math.max(15, 0.16 * F), gap = Math.max(0.2 * F, 18);
+  const base = labelBase(size);                              // CSS px, read from the live layout
+  const m = scan('Question 0123456789', { ...styleOf(MUTED), spacing: 0.04 }, size * D);
+  const below = R((gap + 1.25 * size - base) * D);
+  return { size, gap, base, below, block: (below + m.asc * size * D) / D };
+};
+// The label's baseline in its own line box (line-height 1.25), in CSS px.
+const labelBases = new Map();
+function labelBase(size) {
+  const key = String(size);
+  if (!labelBases.has(key)) {
+    const box = document.createElement('div');
+    box.className = 'qlabel';
+    box.style.cssText = `position:absolute;left:0;top:0;visibility:hidden;font-size:${size}px`;
+    box.innerHTML = 'Q<span style="display:inline-block;width:0;height:0;vertical-align:baseline"></span>';
+    dom.sheet.appendChild(box);
+    labelBases.set(key, box.lastChild.getBoundingClientRect().top - box.getBoundingClientRect().top);
+    box.remove();
+  }
+  return labelBases.get(key);
+}
+
+// The largest digit size at which the structure fits: across, between the
+// gutters; down, with "Question N" above it, 8px clear of the problem area
+// at the top and bottom. Nothing scrolls; a wide or tall method is drawn
+// smaller.
+function fitSize() {
+  const st = dom.stage.getBoundingClientRect();
+  const gutter = parseFloat(getComputedStyle(dom.stage).getPropertyValue('--gutter')) || 16;
+  const across = st.width - 2 * gutter - 1;      // 1px slack for pixel snapping
+  const tall = st.height - 16 - 1;
+  let F = 128, g, p;
+  for (let round = 0; round < 40; round++) {
+    g = geometry(F);
+    p = plan(g);
+    const w = (p.fit.r - p.fit.l) / devicePixelRatio, h = (p.fit.b - p.fit.t) / devicePixelRatio;
+    const s = Math.min(across / w, (tall - labelOf(F).block) / h);
+    if (s >= 1 || F < 4) break;
+    F = round < 6 ? F * s * 0.999 : F - 0.25;
+  }
+  return { g, p };
+}
+
+// ---------- drawing ----------
+
+const SVG = 'http://www.w3.org/2000/svg';
+function add(tag, cls, parent = dom.sheet) {
+  const el = tag === 'svg' || tag === 'path' ? document.createElementNS(SVG, tag) : document.createElement(tag);
+  if (cls) el.setAttribute('class', cls);
+  parent.appendChild(el);
+  return el;
+}
+
+function build() {
+  const spec = game.spec;
+  dom.sheet.replaceChildren();
+  els = { cells: {}, givens: {}, rules: [], arrows: {}, bracket: null };
+  els.label = add('div', 'qlabel');
+  for (const v of spec.givens) {
+    const kind = v.kind === 'op' ? ' op' : v.kind === 'word' ? ' rem-r' : '';
+    const el = add('span', 'g' + kind);
+    el.textContent = v.text;
+    el.dataset.id = v.id;
+    els.givens[v.id] = el;
+  }
+  for (const u of spec.rules) els.rules.push(add('div', 'rule'));
+  if (spec.bracket) {
+    els.bracket = add('svg', 'bracket');
+    add('path', '', els.bracket);
+  }
+  for (const a of spec.arrows ?? []) {
+    const svg = add('svg', 'arrow up');
+    add('path', 'shaft', svg);
+    add('path', 'head', svg);
+    els.arrows[a.id] = svg;
+  }
+  for (const c of spec.cells) {
+    const el = add('div', 'cell' + (c.small ? ' small' : ''));
+    el.dataset.id = c.id;
+    els.cells[c.id] = { el, dg: add('span', 'dg', el), key: '' };
+  }
+  els.caret = add('div', 'caret');
+  els.caret.hidden = true;
+}
+
+const place = (el, left, top, w, h) => {
+  el.style.left = css(left);
+  el.style.top = css(top);
+  if (w != null) el.style.width = css(w);
+  if (h != null) el.style.height = css(h);
+};
+
+function apply(g, p) {
+  const D = devicePixelRatio, spec = game.spec;
+  const st = dom.stage.getBoundingClientRect();
+  const lab = labelOf(g.F);
+  // Down: "Question N" (from its ink) and the structure, with every row
+  // reserved, as one group, centred; across, what you see. Nothing moves
+  // while the problem is worked or when it is done. The origin is on a
+  // whole device pixel.
+  const top = g.openFit.t - lab.block * D;
+  const bottom = g.openFit.b;
+  const cx = (p.seen.l + p.seen.r) / 2;
+  const originY = R((st.top + st.height / 2) * D - (top + bottom) / 2);
+  const originX = R((st.left + st.width / 2) * D - cx);
+  dom.sheet.style.left = css(originX - st.left * D);
+  dom.sheet.style.top = css(originY - st.top * D);
+
+  for (const v of spec.givens) {
+    const el = els.givens[v.id], t = p.givens[v.id];
+    el.style.fontSize = g.F + 'px';
+    place(el, t.left, t.top);
+  }
+  spec.cells.forEach(c => {
+    const q = p.cells[c.id], el = els.cells[c.id].el;
+    place(el, q.left, q.top, q.w, q.h);
+    el.style.fontSize = g.F + 'px';               // the shake is in em of the digit size
+    const b = c.small ? g.bws : g.bw;
+    el.style.setProperty('--b', css(b));
+    // A construction line (1px dashed) sits in the middle of where the border goes.
+    el.style.setProperty('--di', css(Math.max(0, Math.floor((b - D) / 2))));
+    els.cells[c.id].key = '';
+  });
+  p.rules.forEach((r, i) => place(els.rules[i], r.left, r.top, r.w, r.h));
+  if (p.bracket) {
+    const b = p.bracket, svg = els.bracket;
+    place(svg, b.left, b.top, b.w, b.h);
+    svg.setAttribute('viewBox', `0 0 ${b.w} ${b.h}`);
+    const path = svg.firstChild;
+    path.setAttribute('d', b.d);
+    path.setAttribute('stroke-width', g.bw);
+  }
+  for (const [id, a] of Object.entries(p.arrows)) {
+    const svg = els.arrows[id];
+    place(svg, a.left, a.top, a.w, a.h);
+    svg.setAttribute('viewBox', `0 0 ${a.w} ${a.h}`);
+    const [shaft, head] = svg.children;
+    shaft.setAttribute('d', a.shaft);
+    shaft.setAttribute('stroke-width', a.sw);
+    shaft.setAttribute('stroke-dasharray', `${a.dash} ${a.dash}`);
+    head.setAttribute('d', a.head);
+    head.setAttribute('stroke-width', a.sw);
+  }
+  // The label's ink centred over what you see.
+  const label = els.label;
+  label.textContent = 'Question ' + game.question;
+  label.style.fontSize = lab.size + 'px';
+  const m = scan(label.textContent, { ...styleOf(MUTED), spacing: 0.04 }, lab.size * D);
+  label.style.left = css(cx - (m.abr - m.abl) / 2 * lab.size * D);
+  label.style.top = css(p.fit.t - lab.below - lab.base * D);
+}
+
+// A digit in its cell, centred on its ink.
+function setDigit(c, e, v) {
+  const key = v + '|' + G.F;
+  if (e.key === key) return;
+  e.key = key;
+  e.dg.textContent = v;
+  if (!v) return;
+  const q = P.cells[c.id];
+  const size = c.small ? G.Fs : G.F;
+  const t = textAt(v, size, INK, q.cx, q.base);
+  e.dg.style.fontSize = size + 'px';
+  place(e.dg, t.left - q.left, t.top - q.top);
+}
+
+function render() {
+  const { spec, si, ci, values } = game;
+  const step = spec.steps[si];
+  const playing = game.phase === 'playing';
+  const active = playing && step?.kind === 'row' && ci < step.path.length ? step.path[ci] : null;
+  const bringCell = playing && step?.kind === 'bring' ? step.cell : null;
+  for (const c of spec.cells) {
+    const e = els.cells[c.id], cls = e.el.classList;
+    const v = values[c.id] ?? '';
+    const s = c.step;
+    const isActive = c.id === active || c.id === bringCell;
+    // A carry box stays a construction line until the cursor reaches it;
+    // a spare one (never needed) until the problem is done.
+    const sketch = !!c.carry && s === si && !isActive && v === '';
+    cls.toggle('up', c.spare ? playing : s > si || sketch);
+    cls.toggle('cur', !c.spare && s === si && !sketch);
+    cls.toggle('done', c.spare ? !playing : s < si);
+    cls.toggle('good', game.good.has(s));
+    cls.toggle('act', isActive);
+    cls.toggle('filled', v !== '');
+    cls.toggle('used', !!c.small && s < si);
+    cls.toggle('pre', !!c.pre);
+    cls.toggle('hide', !!c.lazy && v === '' && c.id !== active);
+    setDigit(c, e, v);
+  }
+  // Segmented boxes: each shared edge is drawn once, by the cell whose
+  // state is stronger (amber > green > white > construction > none).
+  const rank = el => {
+    const c = el.classList;
+    if (c.contains('hide') || c.contains('pre')) return 0;
+    if (c.contains('good')) return c.contains('filled') ? 3 : 0;
+    if (c.contains('done')) return 0;
+    if (c.contains('act') && c.contains('filled')) return 4;
+    return c.contains('cur') ? 2 : c.contains('up') ? 1 : 0;
+  };
+  for (const c of spec.cells) els.cells[c.id].el.classList.remove('no-l', 'no-r');
+  for (const c of spec.cells) {
+    if (!c.right) continue;
+    const a = els.cells[c.id].el, b = els.cells[c.right].el;
+    if (rank(a) > rank(b)) b.classList.add('no-l'); else a.classList.add('no-r');
+  }
+  // The caret: amber, as tall as the digit ink, centred in the empty cell.
+  if (active && !values[active]) {
+    const c = game.cells[active], q = P.cells[active];
+    const cw = c.small ? G.cws : G.cw;
+    const inset = c.small ? G.bws - G.tops + G.tOffs : G.bw - G.top + G.tOff;
+    const h = c.small ? G.bOffs - G.tOffs : G.bOff - G.tOff;
+    place(els.caret, (q.w - cw) / 2, inset, cw, h);
+    els.cells[active].el.appendChild(els.caret);
+    els.caret.hidden = false;
+  } else {
+    els.caret.hidden = true;
+  }
+  for (const a of spec.arrows ?? []) {
+    const cls = els.arrows[a.id].classList;
+    cls.toggle('up', si < a.step);
+    cls.toggle('spent', si > a.step);
+  }
+  for (const v of spec.givens) if (v.drop) els.givens[v.id].classList.toggle('dropped', !playing);
+  dom.pad.classList.toggle('bring', !!bringCell);
+  dom.pad.querySelector('.go').setAttribute('aria-label', bringCell ? 'Bring down' : 'Check step');
+  dom.hearts.forEach((h, i) => h.classList.toggle('lost', i >= game.lives));
+  dom.lives.setAttribute('aria-label', game.lives === 1 ? '1 life left' : `${game.lives} lives left`);
+  dom.ans.setAttribute('aria-label', step ? step.say : 'Done');
+}
+
+// ---------- motion ----------
+
+function play(cls) {
+  dom.sheet.classList.remove('in', 'out');
+  void dom.sheet.offsetWidth;
+  dom.sheet.classList.add(cls);
+}
+dom.sheet.addEventListener('animationend', e => {
+  if (e.target === dom.sheet && e.animationName !== 'out') dom.sheet.classList.remove('in', 'out');
+});
+
+function shake(el) {
+  el.classList.remove('shake');
+  void el.offsetWidth;
+  el.classList.add('shake', 'shaking');
+  el.addEventListener('animationend', function end(e) {
+    if (e.target !== el) return;
+    el.classList.remove('shake', 'shaking');
+    el.removeEventListener('animationend', end);
+  });
+}
+
+// A copy of `text` moves from one place to another (device px, sheet coordinates).
+function fly(text, from, to, landed) {
+  const el = add('span', 'g flying');
+  el.textContent = text;
+  el.style.fontSize = from.size + 'px';
+  place(el, from.left, from.top);
+  el.getBoundingClientRect();
+  el.style.transform = `translate(${css(to.left - from.left)}, ${css(to.top - from.top)})`;
+  let done = false;
+  const finish = () => { if (done) return; done = true; el.remove(); landed?.(); };
+  el.addEventListener('transitionend', finish, { once: true });
+  setTimeout(finish, 600);
+}
+
+// ---------- the rules of play ----------
+
+const say = text => { dom.status.textContent = text; };
+
+function check(step) {
+  const v = game.values;
+  for (const id of step.path) {
+    if (!step.digits.includes(id) && v[id] !== game.cells[id].answer) return false;   // a carry
+  }
+  // The number in the row: written from its first cell (the ones, or the
+  // left on the answer line), no gaps; a leading zero does no harm.
+  let s = '', ended = false;
+  for (const id of step.digits) {
+    const d = v[id] ?? '';
+    if (d === '') { ended = true; continue; }
+    if (ended) return false;
+    s = step.ltr ? s + d : d + s;
+  }
+  return s !== '' && (v[step.digits[0]] ?? '') !== '' && Number(s) === step.value;
+}
+
+function onKey(key) {
+  if (game.phase !== 'playing') return 'ignored';
+  const step = game.spec.steps[game.si];
+  if (!step) return 'ignored';
+  if (step.kind === 'bring') {
+    if (key === 'Enter' || key === 'ArrowDown' || key === step.digit) { bringDown(step); return 'moved'; }
+    return 'ignored';
+  }
+  const path = step.path;
+  if (/^\d$/.test(key)) {
+    if (game.ci >= path.length) return 'ignored';
+    game.values[path[game.ci]] = key;
+    game.ci += 1;
+    render();
+    return 'typed';
+  }
+  if (key === 'Backspace') {
+    if (game.ci < path.length && game.values[path[game.ci]]) {
+      delete game.values[path[game.ci]];
+    } else {
+      if (game.ci === 0) return 'ignored';
+      game.ci -= 1;
+      delete game.values[game.spec.steps[game.si].path[game.ci]];
+    }
+    render();
+    return 'typed';
+  }
+  if (key === 'Enter') {
+    if (!path.some(id => game.values[id])) return 'ignored';
+    if (check(step)) right(); else wrong(step);
+    return 'checked';
+  }
+  return 'ignored';
+}
+
+function right() {
+  const i = game.si;
+  game.si += 1;
+  game.ci = 0;
+  const last = game.si >= game.spec.steps.length;
+  if (!instant || last) game.good.add(i);
+  if (!instant && !last) setTimeout(() => { game.good.delete(i); render(); }, 350);
+  render();
+  if (last) finish();
+  else say('Right. ' + game.spec.steps[game.si].say);
+}
+
+function wrong(step) {
+  game.lives -= 1;
+  if (!instant) {
+    dom.sheet.classList.add('shaking-step');
+    clearTimeout(wrong.timer);
+    wrong.timer = setTimeout(() => dom.sheet.classList.remove('shaking-step'), 320);
+  }
+  for (const id of step.path) {
+    const e = els.cells[id];
+    if (!instant) {
+      if (game.values[id]) {
+        const ghost = e.dg.cloneNode(true);
+        ghost.classList.add('ghost');
+        e.el.appendChild(ghost);
+        ghost.addEventListener('animationend', () => ghost.remove(), { once: true });
+      }
+      shake(e.el);
+    }
+    delete game.values[id];
+  }
+  game.ci = 0;
+  if (game.lives === 0) game.phase = 'out';
+  render();
+  if (game.phase === 'out') {
+    say('Out of lives');
+    wait(450).then(() => { location.href = SELECTOR; });
+  } else {
+    say(`Wrong, ${dom.lives.getAttribute('aria-label')}. ${step.say}`);
+  }
+}
+
+function bringDown(step) {
+  const id = step.cell, e = els.cells[id];
+  game.values[id] = step.digit;
+  game.si += 1;
+  game.ci = 0;
+  if (!instant) {
+    const q = P.cells[id];
+    e.el.classList.add('landing');
+    fly(step.digit, P.givens[step.from], textAt(step.digit, G.F, INK, q.cx, q.base), () => e.el.classList.remove('landing'));
+  }
+  render();
+  say(game.spec.steps[game.si]?.say ?? '');
+}
+
+async function finish() {
+  game.phase = 'correct';
+  dom.sheet.classList.add('correct');
+  render();
+  say('Correct');
+  if (STATE === 'done') return;
+  await wait(350);
+  play('out');
+  const slide = dom.sheet.getAnimations().find(a => a.animationName === 'out');
+  if (slide) await Promise.race([slide.finished.catch(() => {}), wait(1000)]);
+  game.question += 1;
+  dom.sheet.classList.remove('correct');
+  newProblem(LEVEL.random(Math.random));
+  say(`Question ${game.question}: ${LEVEL.say(game.problem)}. ${game.spec.steps[0].say}`);
+  play('in');
+}
+
+function newProblem(problem) {
+  game.problem = problem;
+  game.spec = LEVEL.spec(problem, OPTIONS);
+  game.cells = Object.fromEntries(game.spec.cells.map(c => [c.id, c]));
+  game.spec.steps.forEach((s, i) => (s.kind === 'bring' ? [s.cell] : s.path).forEach(id => { game.cells[id].step = i; }));
+  // Neighbours in a segmented row: the same row, the next column, joined.
+  const cols = game.spec.cols;
+  for (const c of game.spec.cells) {
+    if (c.small) continue;
+    const i = cols.findIndex(k => k.key === c.col), next = cols[i + 1];
+    if (!next || next.em != null || next.gap != null || cols[i].em != null) continue;
+    const right = game.spec.cells.find(o => !o.small && o.row === c.row && o.col === next.key);
+    if (right) c.right = right.id;
+  }
+  game.values = {};
+  for (const c of game.spec.cells) if (c.pre) game.values[c.id] = c.pre;
+  game.si = 0;
+  game.ci = 0;
+  game.lives = LIVES;
+  game.phase = 'playing';
+  game.good.clear();
+  build();
+  layout();
+}
+
+// Tapping a cell of the step you are on moves the cursor there; tapping the
+// digit to bring down (or its cell) brings it down.
+function tap(target) {
+  if (game.phase !== 'playing') return;
+  const step = game.spec.steps[game.si];
+  if (!step) return;
+  const cell = target.closest('.cell')?.dataset.id;
+  const given = target.closest('.g')?.dataset.id;
+  if (step.kind === 'bring') {
+    if (cell === step.cell || given === step.from) bringDown(step);
+    return;
+  }
+  const i = step.path.indexOf(cell);
+  if (i >= 0) {
+    game.ci = i;
+    render();
+  }
+}
+
+// ---------- layout and input ----------
+
+function layout() {
+  fitHeader(dom.topBar, scan);
+  if (!dom.stage.clientWidth || !game.spec) return;
+  bases.clear();
+  labelBases.clear();
+  family = getComputedStyle(dom.sheet).fontFamily;
+  G = fitSize().g;
+  G.openFit = plan(G).fit;
+  // The bottom row is a construction line until the last step: it is drawn
+  // in the middle of the border, so that is where what you see ends.
+  G.openFit.b -= Math.max(0, Math.floor((G.bw - devicePixelRatio) / 2));
+  P = plan(G);
+  apply(G, P);
+  render();
+  centreKeys(dom.pad, scan);
+}
+
+function safeLayout() {
+  try { layout(); } catch (err) { console.error(err); }
+}
+let queued = false;
+const relayout = () => {
+  if (queued) return;
+  queued = true;
+  requestAnimationFrame(() => { queued = false; safeLayout(); });
+};
+
+// The link's underline, from its first ink to its last, on whole device pixels.
+function underline() {
+  const link = $('.crumbs .back');
+  const cs = getComputedStyle(link);
+  const fs = parseFloat(cs.fontSize);
+  const D = devicePixelRatio;
+  const m = scan(link.textContent, { weight: cs.fontWeight, family: cs.fontFamily, color: cs.color, spacing: (parseFloat(cs.letterSpacing) || 0) / fs }, fs * D);
+  const box = link.getBoundingClientRect();
+  link.style.setProperty('--ul-left', (snap(box.left - m.abl * fs, D) - box.left) + 'px');
+  link.style.setProperty('--ul-right', (box.right - snap(box.left + m.abr * fs, D)) + 'px');
+}
+
+const flashes = new Map();
+function flash(btn) {
+  if (!btn) return;
+  clearTimeout(flashes.get(btn));
+  btn.classList.add('pressed');
+  flashes.set(btn, setTimeout(() => btn.classList.remove('pressed'), 110));
+}
+
+dom.ans.addEventListener('keydown', e => {
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  if (e.key === 'Tab') { e.preventDefault(); return; }
+  if (e.key !== 'Enter' && e.key !== 'Backspace' && e.key !== 'ArrowDown' && !/^\d$/.test(e.key)) return;
+  e.preventDefault();
+  if (onKey(e.key) === 'ignored') return;
+  flash(dom.pad.querySelector(`button[data-k="${e.key === 'ArrowDown' ? 'Enter' : e.key}"]`));
+});
+dom.ans.addEventListener('beforeinput', e => e.preventDefault());
+dom.ans.addEventListener('focus', () => document.body.classList.add('focused'));
+dom.ans.addEventListener('blur', () => document.body.classList.remove('focused'));
+dom.pad.addEventListener('click', e => {
+  const btn = e.target.closest('button[data-k]');
+  if (btn) onKey(btn.dataset.k);
+});
+// Focus stays on the answer: taps never take it (as Level 1).
+document.addEventListener('pointerdown', e => {
+  if (e.target === dom.ans) return;
+  e.preventDefault();
+  dom.ans.focus({ preventScroll: true });
+  if (e.target.closest?.('.sheet')) tap(e.target);
+});
+document.addEventListener('focusin', e => { if (e.target !== dom.ans) dom.ans.focus({ preventScroll: true }); });
+addEventListener('keydown', e => { if (e.key === 'Escape' && !e.isComposing) location.href = SELECTOR; });
+
+// ---------- review states ----------
+
+// The keys that work a step correctly: its cells' digits, up to a leading blank.
+function keysFor(step) {
+  if (step.kind === 'bring') return ['ArrowDown'];
+  const keys = [];
+  for (const id of step.path) {
+    const a = game.cells[id].answer;
+    if (a === '') break;
+    keys.push(a);
+  }
+  return keys;
+}
+const allKeys = steps => steps.flatMap(s => s.kind === 'bring' ? keysFor(s) : [...keysFor(s), 'Enter']);
+const wrongLast = keys => { const k = [...keys]; k[k.length - 1] = String((Number(k.at(-1)) + 1) % 10); return k; };
+
+function runState() {
+  const recipe = STATE === 'done' ? allKeys : LEVEL.states?.[STATE];
+  if (!recipe) return;
+  const keys = recipe(game.spec.steps, keysFor, wrongLast);
+  instant = true;
+  keys.slice(0, -1).forEach(onKey);
+  instant = STATE !== 'wrong' && STATE !== 'done';
+  if (keys.length) onKey(keys.at(-1));
+  instant = false;
+}
+
+fontsReady().then(() => {
+  newProblem(LEVEL.parse(params.get('p')) ?? (params.get('random') === '1' ? LEVEL.random(Math.random) : LEVEL.first()));
+  try { runState(); } catch (err) { console.error(err); }
+  say(`Question 1: ${LEVEL.say(game.problem)}. ${game.spec.steps[game.si]?.say ?? ''}`);
+  underline();
+  document.documentElement.classList.remove('loading');
+  const resized = new ResizeObserver(relayout);
+  resized.observe(dom.stage);
+  resized.observe(dom.topBar);
+  matchMedia(`(resolution: ${devicePixelRatio}dppx)`).addEventListener('change', () => { scan.reset(); relayout(); }, { once: true });
+  dom.ans.focus({ preventScroll: true });
+});
+window.mathtime = { game, layout, onKey, geo: () => ({ G, P }) };
+
+</script>
+</body>
+</html>

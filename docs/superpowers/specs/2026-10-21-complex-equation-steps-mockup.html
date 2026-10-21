@@ -1,0 +1,978 @@
+<!doctype html>
+<html lang="en" class="loading">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Equation steps mockup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<!--
+Solving a linear equation step by step (Equations, exploratory mockup).
+Built on the game's own styles and ink scanner (src/). Served by the dev server.
+?state=empty|partial|done|wrong  fixed review states    ?random=1  random problems
+?p=3x-4=11  fixes the first problem
+
+The mechanic (proposal):
+- Lines one under another, aligned on "=", as on paper:
+      3x + 5 = 20 | −5
+          3x = 15 | ÷3
+           x = 5
+- A step is two things you write: the note in the margin (what you do to both
+  sides: an operator key, then a number) and the next line. Working order: the note,
+  the left side, the right side. The next line's "=" is already printed, aligned,
+  so "=" is not a key; ✓ moves across it.
+- Every cell is the same two-character box (Level 1's box rule); "x" is italic.
+- ✓ (Enter) moves to the next empty cell; once the step is full it checks the step.
+  Backspace deletes, and from an empty cell steps back into the one before.
+- Checking is per step. Wrong: the step shakes, its wrong cells clear (a right line
+  survives a wrong note), a heart is lost. Right: green, then the next step opens.
+- A note must move towards x = n: take the number off the x side, then divide by
+  the coefficient. Sides must be simplified ("x", not "1x").
+- Solved when a line reads x = a number: everything goes green, next problem.
+- Keypad: the 3×4 digit block exactly the game's; the symbols x ÷ − + in a row above
+  it when upright, a column left of it when sideways. More rows grow upward upright,
+  more columns grow leftward sideways.
+-->
+<link rel="stylesheet" href="/src/styles.css">
+<style>
+  /* The way back (Level 2 play mockup): "Levels" links to the selector. */
+  .crumbs .back { position: relative; color: var(--muted); text-decoration: none; }
+  .crumbs .back::before {
+    content: "";
+    position: absolute;
+    left: var(--ul-left, 0);
+    right: var(--ul-right, 0);
+    top: 19px;
+    height: 1px;
+    background: var(--faint);
+  }
+  .crumbs .back::after {
+    content: "";
+    position: absolute;
+    top: calc(-1 * var(--top-safe));
+    bottom: calc(1px - var(--road-gap));
+    left: calc(-1 * var(--gutter));
+    right: -8px;
+  }
+  .crumbs .back:focus-visible { outline: 2px solid var(--ink); outline-offset: 4px; }
+  @media (hover: hover) { .crumbs .back:hover::before { background: currentColor; } }
+
+  /* The problem, typeset on measured ink: every glyph, box, bar and rule is
+     placed absolutely from the layout origin (on a whole device pixel). */
+  .stage { position: relative; }
+  .work { position: absolute; left: 0; top: 0; font-weight: 500; line-height: 1; }
+  .work .t { position: absolute; display: block; height: 1em; line-height: 1; white-space: pre; transition: color .15s; pointer-events: none; }
+  .t.n, .t.v { color: var(--ink); }
+  .t.v { font-style: italic; }
+  .t.op { color: var(--muted); }
+  .qnum { position: absolute; display: block; transform: none; white-space: nowrap; line-height: 1.25; letter-spacing: 0.04em; color: var(--muted); }
+
+  /* Answer cells: Level 1's box. Its dashed construction outline marks the
+     cell you are writing in. */
+  .box { position: absolute; border: var(--bw) solid var(--ink); transition: border-color .15s; }
+  .box.active { outline: 1px dashed rgba(238, 245, 255, 0.55); outline-offset: var(--oo); }
+  .grp.current .box { cursor: pointer; }
+  .bar, .rule { position: absolute; background: var(--ink); transition: background-color .15s; }
+  .rule { background: var(--muted); }
+  .caret { position: absolute; z-index: 1; pointer-events: none; background: var(--amber); animation: blink 1.06s steps(1) infinite; }
+  .work:not(.focused) .caret, .caret.off { visibility: hidden; }
+
+  /* Steps: construction (still to come) → current → done. Steps to come are
+     told by their dashed boxes and faint lines (3.3:1, enough for lines);
+     their operators keep the muted text colour (6.3:1). */
+  .grp.future .bar, .grp.future .rule { background: var(--faint); }
+  .grp.future .box { border: 1px dashed rgba(238, 245, 255, 0.55); }
+  .grp.done .box { border-color: var(--faint); }
+  .grp.good .box, .work.good .grp:not(.given) .box { border-color: var(--good); }
+  .grp.good .t.a, .work.good .t.a { color: var(--good); }
+
+  /* Motion: Level 1's shake, slide and timing. */
+  .grp.shake { animation: shake .32s ease; }
+  .work.out { animation: out .22s ease-in forwards; }
+  .work.in { animation: in .22s ease-out; }
+  .grp.appear { animation: appear .2s ease-out; }
+  @keyframes appear { from { opacity: 0; } }
+
+  /* The focus sink: keys arrive here; no phone keyboard (inputmode none). */
+  #sink { position: fixed; left: 0; top: 0; width: 1px; height: 1px; margin: 0; padding: 0; border: 0; opacity: 0; caret-color: transparent; font-size: 16px; }
+  .pad .kl.v { font-style: italic; }
+
+  /* The extended keypad. The 3×4 digit block is exactly the game's, ⌫ and ✓
+     in their places. The level's symbols (x ÷ − +) come in a band of four:
+     upright, a row above the digits (a 12-column grid, so a digit key spans
+     4 columns and is exactly Level 1's width, and four symbol keys span the
+     same width); sideways, a column left of the digits (keys 1.5 times as
+     wide as tall, as Level 1's). Later levels: more rows grow upward when
+     upright, more columns grow leftward when sideways. */
+  .pad.wide { grid-template-columns: repeat(12, minmax(0, 1fr)); }
+  .pad.wide button { grid-column: span 4; }
+  .pad.wide button.sym { grid-column: span 3; }
+  @media (orientation: landscape) and (max-height: 560px) and (min-aspect-ratio: 3/2) {
+    .pad.wide { grid-template-columns: repeat(4, calc(var(--key-h) * 1.5)); }
+    .pad.wide button { grid-column: auto; }
+    .pad.wide button.sym { grid-column: 1; }
+    .pad.wide button.sym:nth-child(1) { grid-row: 1; }
+    .pad.wide button.sym:nth-child(2) { grid-row: 2; }
+    .pad.wide button.sym:nth-child(3) { grid-row: 3; }
+    .pad.wide button.sym:nth-child(4) { grid-row: 4; }
+  }
+
+</style>
+</head>
+<body>
+  <header class="top">
+    <div class="where">
+      <nav class="crumbs" aria-label="Breadcrumb">
+        <a class="back" href="2026-10-21-level2-selector-mockup.html?concept=a" aria-keyshortcuts="Escape">Levels</a>
+        <svg class="sep" viewBox="0 0 12 12" aria-hidden="true"><path d="M4.5 2.5L8 6l-3.5 3.5"/></svg>
+        <span class="stage-name">Equations</span>
+        <svg class="sep stage-sep" viewBox="0 0 12 12" aria-hidden="true"><path d="M4.5 2.5L8 6l-3.5 3.5"/></svg>
+        <span class="here" aria-current="step">Level 34</span>
+      </nav>
+      <div class="road" role="img" aria-label="Roadmap stage 3 of 7: Algebra.">
+        <span title="Arithmetic"></span>
+        <span title="Fractions"></span>
+        <span class="now" title="Algebra"></span>
+        <span title="Geometry"></span>
+        <span title="Trigonometry"></span>
+        <span title="Calculus"></span>
+        <span title="Physics"></span>
+      </div>
+    </div>
+    <div class="lives" role="img" aria-label="3 lives left">
+      <svg viewBox="2 3 20 18" aria-hidden="true"><path d="M19.5 12.572l-7.5 7.428l-7.5 -7.428a5 5 0 1 1 7.5 -6.566a5 5 0 1 1 7.5 6.572"/></svg>
+      <svg viewBox="2 3 20 18" aria-hidden="true"><path d="M19.5 12.572l-7.5 7.428l-7.5 -7.428a5 5 0 1 1 7.5 -6.566a5 5 0 1 1 7.5 6.572"/></svg>
+      <svg viewBox="2 3 20 18" aria-hidden="true"><path d="M19.5 12.572l-7.5 7.428l-7.5 -7.428a5 5 0 1 1 7.5 -6.566a5 5 0 1 1 7.5 6.572"/></svg>
+    </div>
+  </header>
+
+  <main class="stage">
+    <div class="work" id="work"><span class="qnum" id="qnum">Question 1</span></div>
+  </main>
+
+  <input id="sink" inputmode="none" autocomplete="off" aria-label="Answer">
+  <p class="sr-only" role="status" id="status"></p>
+
+  <div class="pad wide" role="group" aria-label="Keypad">
+    <button tabindex="-1" data-k="x" class="sym" aria-label="x"><span class="kl v">x</span></button>
+    <button tabindex="-1" data-k="÷" class="sym" aria-label="Divide"><span class="kl">÷</span></button>
+    <button tabindex="-1" data-k="−" class="sym" aria-label="Minus"><span class="kl">−</span></button>
+    <button tabindex="-1" data-k="+" class="sym" aria-label="Plus"><span class="kl">+</span></button>
+    <button tabindex="-1" data-k="1"><span class="kl">1</span></button>
+    <button tabindex="-1" data-k="2"><span class="kl">2</span></button>
+    <button tabindex="-1" data-k="3"><span class="kl">3</span></button>
+    <button tabindex="-1" data-k="4"><span class="kl">4</span></button>
+    <button tabindex="-1" data-k="5"><span class="kl">5</span></button>
+    <button tabindex="-1" data-k="6"><span class="kl">6</span></button>
+    <button tabindex="-1" data-k="7"><span class="kl">7</span></button>
+    <button tabindex="-1" data-k="8"><span class="kl">8</span></button>
+    <button tabindex="-1" data-k="9"><span class="kl">9</span></button>
+    <button tabindex="-1" data-k="Backspace" aria-label="Delete"><svg viewBox="0 0 24 24" aria-hidden="true"><g transform="translate(-0.5 0)"><path d="M20 6H9l-5 6l5 6h11a1 1 0 0 0 1-1V7a1 1 0 0 0-1-1z"/><path d="M12.25 10.25l3.5 3.5m0-3.5l-3.5 3.5"/></g></svg></button>
+    <button tabindex="-1" data-k="0"><span class="kl">0</span></button>
+    <button tabindex="-1" data-k="Enter" class="go" aria-label="Check or next"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 12.5l5.5 5.5l11.5-11.5"/></svg></button>
+  </div>
+
+<script type="module">
+// ===== Shared mockup core (inlined by build.mjs into both complex mockups) =====
+// Typesetting on measured ink, as the game does it (src/layout.js): every
+// glyph is scanned at its real device size (src/scanner.js), placed so its
+// ink lands where the layout wants it, and every line, box edge and baseline
+// sits on whole device pixels. The level code supplies the layout of its
+// problem; this part has the measuring, the drawing primitives, the keypad,
+// the header, the keys and the feedback timing.
+import { fontsReady } from '/src/fonts.js';
+import { createScanner } from '/src/scanner.js';
+import { snap, onLayoutGrid } from '/src/ink.js';
+import { fitHeader } from '/src/header.js';
+
+const INK = '#eef5ff', MUTED = '#b6cdee';
+const SELECTOR = '2026-10-21-level2-selector-mockup.html?concept=a';
+const $ = s => document.querySelector(s);
+const wait = ms => new Promise(r => setTimeout(r, ms));
+const params = new URLSearchParams(location.search);
+const scan = createScanner();
+const R = () => devicePixelRatio;
+const S = v => snap(v, R());                                        // nearest device pixel
+const floorD = v => Math.floor(v * R() + 1e-3) / R() + 0;
+const ceilD = v => Math.ceil(v * R() - 1e-3) / R() + 0;
+const px = v => onLayoutGrid(v, R()) + 'px';                         // a length exactly on the layout grid
+const kindOf = ch => (/\d/.test(ch) ? 'n' : ch === 'x' ? 'v' : 'op'); // digit, variable, operator
+
+const dom = {
+  top: $('.top'), stage: $('.stage'), work: $('#work'), qnum: $('#qnum'), pad: $('.pad'),
+  sink: $('#sink'), status: $('#status'), lives: $('.lives'), hearts: [...document.querySelectorAll('.lives svg')],
+};
+const caret = document.createElement('div');
+caret.className = 'caret';
+
+// ---------- Fonts ----------
+// The game's fonts (src/fonts.js), plus Plex Mono italic when a level sets
+// a variable: "x" is italic, the maths convention.
+async function loadFonts(italic) {
+  const jobs = [fontsReady()];
+  if (italic) {
+    const link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = 'https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@1,500&display=block';
+    const sheet = new Promise(res => { link.onload = res; link.onerror = res; });
+    document.head.appendChild(link);
+    jobs.push(Promise.race([sheet.then(() => document.fonts.load('italic 500 64px "IBM Plex Mono"', 'x')), wait(3000)]).catch(() => {}));
+  }
+  await Promise.all(jobs);
+}
+
+// ---------- Measuring ----------
+// The baseline's place in a 1em, line-height 1 box, read from layout.
+function probeBase(fs) {
+  const box = document.createElement('span');
+  box.style.cssText = 'position:absolute;visibility:hidden;display:block;height:1em;line-height:1;white-space:pre';
+  box.innerHTML = '0<span style="display:inline-block;width:0;height:0;vertical-align:baseline"></span>';
+  dom.work.appendChild(box);
+  const base = (box.lastChild.getBoundingClientRect().top - box.getBoundingClientRect().top) / fs;
+  box.remove();
+  return base;
+}
+
+// The geometry of the problem's type at font size fs: the digit ink band
+// (all ten digits), the cell (widest digit advance), the box padding and
+// line, the construction outline's offset, the caret and the even ink gap
+// between neighbours (Level 1's: 0.3em plus the side bearings).
+function measureGeo(fs) {
+  const work = dom.work;
+  work.style.fontSize = fs + 'px';
+  const family = getComputedStyle(work).fontFamily;
+  const size = fs * R();
+  const styles = {
+    n: { weight: '500', family, color: INK },
+    v: { weight: 'italic 500', family, color: INK },
+    op: { weight: '500', family, color: MUTED },
+  };
+  const M = (ch, phase = 0) => scan(ch, styles[kindOf(ch)], size, phase);
+  const digits = [...'0123456789'].map(c => M(c));
+  const asc = Math.max(...digits.map(m => m.asc)), desc = Math.max(...digits.map(m => m.desc));
+  const wide = Math.max(...digits.map(m => m.adv));
+  const plus = M('+');
+  const bearing = digits.reduce((s, m) => s + (wide - m.abl - m.abr) / 2, 0) / digits.length;
+  const opBearing = (-plus.abl + plus.adv - plus.abr) / 2;
+  const g = {
+    fs, M, asc, desc, inkH: asc + desc, wide, base: probeBase(fs),
+    pad: S(0.17 * fs),                                          // box padding, as Level 1
+    bw: Math.max(S(Math.max(0.025 * fs, 2)), 1 / R()),          // box line, as Level 1
+    oo: floorD(Math.max(0.06 * fs, 5)),                         // construction outline offset, as Level 1
+    cw: Math.max(S(Math.max(0.05 * fs, 2)), 1 / R()),           // caret width, as Level 1
+    G: (0.3 + bearing + opBearing) * fs,                        // the even ink gap
+  };
+  g.inkW = ch => (M(ch).abl + M(ch).abr) * fs;
+  // The baseline that puts ch's ink centre at y = mid, on a whole device pixel.
+  g.opBy = (ch, mid) => S(mid + (M(ch).asc - M(ch).desc) / 2 * fs);
+  // The digit ink centre for a baseline.
+  g.mid = by => by - (asc - desc) / 2 * fs;
+  return g;
+}
+
+// A box for `inkW` px of content: equal padding on all four sides. The inner
+// height is a whole number of device pixels, picked so the digit band can be
+// centred in it with the baseline on a whole device pixel too (off: the
+// baseline's distance below the inner top).
+function boxDims(g, inkW) {
+  const inW = S(inkW + 2 * g.pad);
+  const h0 = g.inkH * g.fs + 2 * g.pad, lift = (g.asc - g.desc) * g.fs;
+  let best = null;
+  for (const h of [floorD(h0), ceilD(h0)]) {
+    const off = S((h + lift) / 2), err = Math.abs(2 * off - h - lift);
+    if (!best || err < best.err - 1e-6) best = { h, off, err };
+  }
+  return { inW, inH: best.h, off: best.off, bxW: inW + 2 * g.bw, bxH: best.h + 2 * g.bw };
+}
+
+// ---------- Drawing ----------
+// What is drawn, across: lines and boxes, and glyph ink as placed (not as
+// modelled), so the problem is centred on what you see.
+let drawnX = null;
+const trackX = (l, r) => { drawnX = drawnX ? { l: Math.min(drawnX.l, l), r: Math.max(drawnX.r, r) } : { l, r }; };
+const el = (tag, cls, parent) => { const e = document.createElement(tag); e.className = cls; parent?.appendChild(e); return e; };
+function rect(cls, parent, x, y, w, h) {
+  trackX(x, x + w);
+  const e = el('div', cls, parent);
+  Object.assign(e.style, { left: px(x), top: px(y), width: px(w), height: px(h) });
+  return e;
+}
+
+// Where a run of characters puts its ink, from the first pen position, one
+// cell per character (Plex Mono is monospaced): { l, r } in px.
+function runInk(g, chars) {
+  const first = g.M(chars[0]), last = g.M(chars[chars.length - 1]);
+  return { l: -first.abl * g.fs, r: ((chars.length - 1) * g.wide + last.abr) * g.fs };
+}
+
+// One glyph whose ink should be centred where it would be with its pen at
+// `origin` (as scanned at phase 0), on the baseline `by`. The page draws
+// text at fractions of a device pixel, and the ink comes out a little
+// differently at each (up to 0.3px at 1x), so the pen goes at whichever
+// eighth of a device pixel, scanned there, puts the ink centre closest to
+// where the layout wants it. (Measured: the page draws a glyph exactly as
+// the scanner does at each eighth.) Returns the ink's ends as drawn.
+function placeChar(g, e, ch, origin, by) {
+  const d = R(), m0 = g.M(ch);
+  const target = origin + (m0.abr - m0.abl) / 2 * g.fs;
+  const base = Math.floor(origin * d) / d;
+  let best = null;
+  for (let k = -8; k <= 16; k++) {
+    const x = base + k / 8 / d, m = g.M(ch, (((k % 8) + 8) % 8) / 8);
+    const err = Math.abs(x + (m.abr - m.abl) / 2 * g.fs - target);
+    if (!best || err < best.err - 1e-9) best = { x, m, err };
+  }
+  e.style.left = onLayoutGrid(best.x, d) + 'px';
+  e.style.top = px(by - g.base * g.fs);
+  const ink = { l: best.x - best.m.abl * g.fs, r: best.x + best.m.abr * g.fs };
+  trackX(ink.l, ink.r);
+  return ink;
+}
+
+// A run of characters with its ink centred on cx: digits and x on the
+// baseline `by`, operators centred on the digit ink. Returns the ink's ends.
+function setRun(g, parent, chars, cx, by, cls = '', align = 'centre') {
+  const ink = runInk(g, chars);
+  const x0 = align === 'right' ? cx - ink.r : align === 'left' ? cx - ink.l : cx - (ink.l + ink.r) / 2;
+  let drawn = null;
+  const els = chars.map((ch, i) => {
+    const e = el('span', `t ${kindOf(ch)} ${cls}`, parent);
+    e.textContent = ch;
+    const at = placeChar(g, e, ch, x0 + i * g.wide * g.fs, kindOf(ch) === 'op' ? g.opBy(ch, g.mid(by)) : by);
+    drawn = drawn ? { l: drawn.l, r: at.r } : at;
+    return e;
+  });
+  return { els, l: drawn.l, r: drawn.r };
+}
+
+// The caret in a cell (Level 1 §4): as tall as the digit ink, snapped
+// outward to whole device pixels; centred in an empty cell; a fixed gap after
+// the ink otherwise; hidden in a full cell.
+function placeCaret(g, cell, value, inkR, full) {
+  caret.classList.toggle('off', full);
+  if (full) return;
+  const top = floorD(cell.by - g.asc * g.fs), bottom = ceilD(cell.by + g.desc * g.fs);
+  // One device pixel wider when that lets it sit exactly in the middle of the box.
+  const cw = Math.round((cell.w - g.cw) * R()) % 2 ? g.cw + 1 / R() : g.cw;
+  const left = value ? S(inkR + Math.max(0.08 * g.fs, 4))
+    : cell.emptyX !== undefined ? S(cell.emptyX) : S(cell.x + cell.w / 2 - cw / 2);
+  Object.assign(caret.style, { left: px(left), top: px(top), width: px(cw), height: px(bottom - top) });
+  caret.style.animation = 'none';           // solid right after a key, then blink
+  void caret.offsetWidth;
+  caret.style.animation = '';
+}
+
+// "Question N" over the middle of what you see, centred on its own ink
+// (Level 1 placeLabel), its box `gap` above the top of the problem.
+function placeLabel(g, cx, top, nudge = 0) {
+  const q = dom.qnum;
+  const lfs = Math.max(15, 0.16 * g.fs);
+  q.style.fontSize = lfs + 'px';
+  const cs = getComputedStyle(q);
+  const st = { weight: cs.fontWeight, family: cs.fontFamily, color: cs.color, spacing: (parseFloat(cs.letterSpacing) || 0) / lfs };
+  const m = scan(q.textContent, st, lfs * R());
+  q.style.left = px(cx - (m.abr - m.abl) / 2 * lfs);
+  q.style.top = px(top - labelReach(g));
+  // Its baseline on a whole device pixel (text is drawn there), moved up by
+  // `nudge`; returns its ink top from the work's origin.
+  const probe = document.createElement('span');
+  probe.style.cssText = 'display:inline-block;width:0;height:0;vertical-align:baseline';
+  q.appendChild(probe);
+  const base = probe.getBoundingClientRect().top - q.getBoundingClientRect().top;
+  probe.remove();
+  const baseline = S(top - labelReach(g) + base) + nudge;
+  q.style.top = px(baseline - base);
+  return baseline - m.asc * lfs;
+}
+
+// Centre "Question N" (from its ink top) and the board together. The origin
+// goes on a whole device pixel, which can leave the pair up to half a device
+// pixel off; moving the label up one device pixel moves their middle by half
+// of one, so whichever of the two is closer is used.
+function centreGroup(g, seen) {
+  const cx = (seen.l + seen.r) / 2, s = dom.stage.getBoundingClientRect();
+  const miss = t => { const want = s.top + s.height / 2 - (t + seen.b) / 2; return Math.abs(S(want) - want); };
+  let best = null;
+  for (const nudge of [0, -1 / R()]) {
+    const e = miss(placeLabel(g, cx, seen.t, nudge));
+    if (!best || e < best.e - 1e-6) best = { nudge, e };
+  }
+  centreWork({ ...seen, t: placeLabel(g, cx, seen.t, best.nudge) });
+}
+const labelGap = g => Math.max(0.2 * g.fs, 18);
+const labelReach = g => labelGap(g) + 1.25 * Math.max(15, 0.16 * g.fs);
+// The board and "Question N" are centred together, with at least the
+// label's gap to the board (plus the area's 8px) above the label and below
+// the board, so the label reads as the board's, not the header's.
+// `extra`: more room either side (the equations keep the outline's reach clear of the keypad).
+const boardHeight = (g, box, extra = 0) => box.b - box.t + labelReach(g) + 2 * (labelGap(g) + extra);
+
+// The problem's start size: Level 1's equation size, clamp(40px, min(17vw, 15dvh), 128px).
+const maxFs = () => Math.min(128, Math.max(40, Math.min(0.17 * innerWidth, 0.15 * innerHeight)));
+
+// Room in the problem area: between the side gutters, and 8px clear above
+// "Question N" and below the problem's outline (Level 1 §3.2).
+function room() {
+  const gutter = parseFloat(getComputedStyle(dom.stage).getPropertyValue('--gutter')) || 16;
+  return { w: dom.stage.clientWidth - 2 * gutter - 1, h: dom.stage.clientHeight - 16 - 1 };
+}
+
+// Put the layout origin on a whole device pixel, with what you see (box:
+// the board with "Question N" above it) centred in the problem area.
+function centreWork(box) {
+  const s = dom.stage.getBoundingClientRect();
+  dom.work.style.left = px(S(s.left + s.width / 2 - (box.l + box.r) / 2) - s.left);
+  dom.work.style.top = px(S(s.top + s.height / 2 - (box.t + box.b) / 2) - s.top);
+}
+
+// Slide the work from where it was drawn last into its new place (0.25s).
+function glide(before) {
+  const now = dom.work.getBoundingClientRect();
+  const dx = before.left - now.left, dy = before.top - now.top;
+  if (Math.abs(dx) < 0.01 && Math.abs(dy) < 0.01) return;
+  dom.work.animate([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: 'none' }], { duration: 250, easing: 'ease-out' });
+}
+
+// ---------- Header ----------
+// The "Levels" link's underline, from its first ink to its last (Level 2 play mockup).
+function underline() {
+  const link = $('.crumbs .back');
+  const cs = getComputedStyle(link);
+  const fs = parseFloat(cs.fontSize);
+  const m = scan(link.textContent, { weight: cs.fontWeight, family: cs.fontFamily, color: cs.color, spacing: (parseFloat(cs.letterSpacing) || 0) / fs }, fs * R());
+  const box = link.getBoundingClientRect();
+  link.style.setProperty('--ul-left', (snap(box.left - m.abl * fs, R()) - box.left) + 'px');
+  link.style.setProperty('--ul-right', (box.right - snap(box.left + m.abr * fs, R())) + 'px');
+}
+
+function renderLives(lives) {
+  dom.hearts.forEach((h, i) => h.classList.toggle('lost', i >= lives));
+  dom.lives.setAttribute('aria-label', lives === 1 ? '1 life left' : `${lives} lives left`);
+}
+
+// ---------- Keypad ----------
+// Each label centred on its ink (src/keypad.js), italic labels included.
+function centreKeys() {
+  const labels = [...dom.pad.querySelectorAll('.kl')].filter(kl => {
+    const key = kl.parentElement;
+    return key.getBoundingClientRect().width && !key.classList.contains('pressed') && !key.matches(':active');
+  });
+  const probes = labels.map(kl => {
+    kl.style.transform = 'none';
+    const p = document.createElement('span');
+    p.style.cssText = 'display:inline-block;width:0;height:0;vertical-align:baseline';
+    kl.appendChild(p);
+    return p;
+  });
+  const found = labels.map((kl, i) => {
+    const cs = getComputedStyle(kl);
+    return {
+      key: kl.parentElement.getBoundingClientRect(), label: kl.getBoundingClientRect(),
+      baseY: S(probes[i].getBoundingClientRect().top), kfs: parseFloat(cs.fontSize),
+      style: { weight: (cs.fontStyle === 'italic' ? 'italic ' : '') + cs.fontWeight, family: cs.fontFamily, color: cs.color },
+    };
+  });
+  probes.forEach(p => p.remove());
+  labels.forEach((kl, i) => {
+    const { key, label, baseY, kfs, style } = found[i];
+    const m = scan(kl.textContent, style, kfs * R());
+    const dy = S(key.top + key.height / 2 - (baseY - (m.asc - m.desc) / 2 * kfs));
+    const dx = key.left + key.width / 2 - (m.abr - m.abl) / 2 * kfs - label.left;
+    kl.style.transform = `translate(${dx.toFixed(3)}px, ${dy.toFixed(3)}px)`;
+  });
+}
+
+// ---------- Keys ----------
+// Keypad and keyboard feed one path: onKey(name) returns what happened, and
+// keys that were 'ignored' don't flash. Focus stays in the hidden field
+// (inputmode none, so no phone keyboard); tapping a cell moves the cursor.
+function bindKeys(mapKey, onKey, onTap) {
+  const flashes = new Map();
+  const flash = btn => {
+    if (!btn) return;
+    clearTimeout(flashes.get(btn));
+    btn.classList.add('pressed');
+    flashes.set(btn, setTimeout(() => btn.classList.remove('pressed'), 110));
+  };
+  const keep = () => dom.sink.focus({ preventScroll: true });
+  dom.sink.addEventListener('keydown', e => {
+    if (e.ctrlKey || e.metaKey || e.altKey || e.isComposing) return;
+    if (e.key === 'Escape') { location.href = SELECTOR; return; }
+    const k = mapKey(e);
+    if (e.key === 'Tab') e.preventDefault();
+    if (!k) return;
+    e.preventDefault();
+    if (onKey(k) === 'ignored') return;
+    flash(dom.pad.querySelector(`button[data-k="${CSS.escape(k)}"]`));
+  });
+  dom.sink.addEventListener('beforeinput', e => e.preventDefault());
+  dom.sink.addEventListener('focus', () => dom.work.classList.add('focused'));
+  dom.sink.addEventListener('blur', () => dom.work.classList.remove('focused'));
+  dom.pad.addEventListener('click', e => {
+    const b = e.target.closest('button[data-k]');
+    if (b) onKey(b.dataset.k);
+  });
+  document.addEventListener('pointerdown', e => {
+    const c = e.target.closest?.('[data-cell]');
+    if (c) onTap(c.dataset.cell);
+    if (e.target !== dom.sink) { e.preventDefault(); keep(); }
+  });
+  document.addEventListener('focusin', e => { if (e.target !== dom.sink) keep(); });
+  dom.sink.addEventListener('focusout', e => {
+    if (e.relatedTarget) return;
+    queueMicrotask(() => { if (document.hasFocus() && document.activeElement !== dom.sink) keep(); });
+  });
+}
+
+// The cell nearest in an arrow's direction (cells: [{ i, x, y }] centres), or null.
+function nearest(cells, from, dir) {
+  let best = null;
+  for (const c of cells) {
+    const dx = c.x - from.x, dy = c.y - from.y;
+    const along = { right: dx, left: -dx, down: dy, up: -dy }[dir];
+    const across = dir === 'left' || dir === 'right' ? Math.abs(dy) : Math.abs(dx);
+    if (along < 1) continue;
+    const score = along + 2 * across;
+    if (!best || score < best.score) best = { c, score };
+  }
+  return best ? best.c : null;
+}
+const ARROWS = { ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down' };
+
+// ---------- Feedback ----------
+function play(target, cls) {
+  target.classList.remove('shake', 'in', 'out');
+  void target.offsetWidth;
+  target.classList.add(cls);
+}
+document.addEventListener('animationend', e => {
+  if (e.animationName === 'shake' || e.animationName === 'in') e.target.classList.remove('shake', 'in');
+});
+// Wait for the slide-out itself (Level 1's view.js): its first frame comes a
+// little after it is asked for, so a timer alone would cut it short.
+async function slideOut() {
+  play(dom.work, 'out');
+  const anim = dom.work.getAnimations().find(a => a.animationName === 'out');
+  if (anim) await Promise.race([anim.finished.catch(() => {}), wait(1000)]);
+}
+
+// ===== Solving a linear equation step by step =====
+// ax + b = c with a 2-9, a whole solution x 1-9, b ±1-9 and c 1-99. a never
+// divides b, so dividing first would leave fractions: undo the + or − first,
+// then divide. Every number and every note then fits a two-character cell.
+function makeProblem(rng = Math.random) {
+  for (;;) {
+    const a = 2 + Math.floor(rng() * 8), x = 1 + Math.floor(rng() * 9), n = 1 + Math.floor(rng() * 9);
+    const b = rng() < 0.5 ? n : -n, c = a * x + b;
+    if (c < 1 || c > 99 || n % a === 0) continue;
+    return { a, b, c };
+  }
+}
+// ?p=3x-4=11 (or 3x+5=20) fixes the first problem.
+function parseProblem(s) {
+  const m = /^([2-9])x([+ \-−])([1-9])=([1-9]\d?)$/.exec((s || '').replace(/\s*([+ ])\s*/g, '$1').trim());
+  if (!m) return null;
+  const a = +m[1], b = (/[-−]/.test(m[2]) ? -1 : 1) * m[3], c = +m[4];
+  return (c - b) % a === 0 && b % a !== 0 && (c - b) / a > 0 ? { a, b, c } : null;
+}
+const FIRST = parseProblem(params.get('p')) ?? (params.get('random') === '1' ? makeProblem() : { a: 3, b: 5, c: 20 });
+
+// ---------- State ----------
+// Two steps, each written as on paper: the operation in the margin of the
+// line you are on (what you do to both sides), then the next line under it,
+// its "=" already in place. Working order: the note, the left side, the right side.
+const state = { q: 1, lives: 3, phase: 'playing', p: FIRST, steps: [], cur: 0, act: 0 };
+const cells = () => ['op', 'lhs', 'rhs'].map(id => ({ id, v: '' }));
+function fresh(p) {
+  Object.assign(state, { p, lives: 3, phase: 'playing', cur: 0, act: 0 });
+  state.steps = [{ status: 'current', cells: cells() }, { status: 'future', cells: cells() }];
+}
+
+// ---------- Checking (per step) ----------
+// A line is ax + b = c. A note is an operator and a number. A side is written
+// simplified: "3x", "x" (never "1x") or a whole number.
+const parseOp = s => { const m = /^([+−÷])([1-9]\d?)$/.exec(s); return m && { sym: m[1], n: +m[2] }; };
+function parseSide(s) {
+  const m = /^([1-9]\d?)?x$/.exec(s);
+  if (m) return m[1] === '1' ? null : { a: m[1] ? +m[1] : 1, c: 0 };
+  return /^(0|[1-9]\d?)$/.test(s) ? { a: 0, c: +s } : null;
+}
+function apply(line, op) {
+  if (op.sym === '−') return { a: line.a, b: line.b - op.n, c: line.c - op.n };
+  if (op.sym === '+') return { a: line.a, b: line.b + op.n, c: line.c + op.n };
+  if (line.a % op.n || line.b % op.n || line.c % op.n) return null;
+  return { a: line.a / op.n, b: line.b / op.n, c: line.c / op.n };
+}
+// A step must move towards x = …: take the number off the x side, then
+// divide by x's coefficient. Anything else (+5, ÷2 that leaves a fraction)
+// is not this step.
+function useful(from, to) {
+  if (!to || to.b !== 0) return false;
+  return from.b !== 0 ? to.a === from.a : from.a !== 1 && to.a === 1;
+}
+const VALID_OPS = from => (from.b !== 0 ? [{ sym: from.b > 0 ? '−' : '+', n: Math.abs(from.b) }] : [{ sym: '÷', n: from.a }]);
+const lineBefore = si => (si === 0 ? { ...state.p } : state.steps[si - 1].line);
+function judge(si) {
+  const step = state.steps[si], v = Object.fromEntries(step.cells.map(c => [c.id, c.v])), from = lineBefore(si);
+  const op = parseOp(v.op), to = op && apply(from, op);
+  const ok = useful(from, to);
+  // Judge the sides against the note's result, or, when the note is wrong,
+  // against what the right note gives (so a right line survives a wrong note).
+  const target = ok ? to : apply(from, VALID_OPS(from)[0]);
+  const lhs = parseSide(v.lhs), rhs = parseSide(v.rhs);
+  const wrong = new Set();
+  if (!ok) wrong.add('op');
+  if (!lhs || lhs.a !== target.a || lhs.c !== 0) wrong.add('lhs');
+  if (!rhs || rhs.a !== 0 || rhs.c !== target.c) wrong.add('rhs');
+  return { wrong, line: target, solved: !wrong.size && target.a === 1 };
+}
+
+// ---------- Layout ----------
+// Three lines, one under another, aligned on their "=" signs:
+//    3x + 5 = 20 | −5
+//        □  = □  | □
+//        □  = □
+// The left sides end, and the right sides start, an even gap from the "=".
+// The notes sit in a margin right of the widest right side, each after a
+// rule, the paper convention. Every cell is the same box, two characters
+// wide; what you type is ink-centred in it. Operators are centred on the
+// digit ink; x is italic.
+function eqGeo(g) {
+  const digits = [...'0123456789'];
+  const L = cs => Math.max(...cs.map(c => g.M(c).abl)), Rr = cs => Math.max(...cs.map(c => g.M(c).abr));
+  const pairs = [[digits, digits], [digits, ['x']], [['+', '−', '÷'], digits]];
+  const two = Math.max(...pairs.map(([a, b]) => L(a) + g.wide + Rr(b))) * g.fs;
+  const b = boxDims(g, two);
+  return { ...b, t: g.bw, pitch: S(b.bxH + Math.max(0.5 * g.fs, 2 * (g.oo + 1) + 8)) };
+}
+
+function layoutEq(g) {
+  const f = eqGeo(g), p = state.p;
+  const vis = { l: Infinity, r: -Infinity, t: Infinity, b: -Infinity };
+  const add = (l, r, t, b) => { vis.l = Math.min(vis.l, l); vis.r = Math.max(vis.r, r); vis.t = Math.min(vis.t, t); vis.b = Math.max(vis.b, b); };
+  const B = k => k * f.pitch;                                  // line k's baseline
+  const band = k => [B(k) - g.asc * g.fs, B(k) + g.desc * g.fs];
+  const boxTop = k => B(k) - f.off - g.bw;
+  // Two columns of cells either side of the "=": the left sides' boxes end,
+  // and the right sides' start, an even gap from it, the "=" exactly midway.
+  // The printed line uses the same columns as invisible boxes: its right side
+  // and the last term of its left side are centred in them, as typed numbers
+  // are, so each column's numbers line up by centre. The rest of its left
+  // side runs on to the left with even gaps. (So on the printed line the
+  // gaps either side of "=" are wider than round "+": an open question.)
+  const lhsX = 0, rhsX = S(f.bxW + 2 * g.G + g.inkW('=')), eqCx = (f.bxW + rhsX) / 2;
+  const centred = (chars, cx) => { const ink = runInk(g, chars); const origin = cx - (ink.l + ink.r) / 2; return { chars, origin, l: origin + ink.l, r: origin + ink.r }; };
+  const endAt = (chars, inkRight) => { const ink = runInk(g, chars); const origin = inkRight - ink.r; return { chars, origin, l: origin + ink.l, r: inkRight }; };
+  const t2 = centred([...String(Math.abs(p.b))], f.bxW / 2);
+  const opCh = p.b > 0 ? '+' : '−', opW = g.inkW(opCh), opCx = t2.l - g.G - opW / 2;
+  const t1 = endAt([...String(p.a), 'x'], opCx - opW / 2 - g.G);
+  const rhs0 = centred([...String(p.c)], rhsX + f.bxW / 2);
+  const ruleX = S(rhsX + f.bxW + g.G), noteX = S(ruleX + f.t + g.G);
+  const given = { t1, t2, op: { ch: opCh, cx: opCx }, rhs0 };
+  add(t1.l, rhs0.r, ...band(0));
+  for (let k = 0; k < 3; k++) {
+    add(k ? lhsX : t1.l, k < 2 ? noteX + f.bxW : rhsX + f.bxW, boxTop(k), boxTop(k) + f.bxH);
+  }
+  return { f, B, boxTop, given, eqCx, lhsX, rhsX, ruleX, noteX, vis };
+}
+
+function needs(g, lay) {
+  const out = g.oo + 1, half = (lay.vis.b - lay.vis.t) / 2;
+  return { w: lay.vis.r - lay.vis.l + 2 * out, h: boardHeight(g, lay.vis, out) };
+}
+function fit() {
+  let fs = maxFs();
+  for (let i = 0; i < 8; i++) {
+    const g = measureGeo(fs), n = needs(g, layoutEq(g)), r = room();
+    const s = Math.min(r.w / n.w, r.h / n.h);
+    if (s >= 1) break;
+    fs = Math.max(6, fs * s * 0.998);
+  }
+  return fs;
+}
+
+let G = null, LAY = null, refs = {};
+const groups = [];
+function relayout() {
+  fitHeader(dom.top, scan);
+  G = measureGeo(fit());
+  draw();
+  centreKeys();
+  underline();
+}
+
+function putChar(g, parent, ch, cx, by) {
+  const e = el('span', `t ${kindOf(ch)}`, parent);
+  e.textContent = ch;
+  const m = g.M(ch);
+  placeChar(g, e, ch, cx - (m.abr - m.abl) / 2 * g.fs, by);
+  return e;
+}
+function putRun(g, parent, run, by) {
+  run.chars.forEach((ch, i) => {
+    const e = el('span', `t ${kindOf(ch)}`, parent);
+    e.textContent = ch;
+    placeChar(g, e, ch, run.origin + i * g.wide * g.fs, kindOf(ch) === 'op' ? g.opBy(ch, g.mid(by)) : by);
+  });
+}
+
+function draw() {
+  const g = G;
+  LAY = layoutEq(g);
+  const { f, B, boxTop, given } = LAY;
+  dom.work.replaceChildren(dom.qnum);
+  drawnX = null;
+  dom.work.style.setProperty('--bw', g.bw + 'px');
+  dom.work.style.setProperty('--oo', g.oo + 'px');
+  refs = {};
+  groups.length = 0;
+  // The given line.
+  const g0 = el('div', 'grp given', dom.work);
+  putRun(g, g0, given.t1, B(0));
+  putChar(g, g0, given.op.ch, given.op.cx, g.opBy(given.op.ch, g.mid(B(0))));
+  putRun(g, g0, given.t2, B(0));
+  putChar(g, g0, '=', LAY.eqCx, g.opBy('=', g.mid(B(0))));
+  putRun(g, g0, given.rhs0, B(0));
+  // Each step: the note on line si, and line si + 1.
+  state.steps.forEach((step, si) => {
+    const grp = el('div', `grp ${step.status}`, dom.work);
+    groups[si] = grp;
+    rect('rule', grp, LAY.ruleX, boxTop(si), f.t, f.bxH);
+    const k = si + 1;
+    putChar(g, grp, '=', LAY.eqCx, g.opBy('=', g.mid(B(k))));
+    for (const [id, x, line] of [['op', LAY.noteX, si], ['lhs', LAY.lhsX, k], ['rhs', LAY.rhsX, k]]) {
+      const b = rect('box', grp, x, boxTop(line), f.bxW, f.bxH);
+      b.dataset.cell = `${si}:${id}`;
+      refs[`${si}:${id}`] = { box: b, grp, x, w: f.bxW, cx: x + f.bxW / 2, by: B(line), chars: [], inkR: 0 };
+    }
+  });
+  dom.work.appendChild(caret);
+  const seen = { ...LAY.vis, ...drawnX };
+  dom.qnum.textContent = 'Question ' + state.q;
+  centreGroup(g, seen);
+  renderCells();
+}
+
+// Can `k` go next in this cell? A note: an operator, then a digit. A side:
+// up to two characters, digits then an x to close it.
+function accepts(c, k) {
+  if (c.id === 'op') return c.v === '' ? '+−÷'.includes(k) : c.v.length === 1 && /\d/.test(k);
+  if (c.v.length >= 2 || c.v.endsWith('x')) return false;
+  return /\d/.test(k) || k === 'x';
+}
+const full = c => !['0', 'x', '+'].some(k => accepts(c, k));
+
+function renderCell(si, c) {
+  const ref = refs[`${si}:${c.id}`];
+  if (!ref) return;
+  ref.chars.forEach(e => e.remove());
+  ref.chars = [];
+  if (!c.v) return;
+  const run = setRun(G, ref.grp, [...c.v], ref.cx, ref.by, 'a');
+  ref.chars = run.els;
+  ref.inkR = run.r;
+}
+function renderFocus() {
+  Object.values(refs).forEach(r => r.box.classList.remove('active'));
+  const c = state.steps[state.cur]?.cells[state.act];
+  const ref = c && refs[`${state.cur}:${c.id}`];
+  if (!ref || state.phase !== 'playing') { caret.classList.add('off'); return; }
+  ref.box.classList.add('active');
+  placeCaret(G, ref, c.v, ref.inkR, full(c));
+  dom.sink.value = c.v;
+}
+function renderCells() {
+  state.steps.forEach((s, si) => s.cells.forEach(c => renderCell(si, c)));
+  renderFocus();
+}
+const say = text => { dom.status.textContent = text; };
+const spoken = p => `${p.a} x ${p.b > 0 ? 'plus' : 'minus'} ${Math.abs(p.b)} equals ${p.c}`;
+const announce = () => say(`Question ${state.q}: ${spoken(state.p)}`);
+
+// ---------- Keys ----------
+// The keypad's symbols: a row above the digits upright, a column left of them sideways. "=" is not a key: every new line
+// has its "=" printed, aligned under the one above. ✓ (or "=" on a keyboard)
+// moves on to the next empty cell, and checks the step once it is full.
+function mapKey(e) {
+  const k = e.key;
+  if (/^\d$/.test(k) || k === 'Backspace' || k === 'Enter' || k === '+' || k === '=') return k;
+  if (k === 'x' || k === 'X') return 'x';
+  if (k === '-' || k === '−') return '−';
+  if (k === '/' || k === '÷') return '÷';
+  if (k === 'Tab') return e.shiftKey ? 'prev' : 'next';
+  return ARROWS[k] ?? null;
+}
+function onKey(k) {
+  if (state.phase !== 'playing') return 'ignored';
+  const si = state.cur, step = state.steps[si], c = step.cells[state.act], n = step.cells.length;
+  if (/^\d$/.test(k) || ['x', '+', '−', '÷'].includes(k)) {
+    if (!accepts(c, k)) return 'ignored';
+    c.v += k;
+    renderCell(si, c);
+    renderFocus();
+    return 'typed';
+  }
+  if (k === 'Backspace') {
+    if (c.v) c.v = c.v.slice(0, -1);
+    else if (state.act > 0) {
+      state.act -= 1;
+      const back = step.cells[state.act];
+      back.v = back.v.slice(0, -1);
+      renderCell(si, back);
+    } else return 'ignored';
+    renderCell(si, c);
+    renderFocus();
+    return 'typed';
+  }
+  if (k === '=') {
+    if (c.id !== 'lhs') return 'ignored';
+    state.act = step.cells.findIndex(x => x.id === 'rhs');
+    renderFocus();
+    return 'moved';
+  }
+  if (k === 'Enter') {
+    if (step.cells.every(x => x.v)) return check();
+    if (!c.v) return 'ignored';
+    for (let i = 1; i < n; i++) {
+      const j = (state.act + i) % n;
+      if (!step.cells[j].v) { state.act = j; break; }
+    }
+    renderFocus();
+    return 'moved';
+  }
+  let j = k === 'next' ? state.act + 1 : k === 'prev' ? state.act - 1 : -1;
+  if (['left', 'right', 'up', 'down'].includes(k)) {
+    const at = i => { const r = refs[`${si}:${step.cells[i].id}`]; return { i, x: r.cx, y: r.by }; };
+    const to = nearest(step.cells.map((_, i) => at(i)).filter(p => p.i !== state.act), at(state.act), k);
+    j = to ? to.i : -1;
+  }
+  if (j < 0 || j >= n) return 'ignored';
+  state.act = j;
+  renderFocus();
+  return 'moved';
+}
+function onTap(cell) {
+  const [si, id] = cell.split(':');
+  if (state.phase !== 'playing' || Number(si) !== state.cur) return;
+  state.act = state.steps[state.cur].cells.findIndex(c => c.id === id);
+  renderFocus();
+}
+
+// ---------- Feedback ----------
+// Per step (the note and its line). Wrong: the step shakes, its wrong cells
+// clear, a heart is lost. Right: green, then it settles and the next step
+// opens. Solved when a line reads x = a number: everything you wrote goes
+// green and the next problem slides in.
+function check() {
+  const si = state.cur, step = state.steps[si], res = judge(si);
+  if (res.wrong.size) {
+    state.lives -= 1;
+    step.cells.forEach(c => { if (res.wrong.has(c.id)) c.v = ''; });
+    state.act = step.cells.findIndex(c => res.wrong.has(c.id));
+    renderCells();
+    renderLives(state.lives);
+    play(groups[si], 'shake');
+    if (state.lives === 0) {
+      state.phase = 'out';
+      renderFocus();
+      say('Out of lives');
+      setTimeout(() => { if (state.phase === 'out') location.href = SELECTOR; }, 450);
+      return 'out';
+    }
+    say(`Wrong, ${dom.lives.getAttribute('aria-label')}`);
+    return 'wrong';
+  }
+  step.line = res.line;
+  if (res.solved) { finish(); return 'correct'; }
+  advance(si);
+  return 'step';
+}
+
+async function advance(si) {
+  state.phase = 'step';
+  groups[si].classList.add('good');
+  renderFocus();
+  say('Right');
+  await wait(350);
+  state.steps[si].status = 'done';
+  groups[si].classList.remove('good');
+  groups[si].classList.replace('current', 'done');
+  state.steps[si + 1].status = 'current';
+  groups[si + 1].classList.replace('future', 'current');
+  Object.assign(state, { cur: si + 1, act: 0, phase: 'playing' });
+  renderFocus();
+}
+
+async function finish() {
+  state.phase = 'correct';
+  state.steps[state.cur].status = 'done';
+  groups[state.cur].classList.replace('current', 'done');
+  dom.work.classList.add('good');
+  renderFocus();
+  say('Correct');
+  await wait(350);
+  await slideOut();
+  state.q += 1;
+  fresh(makeProblem());
+  dom.work.classList.remove('good');
+  renderLives(state.lives);
+  draw();
+  announce();
+  play(dom.work, 'in');
+}
+
+// ---------- Review states ----------
+function applyState(name) {
+  const { a, b, c } = state.p;
+  const [s0, s1] = state.steps;
+  const fill = (step, o) => step.cells.forEach(x => { x.v = o[x.id] === undefined ? '' : String(o[x.id]); });
+  const first = { op: (b > 0 ? '−' : '+') + Math.abs(b), lhs: a + 'x', rhs: c - b };
+  const line1 = { a, b: 0, c: c - b };
+  if (name === 'partial') {
+    fill(s0, first);
+    fill(s1, { op: '÷' + a, lhs: 'x' });
+    s0.status = 'done';
+    s0.line = line1;
+    s1.status = 'current';
+    Object.assign(state, { cur: 1, act: 2 });
+  } else if (name === 'wrong') {
+    fill(s0, { op: first.op, lhs: first.lhs });     // the right side was wrong and cleared
+    Object.assign(state, { act: 2, lives: 2 });
+  } else if (name === 'done') {
+    fill(s0, first);
+    fill(s1, { op: '÷' + a, lhs: 'x', rhs: (c - b) / a });
+    s0.status = s1.status = 'done';
+    s0.line = line1;
+    Object.assign(state, { cur: 1, phase: 'correct' });
+  }
+}
+
+// ---------- Start ----------
+fresh(FIRST);
+const named = params.get('state');
+applyState(named);
+await loadFonts(true);
+renderLives(state.lives);
+try { relayout(); } catch (err) { console.error(err); }
+if (named === 'done') dom.work.classList.add('good');
+document.documentElement.classList.remove('loading');
+if (named === 'wrong') play(groups[0], 'shake');
+announce();
+bindKeys(mapKey, onKey, onTap);
+let queued = false;
+const resized = new ResizeObserver(() => {
+  if (queued) return;
+  queued = true;
+  requestAnimationFrame(() => { queued = false; try { relayout(); } catch (err) { console.error(err); } });
+});
+resized.observe(dom.stage);
+resized.observe(dom.top);
+// A font that loads late (after the 3s wait) changes every measurement: start again.
+document.fonts.addEventListener('loadingdone', () => { scan.reset(); try { relayout(); } catch (err) { console.error(err); } });
+dom.sink.focus({ preventScroll: true });
+const rows = () => { const top = dom.work.getBoundingClientRect().top; return [0, 1, 2].map(k => top + LAY.B(k)); };
+window.mathtime = { state, relayout, onKey, geo: () => G, lay: () => LAY, mode: () => 'lines', rows };
+
+</script>
+</body>
+</html>

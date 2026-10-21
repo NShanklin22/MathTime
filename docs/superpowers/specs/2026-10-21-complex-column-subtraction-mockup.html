@@ -1,0 +1,786 @@
+<!doctype html>
+<html lang="en" class="loading">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Column subtraction mockup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<!--
+  Column subtraction with borrowing (exploratory mockup, Level 6 is a placeholder number).
+  52 − 27 set out in columns. Work right to left a column at a time. To
+  borrow, tap the tens digit: it is struck through and the cursor goes up
+  into the small cell over it, where you write the 4; a small 1 appears
+  before the 2, and the cursor comes back to the ones answer. Enter checks
+  the column: it must be worked (a right digit with no borrow is wrong).
+
+  URL parameters:
+    ?state=empty|partial|done|wrong   a fixed state for review (the caret holds still)
+    ?random=1                          random problems at the level's difficulty
+    ?a=..&b=..                         a fixed first problem
+  Keys: digits, Backspace, Enter (check the column), arrows (move between the
+  column's cells), Esc (back to the levels). Tapping a cell of the column you
+  are working on moves the cursor there.
+  Served by the dev server: it loads the game's own styles and modules (src/).
+-->
+<link rel="stylesheet" href="/src/styles.css">
+<style>
+  /* The way back, as in the Level 2 play mockup. */
+  .crumbs .back { position: relative; color: var(--muted); text-decoration: none; }
+  .crumbs .back::before {
+    content: "";
+    position: absolute;
+    left: var(--ul-left, 0);
+    right: var(--ul-right, 0);
+    top: 19px;
+    height: 1px;
+    background: var(--faint);
+  }
+  .crumbs .back::after {
+    content: "";
+    position: absolute;
+    top: calc(-1 * var(--top-safe));
+    bottom: calc(1px - var(--road-gap));
+    left: calc(-1 * var(--gutter));
+    right: -8px;
+  }
+  .crumbs .back:focus-visible { outline: 2px solid var(--ink); outline-offset: 4px; }
+  @media (hover: hover) { .crumbs .back:hover::before { background: currentColor; } }
+
+  /* ---------- The written method ----------
+     Everything on the board is placed by the script below, in px from the
+     board's top left corner, which sits on a whole device pixel. Columns are
+     a strict grid: every answer cell is Level 1's box for one digit (sized
+     from the measured digit ink, equal padding, the border outside it), and
+     the digits above are centred on their ink in the same columns. */
+  .stage { position: relative; }
+  .board { position: absolute; left: 0; top: 0; font-weight: 500; --sk: 12px; }
+  .board .t { position: absolute; left: 0; top: 0; display: block; height: 1em; line-height: 1; white-space: pre; }
+  .dg { color: var(--ink); transition: color .15s; }
+  .op, .qlabel { color: var(--muted); }
+  .qlabel { letter-spacing: 0.04em; }
+  .rule { position: absolute; background: var(--ink); }
+
+  /* A cell: its frame (the border), its digit and its caret. A solid frame
+     is a cell you always write in. A dashed one (the construction line) is
+     written in only if the working needs it: the carry or borrow cell, and
+     the hundreds of a sum. A dashed answer cell is inked solid once you
+     write in it, and a dashed cell left empty is rubbed out once its column
+     checks right, as are the frames round carries and borrows: the finished
+     working reads as it would on paper. */
+  .cell { position: absolute; --line: var(--ink); --dash: rgba(238, 245, 255, 0.55); }
+  .cell.ok { --line: var(--good); --dash: rgba(143, 240, 192, 0.55); }
+  /* Joined cells share a border: it takes the colour of the unchecked cell,
+     and of the cell being typed in above all, which sit on top. */
+  .cell { z-index: 1; }
+  .cell.ok { z-index: 0; }
+  .cell.focus { z-index: 2; }
+  .cell .frame {
+    position: absolute;
+    inset: 0;
+    border: var(--bw) solid var(--line);
+    transition: border-color .15s, opacity .2s;
+  }
+  .cell.opt .frame, .cell.small .frame { border: 1px dashed var(--dash); }
+  .cell.opt.filled .frame { border: var(--bw) solid var(--line); }
+  .cell .v { color: var(--ink); }
+  .cell.focus .v { color: var(--amber); }        /* a written cell you moved back to: typing replaces it */
+  .cell.ok .v { color: var(--good); transition: color .15s; }
+  .cell.ok.small .frame, .cell.ok.opt:not(.filled) .frame { opacity: 0; }
+  .caret {
+    position: absolute;
+    background: var(--amber);
+    visibility: hidden;
+    animation: blink 1.06s steps(1) infinite;
+  }
+  body.typing .cell.focus:not(.filled) .caret { visibility: visible; }
+  html.fixed .caret { animation: none; }
+
+  /* Borrowing: the struck digit, the stroke through it, the small 1. */
+  .dg.struck { color: var(--muted); }
+  .strike { position: absolute; overflow: visible; pointer-events: none; opacity: 0; transition: opacity .15s; }
+  .strike line { stroke: var(--ink); stroke-linecap: round; stroke-dasharray: 1 2; stroke-dashoffset: 1; transition: stroke-dashoffset .18s ease-out, stroke .15s; }
+  .strike.on { opacity: 1; transition: none; }
+  .strike.on line { stroke-dashoffset: 0; }
+  .strike.ok line { stroke: var(--good); }
+  .small1 { opacity: 0; transition: opacity .15s, color .15s; }
+  .small1.on { opacity: 1; }
+  .small1.ok { color: var(--good); }
+  .hit { position: absolute; cursor: pointer; }
+
+  /* Feedback: the column's cells shake as Level 1's equation does. */
+  .shake { animation: colshake .32s ease; }
+  @keyframes colshake {
+    0%, 100% { translate: 0; }
+    20% { translate: calc(-1 * var(--sk)); }
+    40% { translate: calc(0.833 * var(--sk)); }
+    60% { translate: calc(-0.5 * var(--sk)); }
+    80% { translate: calc(0.333 * var(--sk)); }
+  }
+  .board.out { animation: out .22s ease-in forwards; }
+  .board.in { animation: in .22s ease-out; }
+
+  /* The field that holds focus and takes the keys (the phone's own keyboard
+     is suppressed); screen readers hear the cell it is on. */
+  .ans { position: absolute; left: 0; top: 0; width: 1px; height: 1px; margin: 0; padding: 0; border: 0; opacity: 0; font-size: 16px; caret-color: transparent; pointer-events: none; }
+</style>
+</head>
+<body>
+  <header class="top">
+    <div class="where">
+      <nav class="crumbs" aria-label="Breadcrumb">
+        <a class="back" href="2026-10-21-level2-selector-mockup.html?concept=a" aria-keyshortcuts="Escape">Levels</a>
+        <svg class="sep" viewBox="0 0 12 12" aria-hidden="true"><path d="M4.5 2.5L8 6l-3.5 3.5"/></svg>
+        <span class="stage-name">Subtraction</span>
+        <svg class="sep stage-sep" viewBox="0 0 12 12" aria-hidden="true"><path d="M4.5 2.5L8 6l-3.5 3.5"/></svg>
+        <span class="here" aria-current="step">Level 6</span>
+      </nav>
+      <div class="road" role="img" aria-label="Roadmap stage 1 of 7: Arithmetic. Then fractions, algebra, geometry, trigonometry, calculus, physics.">
+        <span class="now" title="Arithmetic"></span>
+        <span title="Fractions"></span>
+        <span title="Algebra"></span>
+        <span title="Geometry"></span>
+        <span title="Trigonometry"></span>
+        <span title="Calculus"></span>
+        <span title="Physics"></span>
+      </div>
+    </div>
+    <div class="lives" role="img" aria-label="3 lives left">
+      <svg viewBox="2 3 20 18" aria-hidden="true"><path d="M19.5 12.572l-7.5 7.428l-7.5 -7.428a5 5 0 1 1 7.5 -6.566a5 5 0 1 1 7.5 6.572"/></svg>
+      <svg viewBox="2 3 20 18" aria-hidden="true"><path d="M19.5 12.572l-7.5 7.428l-7.5 -7.428a5 5 0 1 1 7.5 -6.566a5 5 0 1 1 7.5 6.572"/></svg>
+      <svg viewBox="2 3 20 18" aria-hidden="true"><path d="M19.5 12.572l-7.5 7.428l-7.5 -7.428a5 5 0 1 1 7.5 -6.566a5 5 0 1 1 7.5 6.572"/></svg>
+    </div>
+  </header>
+
+  <main class="stage" id="stage">
+    <div class="board" id="board" aria-hidden="true"></div>
+    <input id="ans" class="ans" inputmode="none" autocomplete="off" aria-label="Ones answer">
+  </main>
+
+  <p class="sr-only" role="status" id="status"></p>
+
+  <div class="pad" role="group" aria-label="Keypad">
+    <button tabindex="-1" data-k="1"><span class="kl">1</span></button>
+    <button tabindex="-1" data-k="2"><span class="kl">2</span></button>
+    <button tabindex="-1" data-k="3"><span class="kl">3</span></button>
+    <button tabindex="-1" data-k="4"><span class="kl">4</span></button>
+    <button tabindex="-1" data-k="5"><span class="kl">5</span></button>
+    <button tabindex="-1" data-k="6"><span class="kl">6</span></button>
+    <button tabindex="-1" data-k="7"><span class="kl">7</span></button>
+    <button tabindex="-1" data-k="8"><span class="kl">8</span></button>
+    <button tabindex="-1" data-k="9"><span class="kl">9</span></button>
+    <button tabindex="-1" data-k="Backspace" aria-label="Delete"><svg viewBox="0 0 24 24" aria-hidden="true"><g transform="translate(-0.5 0)"><path d="M20 6H9l-5 6l5 6h11a1 1 0 0 0 1-1V7a1 1 0 0 0-1-1z"/><path d="M12.25 10.25l3.5 3.5m0-3.5l-3.5 3.5"/></g></svg></button>
+    <button tabindex="-1" data-k="0"><span class="kl">0</span></button>
+    <button tabindex="-1" data-k="Enter" class="go" aria-label="Check the column"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 12.5l5.5 5.5l11.5-11.5"/></svg></button>
+  </div>
+
+<script type="module">
+  import { fontsReady } from '/src/fonts.js';
+  import { createScanner } from '/src/scanner.js';
+  import { snap, onLayoutGrid } from '/src/ink.js';
+  import { fitHeader } from '/src/header.js';
+  import { centreKeys } from '/src/keypad.js';
+
+  /* ================= The level ================= */
+  // Column subtraction with borrowing (decomposition): two-digit minus
+  // two-digit, set out in columns, the "−" in the third column.
+  const OP = '−', OP_WORD = 'minus';
+  // Played in turn without ?random: a borrow; none; a borrow from a 0 in
+  // the ones; a borrow that leaves 0 tens; another borrow.
+  const EXAMPLES = [[52, 27], [86, 34], [70, 26], [41, 38], [93, 58]];
+  const rnd = n => Math.floor(Math.random() * n);
+  function randomProblem() {
+    const borrow = Math.random() < 0.5;               // half need a borrow
+    for (;;) {
+      const a = 10 + rnd(90), b = 10 + rnd(90);
+      if (b <= a && (a % 10 < b % 10) === borrow) return { a, b };
+    }
+  }
+  function solve(a, b) {
+    const a1 = Math.floor(a / 10), a0 = a % 10, b1 = Math.floor(b / 10), b0 = b % 10;
+    const need = a0 < b0;
+    return { need, B: a1 - 1, O: a0 + (need ? 10 : 0) - b0, T: a1 - (need ? 1 : 0) - b1 };
+  }
+
+  // The cells: the answer's tens and ones, and the borrow cell over the tens
+  // (dashed, there for every problem: it gives nothing away).
+  const CELLS = [
+    { id: 'T', kind: 'big', col: 1, name: 'Tens of the answer' },
+    { id: 'O', kind: 'big', col: 2, name: 'Ones of the answer' },
+    { id: 'B', kind: 'small', col: 1, name: 'Borrow: the new tens digit' },
+  ];
+
+  // The working order: the ones, then the tens. The cursor starts in the
+  // ones answer. To borrow, tap the tens digit (or its borrow cell, or press
+  // Up): the digit is struck through and the cursor goes up into the cell
+  // over it, where you write what it becomes. Then a small 1 goes before the
+  // ones digit (always 1: you borrowed one ten) and the cursor comes back
+  // down to the ones answer. Leave the borrow cell empty and the strike is
+  // taken back.
+  const STEPS = [
+    { cells: ['O', 'B'], nav: { O: { ArrowUp: 'B' }, B: { ArrowDown: 'O', ArrowRight: 'O' } } },
+    { cells: ['T'], nav: {} },
+  ];
+  const borrowed = (v, f) => v.B !== '' || f === 'B';
+  const typingOrder = (k, v, f) => k ? ['T'] : borrowed(v, f) ? ['B', 'O'] : ['O'];
+  // Backspace in an empty borrow cell takes the borrow back.
+  function backFromEmpty() {
+    if (S.f !== 'B') return 'ignored';
+    moveTo('O');
+    return 'typed';
+  }
+
+  // The ones column is right only if it is worked: the borrow made when, and
+  // only when, it is needed, the new tens digit right, and the ones digit. A
+  // right digit with no borrow is wrong (the level is the method).
+  function checkStep(k, v, x) {
+    if (k === 1) return v.T !== '' && Number(v.T) === x.T;
+    return (v.B !== '') === x.need && (!x.need || Number(v.B) === x.B) && v.O !== '' && Number(v.O) === x.O;
+  }
+
+  // The review states (?state=), for any problem.
+  function fixedState(name, x) {
+    const ones = { B: x.need ? String(x.B) : '', O: String(x.O) };
+    if (name === 'partial') return x.need ? { v: { B: String(x.B) }, f: 'O' } : { v: { O: String(x.O) }, f: null };
+    if (name === 'wrong') return { v: ones, done: [true, false], k: 1, f: 'T', lives: 2 };   // the tens were checked as if nothing was borrowed
+    return { v: { ...ones, T: String(x.T) }, done: [true, true], k: 2, f: null, phase: 'done' };
+  }
+
+  // The marks of a borrow: a stroke through the tens digit, a small 1
+  // before the ones digit, and a tap target over the tens digit and its cell.
+  function buildExtra() {
+    E.strike = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    E.strike.setAttribute('class', 'strike');
+    E.strike.setAttribute('aria-hidden', 'true');
+    E.line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    E.line.setAttribute('pathLength', '1');
+    E.strike.appendChild(E.line);
+    board.appendChild(E.strike);
+    E.small1 = el('span', 't dg small1');
+    E.hit = el('i', 'hit');
+    E.hit.dataset.tap = 'B';
+  }
+  function placeExtra() {
+    const { fs, dpr } = G;
+    // The stroke: upper left to lower right, a little past the ink at both
+    // ends (less at the top, under the borrow cell). That way it crosses
+    // the diagonal of a 4 or a 7 instead of running along it, and its top
+    // end stays away from the small 1.
+    const ink = E.inkA[0], e = 0.07 * fs, eTop = 0.05 * fs, sw = Math.max(0.045 * fs, 2);
+    const x0 = ink.l - eTop, y0 = ink.t - eTop, x1 = ink.r + e, y1 = ink.b + e, m = sw;
+    const left = x0 - m, top = y0 - m, w = x1 - x0 + 2 * m, h = y1 - y0 + 2 * m;
+    Object.assign(E.strike.style, { left: px(left), top: px(top), width: px(w), height: px(h) });
+    E.strike.setAttribute('viewBox', `0 0 ${w} ${h}`);
+    E.line.setAttribute('x1', m); E.line.setAttribute('y1', m);
+    E.line.setAttribute('x2', w - m); E.line.setAttribute('y2', h - m);
+    E.line.setAttribute('stroke-width', sw);
+    // The small 1, written high before the ones digit: on the joined
+    // columns there is no room for it between the two digits, so it sits
+    // up beside the borrow cell, 0.4 of the digits' size, its ink 0.13em
+    // right of the cell and 0.13em above the digits' ink. That keeps it at
+    // least 0.12em from the cell, both digits and the stroke, as drawn on
+    // whole pixels, whatever the digits, and the same for every problem.
+    const s1 = 0.4 * fs, one = scan('1', G.style, s1 * dpr);
+    const cellRight = G.ox + G.P + (G.W + G.Ws) / 2;
+    const base1 = snap(G.y1 - G.asc * fs - 0.13 * fs - one.desc * s1, dpr);
+    placeText(E.small1, '1', s1, G.style, cellRight + 0.13 * fs, base1, 'left');
+    // The tap target: the tens column, from the top of the borrow cell to
+    // below the tens digit.
+    Object.assign(E.hit.style, { left: px(G.ox + G.P), top: '0px', width: px(G.W), height: px(G.y1 + G.desc * fs + G.c / 2) });
+  }
+  function updateExtra() {
+    const on = borrowed(S.v, S.f);
+    E.strike.classList.toggle('on', on);
+    E.a[0].classList.toggle('struck', on);
+    E.small1.classList.toggle('on', S.v.B !== '');
+    E.strike.classList.toggle('ok', S.done[0]);
+    E.small1.classList.toggle('ok', S.done[0]);
+    E.hit.hidden = S.k !== 0 || S.phase !== 'playing';
+  }
+
+  /* ================= Shared by the column methods ================= */
+  const $ = sel => document.querySelector(sel);
+  const stage = $('#stage'), board = $('#board'), ans = $('#ans'), pad = $('.pad'), topBar = $('.top'), statusEl = $('#status');
+  const hearts = [...document.querySelectorAll('.lives svg')], livesBox = $('.lives');
+  const SELECTOR = '2026-10-21-level2-selector-mockup.html?concept=a';
+  const DIGITS = [...'0123456789'];
+  const SMALL = 0.5;          // carry and borrow digits, against the problem's size
+  const MAX_FS = 128;         // Level 1's largest equation
+  const params = new URLSearchParams(location.search);
+  const FIXED = ['empty', 'partial', 'done', 'wrong'].includes(params.get('state')) ? params.get('state') : null;
+  const RANDOM = params.get('random') === '1';
+  const scan = createScanner();
+  const px = v => onLayoutGrid(v, devicePixelRatio) + 'px';
+  const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+  const stepOf = Object.fromEntries(STEPS.flatMap((s, k) => s.cells.map(id => [id, k])));
+  if (FIXED) document.documentElement.classList.add('fixed');
+
+  /* ---------- Problems and play state ---------- */
+  let example = 0;
+  function nextProblem() {
+    if (RANDOM) return randomProblem();
+    const [a, b] = EXAMPLES[example++ % EXAMPLES.length];
+    return { a, b };
+  }
+  const S = { q: 1, lives: 3, p: null, x: null, k: 0, f: null, v: {}, done: [], phase: 'playing' };
+  function fresh(p) {
+    S.p = p;
+    S.x = solve(p.a, p.b);
+    S.k = 0;
+    S.v = Object.fromEntries(CELLS.map(c => [c.id, '']));
+    S.done = STEPS.map(() => false);
+    S.f = STEPS[0].cells[0];
+    S.lives = 3;
+    S.phase = 'playing';
+  }
+  if (params.has('a') && params.has('b')) fresh({ a: Number(params.get('a')), b: Number(params.get('b')) });
+  else fresh(nextProblem());
+  if (FIXED && FIXED !== 'empty') {
+    const fixed = fixedState(FIXED, S.x);
+    Object.assign(S.v, fixed.v);
+    delete fixed.v;
+    Object.assign(S, fixed);
+  }
+  window.mockup = { S };
+
+  /* ---------- Measuring ---------- */
+  const G = {};
+  window.mockup.G = G;
+  const baseCache = new Map();
+  // The baseline inside a 1em, line-height 1 box, read from the live layout (spec §6.1).
+  function baseAt(size) {
+    const key = `${G.family}|${size}`;
+    if (!baseCache.has(key)) {
+      const box = document.createElement('span');
+      box.style.cssText = `position:absolute;visibility:hidden;display:block;height:1em;line-height:1;white-space:pre;font-size:${size}px`;
+      box.innerHTML = '0<span style="display:inline-block;width:0;height:0;vertical-align:baseline"></span>';
+      board.appendChild(box);
+      baseCache.set(key, (box.lastChild.getBoundingClientRect().top - box.getBoundingClientRect().top) / size);
+      box.remove();
+    }
+    return baseCache.get(key);
+  }
+  const colour = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+
+  // Every size on the board, from the measured digit ink at font size fs,
+  // in px from the board's top left, on whole device pixels.
+  function measure(fs) {
+    const dpr = devicePixelRatio, d = v => snap(v, dpr);
+    const cs = getComputedStyle(board);
+    Object.assign(G, { dpr, fs, family: cs.fontFamily });
+    G.style = { weight: cs.fontWeight, family: cs.fontFamily, color: colour('--ink') };
+    G.opStyle = { ...G.style, color: colour('--muted') };
+    G.labelStyle = { ...G.opStyle, spacing: 0.04 };
+    const inkOf = size => {
+      const each = DIGITS.map(c => scan(c, G.style, size * dpr));
+      return { asc: Math.max(...each.map(m => m.asc)), desc: Math.max(...each.map(m => m.desc)), w: Math.max(...each.map(m => m.abl + m.abr)) };
+    };
+    const big = inkOf(fs);
+    G.asc = big.asc; G.desc = big.desc;
+    G.fsS = fs * SMALL;
+    const small = inkOf(G.fsS);
+    G.ascS = small.asc; G.descS = small.desc;
+
+    // A big cell is Level 1's box for one digit: the widest digit's ink,
+    // the same padding (0.1em) on all four sides, the border outside it.
+    // Cells in a row join into one segmented box: neighbours share a
+    // border, as thick as the outer one, so the column pitch is a cell's
+    // width less one border. Everything in a column sits on that pitch.
+    G.bw = Math.max(1, Math.floor(Math.max(0.025 * fs, 2) * dpr + 1e-3)) / dpr;
+    G.pad = d(0.1 * fs);
+    G.W = d(big.w * fs) + 2 * (G.pad + G.bw);
+    G.P = G.W - G.bw;                           // the column pitch
+    // The operator, in its own column left of the number: its ink 0.5em
+    // clear of the widest digit's ink in the tens column, so "+38" and
+    // "−27" never read as signed numbers. Where that takes it past the
+    // first column's left edge, the board grows to the left by `ox`, and
+    // the sum line starts under the operator's ink.
+    const opInk = scan(OP, G.opStyle, fs * dpr);
+    const opRight = G.P + G.W / 2 - big.w * fs / 2 - 0.5 * fs;
+    G.ox = d(Math.max(0, (opInk.abl + opInk.abr) * fs - opRight));
+    G.opRight = G.ox + opRight;
+    G.boardW = G.ox + 2 * G.P + G.W;
+    G.cx = [0, 1, 2].map(i => G.ox + i * G.P + G.W / 2);
+
+    // A small cell: the same, from the small digits' ink, with a 1px
+    // dashed frame. Its width differs from a big cell's by an even number of
+    // device pixels, so it centres exactly over its column.
+    G.bS = 1;
+    G.padS = d(0.28 * G.fsS);
+    let ws = d(small.w * G.fsS) + 2 * (G.padS + G.bS);
+    if (Math.round((G.W - ws) * dpr) % 2) ws += 1 / dpr;
+    G.Ws = ws;
+    G.ySb = d(G.bS + G.padS + G.ascS * G.fsS);  // its baseline, from its top
+    G.Hs = d(G.ySb + G.descS * G.fsS + G.padS + G.bS);
+
+    // Rows, top to bottom: the small cells, the two numbers, the rule, the
+    // answer. One ink gap (0.365em) between the numbers, from the second
+    // number to the rule, and from the rule to the answer cells. The small
+    // cells sit half that above the first number.
+    const inkH = (G.asc + G.desc) * fs;
+    G.c = d(0.365 * fs);
+    G.y1 = d(G.Hs + d(0.5 * G.c) + G.asc * fs);
+    G.y2 = G.y1 + d(inkH + G.c);
+    G.yL = d(G.y2 + G.desc * fs + G.c);
+    G.y3 = d(G.yL + G.bw + G.c + G.bw + G.pad + G.asc * fs);
+    G.boxT = d(G.y3 - G.asc * fs - G.pad - G.bw);
+    G.boxB = d(G.y3 + G.desc * fs + G.pad + G.bw);
+    G.boardH = G.boxB;
+
+    // Carets: a whole number of device pixels wide, of the same parity as
+    // the cell so they centre exactly; as tall as the digit ink, snapped
+    // outward so they never fall short of it.
+    const caretW = (size, cellW) => {
+      let w = Math.max(1, Math.round(Math.max(0.05 * size, 2) * dpr));
+      if ((Math.round(cellW * dpr) - w) % 2) w += 1;
+      return w / dpr;
+    };
+    G.cw = caretW(fs, G.W);
+    G.cwS = caretW(G.fsS, G.Ws);
+    G.caretT = Math.floor((G.y3 - G.asc * fs) * dpr + 1e-3) / dpr - G.boxT;
+    G.caretB = Math.ceil((G.y3 + G.desc * fs) * dpr - 1e-3) / dpr - G.boxT;
+    G.caretTS = Math.floor((G.ySb - G.ascS * G.fsS) * dpr + 1e-3) / dpr;
+    G.caretBS = Math.ceil((G.ySb + G.descS * G.fsS) * dpr - 1e-3) / dpr;
+
+    // "Question N", as Level 1's label: its ink centred over the board, a
+    // gap above the small cells.
+    G.lfs = Math.max(15, 0.16 * fs);
+    const lm = scan('Question 1', G.labelStyle, G.lfs * dpr);
+    G.labelH = (lm.asc + lm.desc) * G.lfs;
+    G.gapL = Math.max(0.2 * fs, 18);
+  }
+
+  // Fit the board to the problem area (spec §3.2): as big as fits, at most
+  // Level 1's largest size, between the side gutters, centred, with
+  // "Question N" above it and some air above and below.
+  function fit() {
+    const gutter = parseFloat(getComputedStyle(stage).getPropertyValue('--gutter')) || 16;
+    const across = stage.clientWidth - 2 * gutter - 1;
+    const half = stage.clientHeight / 2 - Math.max(12, 0.05 * stage.clientHeight);
+    let fs = MAX_FS;
+    for (let round = 0; round < 6; round++) {
+      measure(fs);
+      const s = Math.min(across / G.boardW, half / (G.boardH / 2 + G.gapL + G.labelH));
+      if (Math.abs(s - 1) < 1e-3 || (s >= 1 && fs >= MAX_FS)) break;
+      fs = Math.max(10, Math.min(MAX_FS, fs * s));
+    }
+  }
+
+  // Put a text element's ink centred on x = cx (or its right or left ink
+  // edge on cx), its baseline on `base` (a whole device pixel). The page draws
+  // text at fractions of a device pixel, and the ink comes out a little
+  // differently at each: it is scanned again where it will be drawn (the
+  // board and every cell start on whole device pixels). Returns its ink box.
+  function placeText(el, text, size, style, cx, base, align = 'centre') {
+    const dpr = G.dpr;
+    const start = m => align === 'right' ? cx - m.abr * size : align === 'left' ? cx + m.abl * size : cx - (m.abr - m.abl) / 2 * size;
+    let m = scan(text, style, size * dpr);
+    for (let i = 0; i < 3; i++) {
+      const phase = Math.round((((start(m) * dpr) % 1) + 1) % 1 * 64) % 64 / 64;
+      m = scan(text, style, size * dpr, phase);
+    }
+    const x = start(m);
+    el.textContent = text;
+    el.style.fontSize = size + 'px';
+    el.style.left = px(x);
+    el.style.top = px(base - baseAt(size) * size);
+    return { l: x - m.abl * size, r: x + m.abr * size, t: base - m.asc * size, b: base + m.desc * size };
+  }
+
+  /* ---------- Drawing ---------- */
+  const E = {};      // the board's elements for the problem on screen
+  const el = (tag, cls, parent = board) => {
+    const node = document.createElement(tag);
+    if (cls) node.setAttribute('class', cls);
+    parent.appendChild(node);
+    return node;
+  };
+
+  function build() {
+    board.replaceChildren();
+    E.label = el('span', 't qlabel');
+    E.a = [0, 1].map(() => el('span', 't dg'));
+    E.b = [0, 1].map(() => el('span', 't dg'));
+    E.op = el('span', 't op');
+    E.rule = el('i', 'rule');
+    E.cells = {};
+    for (const c of CELLS) {
+      const cell = el('div', `cell ${c.kind}${c.opt ? ' opt' : ''}`);
+      cell.dataset.tap = c.id;
+      el('i', 'frame', cell);
+      E.cells[c.id] = { cell, v: el('span', 't v', cell), caret: el('i', 'caret', cell) };
+    }
+    if (typeof buildExtra === 'function') buildExtra();
+  }
+
+  function place() {
+    const { fs, dpr } = G;
+    // The board on whole device pixels, centred in the problem area.
+    const sr = stage.getBoundingClientRect();
+    board.style.left = px(snap(sr.left + sr.width / 2 - G.boardW / 2, dpr) - sr.left);
+    board.style.top = px(snap(sr.top + sr.height / 2 - G.boardH / 2, dpr) - sr.top);
+    board.style.fontSize = fs + 'px';
+    board.style.setProperty('--bw', G.bw + 'px');
+    board.style.setProperty('--sk', (0.12 * fs).toFixed(3) + 'px');
+
+    const label = 'Question ' + S.q;
+    const lm = scan(label, G.labelStyle, G.lfs * dpr);
+    placeText(E.label, label, G.lfs, G.labelStyle, G.boardW / 2, snap(-G.gapL - lm.desc * G.lfs, dpr));
+
+    const a = String(S.p.a), b = String(S.p.b);
+    E.inkA = [...a].map((ch, i) => placeText(E.a[i], ch, fs, G.style, G.cx[i + 1], G.y1));
+    E.inkB = [...b].map((ch, i) => placeText(E.b[i], ch, fs, G.style, G.cx[i + 1], G.y2));
+    // The operator left of the second number (see measure), its ink
+    // centred on the digit ink.
+    const om = scan(OP, G.opStyle, fs * dpr);
+    const mid = G.y2 + (G.desc - G.asc) / 2 * fs;
+    placeText(E.op, OP, fs, G.opStyle, G.opRight, snap(mid - (om.desc - om.asc) / 2 * fs, dpr), 'right');
+    // The rule: as wide as the columns, as heavy as the answer boxes' border.
+    Object.assign(E.rule.style, { left: '0px', top: px(G.yL), width: px(G.boardW), height: px(G.bw) });
+
+    for (const c of CELLS) {
+      const { cell, caret } = E.cells[c.id];
+      const big = c.kind === 'big';
+      const w = big ? G.W : G.Ws, h = big ? G.boxB - G.boxT : G.Hs;
+      Object.assign(cell.style, {
+        left: px(G.ox + c.col * G.P + (big ? 0 : (G.W - G.Ws) / 2)),
+        top: px(big ? G.boxT : 0), width: px(w), height: px(h),
+      });
+      const cw = big ? G.cw : G.cwS;
+      Object.assign(caret.style, {
+        left: px((w - cw) / 2), width: px(cw),
+        top: px(big ? G.caretT : G.caretTS), height: px(big ? G.caretB - G.caretT : G.caretBS - G.caretTS),
+      });
+    }
+    if (typeof placeExtra === 'function') placeExtra();
+    update();
+  }
+
+  // The state into the board: what is written, where the cursor is, what is checked.
+  function update() {
+    for (const c of CELLS) {
+      const { cell, v } = E.cells[c.id];
+      const val = S.v[c.id];
+      const big = c.kind === 'big';
+      cell.classList.toggle('filled', val !== '');
+      cell.classList.toggle('focus', S.f === c.id && S.phase === 'playing');
+      cell.classList.toggle('ok', S.done[stepOf[c.id]]);
+      if (val === '') v.textContent = '';
+      else placeText(v, val, big ? G.fs : G.fsS, G.style, (big ? G.W : G.Ws) / 2, big ? G.y3 - G.boxT : G.ySb);
+    }
+    if (typeof updateExtra === 'function') updateExtra();
+    // The caret starts its blink afresh wherever it goes, solid as it lands.
+    for (const c of CELLS) for (const anim of E.cells[c.id].caret.getAnimations()) anim.currentTime = 0;
+    hearts.forEach((h, i) => h.classList.toggle('lost', i >= S.lives));
+    livesBox.setAttribute('aria-label', S.lives === 1 ? '1 life left' : `${S.lives} lives left`);
+    const cell = CELLS.find(c => c.id === S.f);
+    ans.setAttribute('aria-label', cell ? cell.name : 'Column written: Enter checks it');
+  }
+
+  /* ---------- Playing ---------- */
+  const order = () => typingOrder(S.k, S.v, S.f);
+
+  function moveTo(id) {
+    S.f = id;
+    update();
+  }
+
+  // The next empty cell of the column after `from`, in working order, or
+  // none (the column is written: the caret hides until Enter checks it).
+  function nextEmpty(from) {
+    const o = order(), i = o.indexOf(from);
+    for (let j = 1; j <= o.length; j++) {
+      const id = o[(i + j) % o.length];
+      if (S.v[id] === '') return id;
+    }
+    return null;
+  }
+
+  function press(key) {
+    if (S.phase !== 'playing') return 'ignored';
+    if (/^\d$/.test(key)) {
+      if (!S.f) return 'ignored';
+      S.v[S.f] = key;
+      S.f = nextEmpty(S.f);
+      update();
+      return 'typed';
+    }
+    if (key === 'Backspace') {
+      // Rub out the cell you are on; on an empty one, step back to the last
+      // thing you wrote in this column.
+      if (S.f && S.v[S.f] !== '') { S.v[S.f] = ''; update(); return 'typed'; }
+      const o = order();
+      for (let j = (S.f ? o.indexOf(S.f) : o.length) - 1; j >= 0; j--) {
+        if (S.v[o[j]] !== '') { S.v[o[j]] = ''; moveTo(o[j]); return 'typed'; }
+      }
+      return typeof backFromEmpty === 'function' ? backFromEmpty() : 'ignored';
+    }
+    if (key === 'Enter') return check();
+    if (key.startsWith('Arrow')) {
+      const to = STEPS[S.k].nav[S.f ?? STEPS[S.k].cells[0]]?.[key];
+      if (!to) return 'ignored';
+      moveTo(to);
+      return 'moved';
+    }
+    return 'ignored';
+  }
+
+  function tap(id) {
+    if (S.phase !== 'playing' || stepOf[id] !== S.k) return;
+    moveTo(id);
+  }
+
+  // Enter checks the column you are on. While its answer cell (the column's
+  // first) is empty there is nothing to check, and nothing happens, as in
+  // Level 1. Right: it turns green and the cursor moves on to the next
+  // column. Wrong: its cells shake and clear, and a heart is lost.
+  function check() {
+    const step = STEPS[S.k];
+    if (S.v[step.cells[0]] === '') return 'ignored';
+    if (checkStep(S.k, S.v, S.x)) {
+      S.done[S.k] = true;
+      S.k += 1;
+      if (S.k === STEPS.length) {
+        S.phase = 'correct';
+        S.f = null;
+        update();
+        showCorrect();
+        return 'correct';
+      }
+      S.f = STEPS[S.k].cells[0];
+      update();
+      statusEl.textContent = 'Right. Next column.';
+      return 'step';
+    }
+    S.lives -= 1;
+    for (const id of step.cells) S.v[id] = '';
+    S.f = step.cells[0];
+    if (S.lives === 0) S.phase = 'out';
+    update();
+    shake(step.cells);
+    statusEl.textContent = S.lives ? `Wrong, ${livesBox.getAttribute('aria-label')}` : 'Out of lives';
+    if (S.lives === 0) wait(450).then(() => { location.href = SELECTOR; });
+    return S.lives ? 'wrong' : 'out';
+  }
+
+  // The column's small cell shakes, and the answer row as one box: its
+  // cells share borders, so one cell shaking alone would tear the box.
+  function shake(ids) {
+    const nodes = new Set();
+    for (const id of ids) {
+      if (CELLS.find(c => c.id === id).kind === 'small') nodes.add(E.cells[id].cell);
+      else for (const c of CELLS) if (c.kind === 'big') nodes.add(E.cells[c.id].cell);
+    }
+    for (const node of nodes) {
+      node.classList.remove('shake');
+      void node.offsetWidth;          // restart the animation
+      node.classList.add('shake');
+    }
+  }
+  board.addEventListener('animationend', e => {
+    if (e.animationName === 'colshake') e.target.classList.remove('shake');
+  });
+
+  // Green for 0.35s, slide out, the next problem slides in (Level 1 §2).
+  async function showCorrect() {
+    statusEl.textContent = 'Correct';
+    await wait(350);
+    board.classList.remove('in');
+    board.classList.add('out');
+    const slide = board.getAnimations().find(anim => anim.animationName === 'out');
+    if (slide) await Promise.race([slide.finished.catch(() => {}), wait(1000)]);
+    S.q += 1;
+    fresh(nextProblem());
+    build();
+    safeLayout();
+    board.classList.remove('out');
+    void board.offsetWidth;
+    board.classList.add('in');
+    statusEl.textContent = `Question ${S.q}: ${S.p.a} ${OP_WORD} ${S.p.b}`;
+  }
+
+  /* ---------- Input: keypad, keyboard, taps ---------- */
+  const flashes = new Map();
+  function flash(key) {
+    const btn = pad.querySelector(`button[data-k="${key}"]`);
+    if (!btn) return;
+    clearTimeout(flashes.get(btn));
+    btn.classList.add('pressed');
+    flashes.set(btn, setTimeout(() => btn.classList.remove('pressed'), 110));
+  }
+  const KEYS = new Set(['Enter', 'Backspace', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight']);
+  ans.addEventListener('keydown', e => {
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    if (e.key === 'Tab') { e.preventDefault(); return; }
+    if (e.key === 'Escape') { if (!e.isComposing) location.href = SELECTOR; return; }
+    if (!KEYS.has(e.key) && !/^\d$/.test(e.key)) return;
+    e.preventDefault();
+    if (press(e.key) !== 'ignored') flash(e.key);
+  });
+  ans.addEventListener('beforeinput', e => e.preventDefault());
+  ans.addEventListener('focus', () => document.body.classList.add('typing'));
+  ans.addEventListener('blur', () => document.body.classList.remove('typing'));
+  pad.addEventListener('click', e => {
+    const btn = e.target.closest('button[data-k]');
+    if (btn) press(btn.dataset.k);
+  });
+  // Focus always stays in the field (Level 1 §3.3): taps never take it.
+  const keep = () => ans.focus({ preventScroll: true });
+  document.addEventListener('pointerdown', e => {
+    const target = e.target.closest('[data-tap]');
+    if (target) tap(target.dataset.tap);
+    if (e.target !== ans && !e.target.closest('a')) { e.preventDefault(); keep(); }
+  });
+  document.addEventListener('focusin', e => { if (e.target !== ans && !e.target.closest('a')) keep(); });
+  ans.addEventListener('focusout', e => {
+    if (e.relatedTarget) return;      // focus went to an element: focusin sends it back
+    queueMicrotask(() => { if (document.hasFocus() && document.activeElement !== ans) keep(); });
+  });
+
+  /* ---------- Layout ---------- */
+  // The "Levels" link's underline, from its first ink to its last.
+  function underline() {
+    const link = $('.crumbs .back');
+    const cs = getComputedStyle(link);
+    const fs = parseFloat(cs.fontSize);
+    const dpr = devicePixelRatio;
+    const m = scan(link.textContent, { weight: cs.fontWeight, family: cs.fontFamily, color: cs.color, spacing: (parseFloat(cs.letterSpacing) || 0) / fs }, fs * dpr);
+    const box = link.getBoundingClientRect();
+    link.style.setProperty('--ul-left', (snap(box.left - m.abl * fs, dpr) - box.left) + 'px');
+    link.style.setProperty('--ul-right', (box.right - snap(box.left + m.abr * fs, dpr)) + 'px');
+  }
+
+  function safeLayout() {
+    try {
+      baseCache.clear();
+      fitHeader(topBar, scan);
+      underline();
+      if (stage.clientWidth) {
+        fit();
+        place();
+      }
+      centreKeys(pad, scan);
+    } catch (err) {
+      console.error(err);
+    }
+  }
+  let queued = false;
+  const relayout = () => {
+    if (queued) return;
+    queued = true;
+    requestAnimationFrame(() => { queued = false; safeLayout(); });
+  };
+
+  fontsReady().then(() => {
+    build();
+    safeLayout();
+    document.documentElement.classList.remove('loading');
+    const resized = new ResizeObserver(relayout);
+    resized.observe(stage);
+    resized.observe(topBar);
+    keep();
+    statusEl.textContent = `Question ${S.q}: ${S.p.a} ${OP_WORD} ${S.p.b}`;
+  });
+</script>
+</body>
+</html>
