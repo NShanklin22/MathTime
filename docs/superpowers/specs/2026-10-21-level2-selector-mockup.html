@@ -1,0 +1,316 @@
+<!doctype html>
+<html lang="en" class="loading">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Level selector mockup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=block">
+<style>
+  /* Three layouts for the level selector (Level 2 design). Open with
+     ?concept=a (list), b (route map) or c (tiles); with no concept it shows
+     all three side by side at phone size. Served by the dev server: the
+     sample problems are centred on their ink with the game's own scanner. */
+  :root {
+    --bg: #12407e;
+    --ink: #eef5ff;
+    --muted: #b6cdee;
+    --faint: #6f95cc;
+    --amber: #ffd66b;
+    --key-ring: inset 0 0 0 1.5px rgba(238, 245, 255, 0.8);
+    --key-press: rgba(255, 255, 255, 0.12);
+    --font: "IBM Plex Mono", "IBM Plex Sans", ui-monospace, monospace;
+    --gutter: 24px;
+    --top-pad: 20px;
+  }
+  @media (max-width: 480px) {
+    :root { --gutter: 16px; --top-pad: 16px; }
+  }
+  *, *::before, *::after { box-sizing: border-box; }
+  html, body { margin: 0; }
+  html.loading body.sel { visibility: hidden; }
+
+  /* ---------- The selector (Blueprint, as the game) ---------- */
+  body.sel {
+    min-height: 100dvh;
+    background:
+      linear-gradient(rgba(255, 255, 255, 0.14) 1px, transparent 1px) -1px -1px / 100px 100px,
+      linear-gradient(90deg, rgba(255, 255, 255, 0.14) 1px, transparent 1px) -1px -1px / 100px 100px,
+      linear-gradient(rgba(255, 255, 255, 0.06) 1px, transparent 1px) -1px -1px / 20px 20px,
+      linear-gradient(90deg, rgba(255, 255, 255, 0.06) 1px, transparent 1px) -1px -1px / 20px 20px,
+      var(--bg);
+    color: var(--ink);
+    font-family: var(--font);
+    -webkit-tap-highlight-color: transparent;
+  }
+  .top { padding: var(--top-pad) var(--gutter) 0; }
+  .where { min-width: 0; }
+  .crumbs { font-size: 14px; line-height: 20px; letter-spacing: 0.04em; color: var(--ink); font-weight: 600; white-space: nowrap; }
+  .road { display: flex; gap: 4px; margin-top: 8px; }
+  .road span { width: 20px; height: 4px; background: var(--faint); }
+  .road span.now { background: var(--amber); }
+
+  /* The levels: one column, as wide as the keypad (420px with 16px sides). */
+  .levels { max-width: 420px; margin: 0 auto; padding: 40px 16px 32px; }
+  @media (max-width: 480px) { .levels { max-width: none; padding: 40px var(--gutter) 32px; } }
+
+  button {
+    font: inherit;
+    color: inherit;
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    padding: 0;
+    margin: 0;
+    text-align: left;
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+  button:focus-visible { outline: 2px solid var(--ink); outline-offset: 4px; }   /* amber means "current" */
+
+  /* Text boxes trimmed to the capitals and the baseline, so spacing and
+     centring are of the ink, not the line box. */
+  .title, .name, .topic-name { display: block; text-box: trim-both cap alphabetic; white-space: nowrap; }
+  .title { font-size: 17px; font-weight: 600; letter-spacing: 0.02em; }
+  .name { font-size: 13px; color: var(--muted); letter-spacing: 0.02em; }
+  .topic-name { margin: 0; font-size: 12px; font-weight: 500; color: var(--muted); letter-spacing: 0.1em; text-transform: uppercase; }
+
+  /* A sample problem, set as the game sets the equation: 1em cells, the
+     operators centred on the digit ink, the digit ink centred in its box. */
+  .sample { display: flex; gap: 0.3em; font-size: 30px; font-weight: 500; line-height: 1; transform: translate(var(--ink-dx, 0), var(--ink-dy, 0)); }
+  .sample > span { display: block; height: 1em; line-height: 1; }
+  .sample .op { color: var(--muted); position: relative; }
+
+  /* A: a list by topic. Each level a row: number and name, sample on the right. */
+  .a .topic + .topic { margin-top: 32px; }
+  .a .topic-name { margin-bottom: 14px; }
+  .a .row {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    height: 80px;
+    padding: 0 24px;
+    box-shadow: var(--key-ring);
+  }
+  .a .txt { display: flex; flex-direction: column; gap: 10px; }
+  .a .row.current::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--amber); }
+  .a .row:active { background: var(--key-press); }
+
+  /* B: a route map. A line through the stations; each station's dot, number
+     and sample on one line, the name under the number. */
+  .b .route { position: relative; list-style: none; margin: 0; padding: 0; }
+  .b .line { position: absolute; left: 9px; width: 2px; background: var(--faint); }
+  .b .stop + .stop { margin-top: 32px; }     /* 40px from a name to the next topic, with the padding */
+  .b .topic-name { margin: 0 0 14px 40px; }  /* 18px to the title, with the padding */
+  .b .station {
+    display: grid;
+    grid-template-columns: 20px 1fr auto;
+    column-gap: 20px;
+    row-gap: 1px;              /* with the sample's 30px row, 10px from the number's ink to the name's */
+    align-items: center;
+    width: calc(100% + 16px);
+    margin: 0 -8px;
+    padding: 4px 8px 8px;      /* room round the content for the pressed fill and the focus ring, clear of the descenders and the topic above */
+  }
+  .b .station:active { background: var(--key-press); }
+  .b .dot { position: relative; z-index: 1; width: 20px; height: 20px; border-radius: 50%; border: 2px solid var(--ink); background: var(--bg); }
+  .b .current .dot { background: var(--amber); border-color: var(--amber); }
+  .b .title { grid-column: 2; grid-row: 1; }
+  .b .sample { grid-column: 3; grid-row: 1; }
+  .b .name { grid-column: 2; grid-row: 2; }
+  .b .dot { grid-column: 1; grid-row: 1; }
+
+  /* C: tiles. Topic at the top, sample in the middle, number at the bottom. */
+  .c .tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .c .tile {
+    position: relative;
+    aspect-ratio: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 12px;
+    text-align: center;
+    box-shadow: var(--key-ring);
+  }
+  .c .tile.current { box-shadow: inset 0 0 0 2px var(--amber); }
+  .c .tile:active { background: var(--key-press); }
+  .c .tile .sample { font-size: 34px; }   /* equal space to both labels' ink */
+
+  /* ---------- The gallery (all three, side by side) ---------- */
+  body.gallery {
+    background: #f2f1ed;
+    color: #1f1e1b;
+    font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  .wrap { width: calc(3 * 377px + 2 * 32px + 48px); max-width: 100%; margin: 0 auto; padding: 40px 24px 64px; }
+  .wrap h1 { font-size: 28px; line-height: 36px; font-weight: 600; margin: 0 0 8px; }
+  .lede { color: #6b6861; margin: 0 0 32px; max-width: 640px; }
+  .grid { display: grid; grid-template-columns: repeat(3, 377px); gap: 40px 32px; }   /* 375px frames and their border */
+  @media (max-width: 1250px) { .grid { grid-template-columns: repeat(2, 377px); } .wrap { width: calc(2 * 377px + 32px + 48px); } }
+  @media (max-width: 840px) { .grid { grid-template-columns: 377px; } .wrap { width: calc(377px + 48px); } }
+  .head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 4px; }
+  .head .name-g { font-weight: 600; }
+  .head a { font-size: 14px; color: #2559ad; text-decoration: none; }
+  .head a:hover { text-decoration: underline; }
+  .desc { font-size: 14px; line-height: 20px; color: #6b6861; margin: 0 0 12px; min-height: 40px; }
+  .frame { box-sizing: content-box; width: 375px; height: 812px; border-radius: 20px; overflow: hidden; border: 1px solid #d9d6ce; background: #12407e; }
+  .frame iframe { display: block; width: 100%; height: 100%; border: 0; }
+</style>
+</head>
+<body>
+<script type="module">
+  import { createScanner } from '/src/scanner.js';
+  import { band, snap } from '/src/ink.js';
+  import { fitHeader } from '/src/header.js';
+
+  const LEVELS = [
+    { n: 1, topic: 'Addition', name: 'Single-digit addition', sample: ['3', '+', '4'] },
+    { n: 2, topic: 'Subtraction', name: 'Subtraction within 10', sample: ['7', '−', '3'] },
+  ];
+  const CURRENT = 1;   // as if you just came back from Level 1
+  const CONCEPTS = {
+    a: ['List', 'A row per level under its topic: number and name on the left, a sample problem on the right.'],
+    b: ['Route map', 'Levels as stations on a line, like a trace on the blueprint. The level you came from is lit amber.'],
+    c: ['Tiles', 'A square tile per level: topic at the top, a sample problem in the middle, its number at the bottom.'],
+  };
+  const concept = new URLSearchParams(location.search).get('concept');
+  const html = (strings, ...values) => strings.reduce((out, s, i) => out + s + (values[i] ?? ''), '');
+  const sample = parts => html`<span class="sample" aria-hidden="true">${parts.map(p => /[0-9]/.test(p) ? `<span>${p}</span>` : `<span class="op">${p}</span>`).join('')}</span>`;
+  const label = l => `Level ${l.n}: ${l.name}`;
+
+  if (!CONCEPTS[concept]) gallery();
+  else selector(concept);
+
+  function gallery() {
+    document.body.className = 'gallery';
+    document.documentElement.classList.remove('loading');
+    document.body.innerHTML = html`<div class="wrap">
+      <h1>Level selector: three layouts</h1>
+      <p class="lede">Only the levels that exist: Level 1 and Level 2. Shown as if you just came back from Level 1, marked in amber. Open any one full screen to see it at desktop size.</p>
+      <div class="grid">${Object.entries(CONCEPTS).map(([id, [name, desc]]) => html`
+        <article>
+          <div class="head"><span class="name-g">${id.toUpperCase()}. ${name}</span><a href="?concept=${id}" target="_blank" rel="noopener">Open full screen</a></div>
+          <p class="desc">${desc}</p>
+          <div class="frame"><iframe src="?concept=${id}" title="${name} layout"></iframe></div>
+        </article>`).join('')}
+      </div></div>`;
+  }
+
+  async function selector(id) {
+    document.body.className = 'sel';
+    const header = html`<header class="top"><div class="where"><div class="crumbs"><span class="here">Levels</span></div>
+      <div class="road" role="img" aria-label="Roadmap stage 1 of 7: Arithmetic">${'<span class="now"></span>' + '<span></span>'.repeat(6)}</div></div></header>`;
+    const current = l => l.n === CURRENT ? ' current' : '';
+    let body;
+    if (id === 'a') {
+      body = LEVELS.map(l => html`<section class="topic"><h2 class="topic-name">${l.topic}</h2>
+        <button class="row${current(l)}" aria-label="${label(l)}"><span class="txt"><span class="title">Level ${l.n}</span><span class="name">${l.name}</span></span>${sample(l.sample)}</button></section>`).join('');
+    } else if (id === 'b') {
+      body = html`<ol class="route"><div class="line" aria-hidden="true"></div>${LEVELS.map(l => html`<li class="stop">
+        <span class="topic-name">${l.topic}</span>
+        <button class="station${current(l)}" aria-label="${label(l)}"><span class="dot"></span><span class="title">Level ${l.n}</span>${sample(l.sample)}<span class="name">${l.name}</span></button></li>`).join('')}</ol>`;
+    } else {
+      body = html`<div class="tiles">${LEVELS.map(l => html`<button class="tile${current(l)}" aria-label="${label(l)}">
+        <span class="topic-name">${l.topic}</span>${sample(l.sample)}<span class="title">Level ${l.n}</span></button>`).join('')}</div>`;
+    }
+    document.body.innerHTML = header + html`<main class="levels ${id}">${body}</main>`;
+    // A clickable sketch: Level 1 opens the game, Level 2 its mockup.
+    document.querySelectorAll('.levels button').forEach((b, i) => b.addEventListener('click', () => {
+      (window.top || window).location.href = i === 0 ? '/' : '2026-10-21-level2-play-mockup.html';
+    }));
+
+    await Promise.all(['400', '500', '600'].map(w => document.fonts.load(`${w} 30px "IBM Plex Mono"`)));
+    await document.fonts.ready;
+    const scan = createScanner();
+    fitHeader(document.querySelector('.top'), scan);
+    if (id !== 'c') document.querySelectorAll('.levels .title, .levels .name, .levels .topic-name').forEach(el => inkLeft(el, scan));
+    centreSamples(scan);
+    document.querySelectorAll('.sample').forEach(el => placeSample(el, id, scan));
+    if (id === 'c') document.querySelectorAll('.tile .title, .tile .topic-name').forEach(el => centreLabel(el, scan));
+    if (id === 'b') drawLine();
+    document.documentElement.classList.remove('loading');
+  }
+
+  // As the game does it (layout.js): the baseline from a probe, the digit
+  // band from all ten digits' scanned ink, each operator moved onto the
+  // digits' ink centre, and the whole sample moved so that centre is its box's.
+  function centreSamples(scan) {
+    for (const s of document.querySelectorAll('.sample')) {
+      const cs = getComputedStyle(s);
+      const fs = parseFloat(cs.fontSize);
+      const size = fs * devicePixelRatio;
+      const style = { weight: cs.fontWeight, family: cs.fontFamily, color: cs.color };
+      const probe = document.createElement('span');
+      probe.style.cssText = 'position:absolute;visibility:hidden;display:block;height:1em;line-height:1;white-space:pre';
+      probe.innerHTML = '0<span style="display:inline-block;width:0;height:0;vertical-align:baseline"></span>';
+      s.appendChild(probe);
+      const base = (probe.lastChild.getBoundingClientRect().top - probe.getBoundingClientRect().top) / fs;
+      probe.remove();
+      const each = [...'0123456789'].map(c => scan(c, style, size));
+      const digits = band({ asc: Math.max(...each.map(m => m.asc)), desc: Math.max(...each.map(m => m.desc)) }, base);
+      for (const op of s.querySelectorAll('.op')) {
+        const m = scan(op.textContent, { ...style, color: getComputedStyle(op).color }, size);
+        op.style.top = (digits.mid - band(m, base).mid).toFixed(4) + 'em';
+      }
+      s.style.setProperty('--ink-dy', (0.5 - digits.mid).toFixed(4) + 'em');
+    }
+  }
+
+  // A text element's font as the scanner wants it, and its text as drawn.
+  function textOf(el) {
+    const cs = getComputedStyle(el);
+    const fs = parseFloat(cs.fontSize);
+    const style = { weight: cs.fontWeight, family: cs.fontFamily, color: cs.color, spacing: (parseFloat(cs.letterSpacing) || 0) / fs };
+    return { fs, style, text: cs.textTransform === 'uppercase' ? el.textContent.toUpperCase() : el.textContent };
+  }
+
+  // Move a label so its ink, not its box, starts at its left edge, the
+  // start on a whole device pixel (as the game's breadcrumb).
+  function inkLeft(el, scan) {
+    const { fs, style, text } = textOf(el);
+    const left = el.getBoundingClientRect().left;
+    const margin = parseFloat(getComputedStyle(el).marginLeft) || 0;
+    const abl = scan(text, style, fs * devicePixelRatio).abl;
+    el.style.marginLeft = (margin + snap(left + abl * fs, devicePixelRatio) - left).toFixed(4) + 'px';
+  }
+
+  // Line a sample's ink up across: its right ink edge on its box's right
+  // edge (A, B), or its ink centred in its tile (C).
+  function placeSample(s, id, scan) {
+    const { fs, style } = textOf(s);
+    const size = fs * devicePixelRatio;
+    const first = s.firstElementChild, last = s.lastElementChild;
+    const inkL = first.getBoundingClientRect().left - scan(first.textContent, style, size).abl * fs;
+    const inkR = last.getBoundingClientRect().left + scan(last.textContent, style, size).abr * fs;
+    const box = (id === 'c' ? s.closest('.tile') : s).getBoundingClientRect();
+    const dx = id === 'c' ? (box.left + box.right) / 2 - (inkL + inkR) / 2 : box.right - inkR;
+    s.style.setProperty('--ink-dx', dx.toFixed(4) + 'px');
+  }
+
+  // Centre a tile's label on its ink: its trailing letter spacing and side
+  // bearings would leave it off-centre.
+  function centreLabel(el, scan) {
+    const { fs, style, text } = textOf(el);
+    const m = scan(text, style, fs * devicePixelRatio);
+    const box = el.getBoundingClientRect();
+    const tile = el.closest('.tile').getBoundingClientRect();
+    const ink = box.left + (m.abr - m.abl) / 2 * fs;
+    el.style.transform = `translateX(${((tile.left + tile.right) / 2 - ink).toFixed(4)}px)`;
+  }
+
+  // The route's line runs from the first station's dot centre to the last's.
+  function drawLine() {
+    const route = document.querySelector('.route');
+    const dots = [...route.querySelectorAll('.dot')].map(d => d.getBoundingClientRect());
+    const top = route.getBoundingClientRect().top;
+    const line = route.querySelector('.line');
+    line.style.top = (dots[0].top + dots[0].height / 2 - top) + 'px';
+    line.style.height = (dots.at(-1).top - dots[0].top) + 'px';
+  }
+</script>
+</body>
+</html>

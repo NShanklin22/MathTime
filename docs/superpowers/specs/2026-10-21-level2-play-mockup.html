@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="en" class="loading">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Level 2 mockup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<!-- Level 2 (subtraction within 10) on the game's own styles and layout code
+     (src/), with the new breadcrumb: "Levels" is the way back to the level
+     selector. Served by the dev server. ?a=7&b=3 fixes the first problem. -->
+<link rel="stylesheet" href="/src/styles.css">
+<style>
+  /* The way back: the first crumb, a link to the selector (or Esc). A faint
+     underline from its first ink to its last, so it reads as tappable
+     without sticking out past the header's edge; the ends come from the
+     scanner (--ul-left, --ul-right). The hit area runs up to the top of the
+     screen and out into the gutter, and stops 1px above the roadmap strip,
+     whose segments keep their tooltips. */
+  .crumbs .back { position: relative; color: var(--muted); text-decoration: none; }
+  .crumbs .back::before {
+    content: "";
+    position: absolute;
+    left: var(--ul-left, 0);
+    right: var(--ul-right, 0);
+    top: 19px;
+    height: 1px;
+    background: var(--faint);
+  }
+  .crumbs .back::after {
+    content: "";
+    position: absolute;
+    top: calc(-1 * var(--top-safe));
+    bottom: calc(1px - var(--road-gap));
+    left: calc(-1 * var(--gutter));
+    right: -8px;
+  }
+  .crumbs .back:focus-visible { outline: 2px solid var(--ink); outline-offset: 4px; }
+  @media (hover: hover) { .crumbs .back:hover::before { background: currentColor; } }
+</style>
+</head>
+<body>
+  <header class="top">
+    <div class="where">
+      <!-- The topic crumb drops first when the header is tight (it carries
+           the classes header.js drops first); "Levels" never drops. -->
+      <nav class="crumbs" aria-label="Breadcrumb">
+        <a class="back" href="2026-10-21-level2-selector-mockup.html?concept=a" aria-keyshortcuts="Escape">Levels</a>
+        <svg class="sep" viewBox="0 0 12 12" aria-hidden="true"><path d="M4.5 2.5L8 6l-3.5 3.5"/></svg>
+        <span class="stage-name">Subtraction</span>
+        <svg class="sep stage-sep" viewBox="0 0 12 12" aria-hidden="true"><path d="M4.5 2.5L8 6l-3.5 3.5"/></svg>
+        <span class="here" aria-current="step">Level 2</span>
+      </nav>
+      <div class="road" role="img" aria-label="Roadmap stage 1 of 7: Arithmetic. Then fractions, algebra, geometry, trigonometry, calculus, physics.">
+        <span class="now" title="Arithmetic"></span>
+        <span title="Fractions"></span>
+        <span title="Algebra"></span>
+        <span title="Geometry"></span>
+        <span title="Trigonometry"></span>
+        <span title="Calculus"></span>
+        <span title="Physics"></span>
+      </div>
+    </div>
+    <div class="lives" role="img" aria-label="3 lives left">
+      <svg viewBox="2 3 20 18" aria-hidden="true"><path d="M19.5 12.572l-7.5 7.428l-7.5 -7.428a5 5 0 1 1 7.5 -6.566a5 5 0 1 1 7.5 6.572"/></svg>
+      <svg viewBox="2 3 20 18" aria-hidden="true"><path d="M19.5 12.572l-7.5 7.428l-7.5 -7.428a5 5 0 1 1 7.5 -6.566a5 5 0 1 1 7.5 6.572"/></svg>
+      <svg viewBox="2 3 20 18" aria-hidden="true"><path d="M19.5 12.572l-7.5 7.428l-7.5 -7.428a5 5 0 1 1 7.5 -6.566a5 5 0 1 1 7.5 6.572"/></svg>
+    </div>
+  </header>
+
+  <main class="stage">
+    <div class="eq" id="eq">
+      <span class="qnum" id="qnum">Question 1</span>
+      <span id="a">7</span>
+      <span class="op">&minus;</span>
+      <span id="b">3</span>
+      <span class="op">=</span>
+      <span class="slot empty" id="slot">
+        <span class="shown" aria-hidden="true"><span id="shown"></span><span class="caret"></span></span>
+        <input id="ans" inputmode="none" maxlength="1" autocomplete="off" aria-label="Answer">
+      </span>
+    </div>
+  </main>
+
+  <p class="sr-only" role="status" id="status"></p>
+
+  <div class="pad" role="group" aria-label="Keypad">
+    <button tabindex="-1" data-k="1"><span class="kl">1</span></button>
+    <button tabindex="-1" data-k="2"><span class="kl">2</span></button>
+    <button tabindex="-1" data-k="3"><span class="kl">3</span></button>
+    <button tabindex="-1" data-k="4"><span class="kl">4</span></button>
+    <button tabindex="-1" data-k="5"><span class="kl">5</span></button>
+    <button tabindex="-1" data-k="6"><span class="kl">6</span></button>
+    <button tabindex="-1" data-k="7"><span class="kl">7</span></button>
+    <button tabindex="-1" data-k="8"><span class="kl">8</span></button>
+    <button tabindex="-1" data-k="9"><span class="kl">9</span></button>
+    <button tabindex="-1" data-k="Backspace" aria-label="Delete"><svg viewBox="0 0 24 24" aria-hidden="true"><g transform="translate(-0.5 0)"><path d="M20 6H9l-5 6l5 6h11a1 1 0 0 0 1-1V7a1 1 0 0 0-1-1z"/><path d="M12.25 10.25l3.5 3.5m0-3.5l-3.5 3.5"/></g></svg></button>
+    <button tabindex="-1" data-k="0"><span class="kl">0</span></button>
+    <button tabindex="-1" data-k="Enter" class="go" aria-label="Check answer"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 12.5l5.5 5.5l11.5-11.5"/></svg></button>
+  </div>
+
+<script type="module">
+  import { createGame } from '/src/game.js';
+  import { fontsReady } from '/src/fonts.js';
+  import { createScanner } from '/src/scanner.js';
+  import { createLayout } from '/src/layout.js';
+  import { createView } from '/src/view.js';
+  import { bindInput } from '/src/input.js';
+  import { snap } from '/src/ink.js';
+
+  // Level 2 as proposed: a − b with a and b from 0 to 9 and b ≤ a. Each of
+  // the 55 facts is equally likely, as Level 1's 100 are (picking a, then b,
+  // would make "x − x" over a quarter of them).
+  const LEVEL2 = {
+    livesPerProblem: 3,
+    maxAnswerLength: 1,
+    makeProblem(rng) {
+      let n = Math.floor(rng() * 55), a = 0;
+      while (n > a) n -= ++a;          // a's facts are numbered 0 to a
+      const b = n;
+      return { a, b, answer: a - b };
+    },
+    possibleAnswers: Array.from({ length: 10 }, (_, i) => String(i)),
+  };
+  const SELECTOR = '2026-10-21-level2-selector-mockup.html?concept=a';
+
+  const $ = sel => document.querySelector(sel);
+  const dom = {
+    eq: $('#eq'), slot: $('#slot'), shown: $('#shown'), caret: $('.caret'), qnum: $('#qnum'),
+    a: $('#a'), b: $('#b'), ans: $('#ans'), pad: $('.pad'), stage: $('.stage'), topBar: $('.top'),
+    livesBox: $('.lives'), hearts: [...document.querySelectorAll('.lives svg')], status: $('#status'),
+  };
+  const game = createGame(LEVEL2);
+  const params = new URLSearchParams(location.search);
+  if (params.has('a') && params.has('b')) {
+    const a = Number(params.get('a')), b = Number(params.get('b'));
+    game.state.problem = { a, b, answer: a - b };
+  }
+  const scan = createScanner();
+  const layout = createLayout(dom, scan, LEVEL2.possibleAnswers);
+  const view = createView(dom, layout, LEVEL2);
+  layout.afterMeasure = () => view.render(game.state);
+  window.mathtime = { game, view, layout };
+
+  bindInput(dom, key => {
+    const result = game.press(key);
+    if (result === 'typed') view.renderAnswer(game.state.typed);
+    if (result === 'wrong') view.showWrong(game.state);
+    if (result === 'correct') view.showCorrect(game.state, () => game.next());
+    if (result === 'out') view.showOut(game.state).then(shown => { if (shown) location.href = SELECTOR; });
+    return result;
+  }, () => game.state.typed);
+
+  function safeLayout() {
+    try { layout.layout(); } catch (err) { console.error(err); }
+  }
+  let queued = false;
+  const relayout = () => {
+    if (queued) return;
+    queued = true;
+    requestAnimationFrame(() => { queued = false; safeLayout(); });
+  };
+
+  // Esc goes back to the levels: the play focus stays on the answer, so
+  // the link can't be tabbed to.
+  addEventListener('keydown', e => { if (e.key === 'Escape' && !e.isComposing) location.href = SELECTOR; });
+
+  // The link's underline, from its first ink to its last, on whole device pixels.
+  function underline() {
+    const link = $('.crumbs .back');
+    const cs = getComputedStyle(link);
+    const fs = parseFloat(cs.fontSize);
+    const dpr = devicePixelRatio;
+    const m = scan(link.textContent, { weight: cs.fontWeight, family: cs.fontFamily, color: cs.color, spacing: (parseFloat(cs.letterSpacing) || 0) / fs }, fs * dpr);
+    const box = link.getBoundingClientRect();
+    link.style.setProperty('--ul-left', (snap(box.left - m.abl * fs, dpr) - box.left) + 'px');
+    link.style.setProperty('--ul-right', (box.right - snap(box.left + m.abr * fs, dpr)) + 'px');
+  }
+
+  fontsReady().then(() => {
+    safeLayout();
+    underline();
+    document.documentElement.classList.remove('loading');
+    const resized = new ResizeObserver(relayout);
+    resized.observe(dom.stage);
+    resized.observe(dom.topBar);
+    dom.ans.focus({ preventScroll: true });
+  });
+</script>
+</body>
+</html>
