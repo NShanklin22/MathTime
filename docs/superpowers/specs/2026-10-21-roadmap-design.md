@@ -16,6 +16,10 @@ The route therefore runs through all of school math and on through linear algebr
 - **Small steps.** A level is one kind of problem, practised until it is solid, like Level 1. Each level adds one new idea, and the steps are as small as they can usefully be.
 - **One piece at a time.** Levels are designed and built one at a time, in route order. Each gets its own spec, mockup and UI review before code (Level 1 spec §8). This roadmap does not spell out the levels inside a stage; they are worked out when the stage is reached.
 - **The filling-out mechanic grows with the math.** Several topics need a new way of filling out a problem, such as carrying, long division, fractions, step-by-step equations, vectors and graphs. Each new mechanic is designed with the first level that needs it, to the same quality bar as Level 1.
+- **Grading depends on the level** (decided 2026-10-27).
+  - **A level that teaches a method grades the method.** A right answer reached without the right working, such as a skipped carry or borrow, counts as wrong.
+  - **A later level that only uses the method grades the answer.**
+  - The six exploratory mockups (`2026-10-21-complex-gallery.html`) show the method-grading side.
 
 ## 3. The route
 
