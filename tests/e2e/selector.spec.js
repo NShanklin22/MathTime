@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { open, levelRow, setProblem, rect, typeKeys } from './helpers.js';
+import { open, levelRow, setProblem, rect, resize, typeKeys } from './helpers.js';
 
 // The level selector (Level 2 spec §3).
 
@@ -13,6 +13,11 @@ test('the game opens on the selector: the built levels by topic, nothing marked'
   await home(page);
   await expect(page.locator('.select')).toBeVisible();
   for (const hidden of ['.stage', '.pad', '.lives']) await expect(page.locator(hidden)).toBeHidden();
+  // A landmark of its own: the only <main> is the hidden problem area.
+  const list = page.getByRole('region', { name: 'Levels' });
+  await expect(list).toBeVisible();
+  await expect(list.getByRole('button')).toHaveCount(2);
+  await expect(page.locator('#status')).toBeEmpty();   // no problem yet, so nothing announced
   await expect(page.locator('.select .group-name')).toHaveText(['Addition', 'Subtraction']);
   await expect(page.locator('.select .group')).toHaveCount(2);
   await expect(page.locator('.select .group').nth(0).locator('.row')).toHaveAttribute('data-level', '1');
@@ -25,6 +30,7 @@ test('the game opens on the selector: the built levels by topic, nothing marked'
   await expect(levelRow(page, 2).locator('.sample')).toHaveText('7−3');
   await expect(levelRow(page, 1).locator('.sample')).toHaveAttribute('aria-hidden', 'true');
   await expect(page.locator('.select .row.current')).toHaveCount(0);
+  await expect(page.locator('.select .row[aria-current]')).toHaveCount(0);
 });
 
 test('on the selector the breadcrumb is "Levels" alone', async ({ page }) => {
@@ -63,14 +69,70 @@ test('running out of lives comes back with that level marked and focused, in whi
   await expect(page.locator('.select')).toBeVisible();
   await expect(levelRow(page, 2)).toHaveClass(/\bcurrent\b/);
   await expect(levelRow(page, 1)).not.toHaveClass(/\bcurrent\b/);
+  // Screen readers hear it too.
+  await expect(levelRow(page, 2)).toHaveAttribute('aria-current', 'true');
+  await expect(levelRow(page, 1)).not.toHaveAttribute('aria-current');
   await expect(levelRow(page, 2)).toBeFocused();
-  // White, 2px, 4px out: amber means "current".
+  // White, 2px, 4px out: amber means "current". An unfocused row has none
+  // (its outline colour is the ink anyway, so the style is what tells).
+  await expect(levelRow(page, 2)).toHaveCSS('outline-style', 'solid');
   await expect(levelRow(page, 2)).toHaveCSS('outline-color', 'rgb(238, 245, 255)');
   await expect(levelRow(page, 2)).toHaveCSS('outline-width', '2px');
   await expect(levelRow(page, 2)).toHaveCSS('outline-offset', '4px');
+  await expect(levelRow(page, 1)).toHaveCSS('outline-style', 'none');
   await levelRow(page, 1).click();
   await expect(page.locator('.crumbs .here')).toHaveText('Level 1');
   await expect(page.locator('#qnum')).toHaveText('Question 1');
+});
+
+test('the mark moves to the level you came from last', async ({ page }) => {
+  const marked = async n => {
+    await expect(page.locator('.select')).toBeVisible();
+    await expect(page.locator('.select .row.current')).toHaveCount(1);
+    await expect(page.locator('.select .row[aria-current]')).toHaveCount(1);
+    await expect(levelRow(page, n)).toHaveClass(/\bcurrent\b/);
+    await expect(levelRow(page, n)).toHaveAttribute('aria-current', 'true');
+    await expect(levelRow(page, n)).toBeFocused();
+  };
+  await open(page, 1);
+  await setProblem(page, 3, 4);
+  for (let i = 0; i < 3; i++) await typeKeys(page, ['9', 'Enter']);
+  await marked(1);
+  await levelRow(page, 2).click();
+  await setProblem(page, 7, 3);
+  for (let i = 0; i < 3; i++) await typeKeys(page, ['9', 'Enter']);
+  await marked(2);
+});
+
+// The list scrolls (it can outgrow a short screen), and the page never does.
+test('on a short screen the list scrolls just far enough to show the marked row and its ring', async ({ page }) => {
+  const RING = 6;                                         // 2px, 4px out
+  await open(page, 2);
+  await resize(page, 640, 320);
+  await setProblem(page, 7, 3);
+  for (let i = 0; i < 3; i++) await typeKeys(page, ['9', 'Enter']);
+  await expect(levelRow(page, 2)).toBeFocused();
+  const { row, view, scrolled } = await page.evaluate(() => {
+    const list = document.querySelector('.select');
+    const box = list.getBoundingClientRect();
+    const r = list.querySelector('.row[data-level="2"]').getBoundingClientRect();
+    const top = box.top + list.clientTop, left = box.left + list.clientLeft;
+    return {
+      row: { top: r.top, bottom: r.bottom, left: r.left, right: r.right },
+      // What the list shows: its padding box.
+      view: { top, bottom: top + list.clientHeight, left, right: left + list.clientWidth, scrollTop: list.scrollTop },
+      scrolled: [document.documentElement.scrollTop, document.body.scrollTop],
+    };
+  });
+  expect(view.scrollTop, 'the row was below the fold, so the list scrolled').toBeGreaterThan(0);
+  expect(row.top - RING, 'ring top').toBeGreaterThanOrEqual(view.top - 0.01);
+  expect(row.bottom + RING, 'ring bottom').toBeLessThanOrEqual(view.bottom + 0.01);
+  expect(row.left - RING, 'ring left').toBeGreaterThanOrEqual(view.left - 0.01);
+  expect(row.right + RING, 'ring right').toBeLessThanOrEqual(view.right + 0.01);
+  // No further than needed: the ring ends at the list's bottom edge, give or
+  // take the scroll position's rounding to a whole pixel.
+  expect(view.bottom - (row.bottom + RING), 'scrolled just far enough').toBeLessThan(1);
+  expect(scrolled, 'the page itself never scrolls').toEqual([0, 0]);
 });
 
 test('the level you came from has a 4px amber bar on its left edge', async ({ page }) => {

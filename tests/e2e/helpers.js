@@ -65,7 +65,7 @@ export const cssFontSize = page => page.evaluate(() => {
   return size;
 });
 
-// A new problem, laid out in full as the first one is at startup.
+// A new problem, laid out in full as when a level starts.
 export const layOut = (page, a, b) => page.evaluate(([a, b]) => {
   const { game, layout } = window.mathtime;
   game.state.problem = { a, b, answer: game.level.op === '+' ? a + b : a - b };

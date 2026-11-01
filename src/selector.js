@@ -39,14 +39,36 @@ export function createSelector(root, levels, choose) {
     if (e.repeat && (e.key === 'Enter' || e.key === ' ')) e.preventDefault();
   });
 
-  // Mark the level you came from, or none.
+  // Mark the level you came from, or none: the amber bar, and aria-current
+  // for screen readers.
   function mark(level) {
-    for (const [l, row] of rows) row.classList.toggle('current', l === level);
+    for (const [l, row] of rows) {
+      row.classList.toggle('current', l === level);
+      if (l === level) row.setAttribute('aria-current', 'true');
+      else row.removeAttribute('aria-current');
+    }
   }
 
-  // Focus the marked row, so the keyboard carries on from there.
+  // Focus the marked row, so the keyboard carries on from there, and show it.
   function focus() {
-    root.querySelector('.row.current')?.focus({ preventScroll: true });
+    const row = root.querySelector('.row.current');
+    if (!row) return;
+    row.focus({ preventScroll: true });
+    reveal(row);
+  }
+
+  // Scroll the list, and only the list, as little as it takes to show `row`
+  // and its focus ring (2px, 4px out) whole, its top first if both can't
+  // fit. scrollIntoView() would scroll the page too, which never scrolls.
+  // Whole pixels, rounded outward, as the scroll position may be.
+  function reveal(row) {
+    const RING = 6;
+    const view = root.getBoundingClientRect();
+    const top = view.top + root.clientTop, bottom = top + root.clientHeight;
+    const r = row.getBoundingClientRect();
+    let by = Math.max(0, Math.ceil(r.bottom + RING - bottom));
+    by = Math.min(by, Math.floor(r.top - RING - top));
+    if (by) root.scrollTop += by;
   }
 
   return { mark, focus };

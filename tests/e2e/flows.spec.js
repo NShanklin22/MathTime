@@ -262,9 +262,13 @@ test('three misses go to the level selector; Level 1 restarts at question 1', as
   await expect(page.locator('.lives')).toHaveAttribute('aria-label', '0 lives left');
   await expect(levelRow(page, 1)).toBeVisible();
   await expect(levelRow(page, 1)).toBeFocused();
-  // A white focus ring: amber means "current" (Level 2 spec §3).
+  // A white focus ring: amber means "current" (Level 2 spec §3). An
+  // unfocused row has none (its outline colour is the ink anyway).
+  await expect(levelRow(page, 1)).toHaveCSS('outline-style', 'solid');
   await expect(levelRow(page, 1)).toHaveCSS('outline-color', 'rgb(238, 245, 255)');
+  await expect(levelRow(page, 1)).toHaveCSS('outline-width', '2px');
   await expect(levelRow(page, 1)).toHaveCSS('outline-offset', '4px');
+  await expect(levelRow(page, 2)).toHaveCSS('outline-style', 'none');
   await levelRow(page, 1).click();
   await expect(page.locator('#qnum')).toHaveText('Question 1');
   expect(await lostHearts(page)).toBe(0);
@@ -287,7 +291,8 @@ test('a held Enter on the third miss does not choose a level', async ({ page }) 
     type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, text: '\r', unmodifiedText: '\r', autoRepeat: true,
   });
   await page.keyboard.up('Enter');
-  expect(await seen(page, { type: 'key', key: 'Enter', repeat: true })).toMatchObject({ target: 'BUTTON' });
+  // It reached the row, and the selector's guard cancelled it.
+  expect(await seen(page, { type: 'key', key: 'Enter', repeat: true })).toMatchObject({ target: 'BUTTON', prevented: true });
   await expect(levelRow(page, 1)).toBeVisible();
   await expect(page.locator('#qnum')).toHaveText('Question 2');
   await expect(page.locator('.lives')).toHaveAttribute('aria-label', '0 lives left');

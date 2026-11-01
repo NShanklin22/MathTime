@@ -349,7 +349,8 @@ test('fonts that arrive after the load timeout are measured again', async ({ pag
   }, KEYS);
   const normal = await vars(page);
   // A fresh context (nothing cached) where the font files arrive after
-  // fontsReady() has given up at 3s, so the first layout uses a fallback font.
+  // fontsReady() has given up at 3s, so the selector, and then the play
+  // screen once Level 1 is chosen, are first laid out in a fallback font.
   const context = await browser.newContext({ viewport, deviceScaleFactor, baseURL });
   try {
     const late = await context.newPage();
@@ -360,8 +361,9 @@ test('fonts that arrive after the load timeout are measured again', async ({ pag
     await late.goto('/', { waitUntil: 'commit' });
     await late.waitForFunction(() => !document.documentElement.classList.contains('loading'));
     await late.locator('.select .row[data-level="1"]').click();
-    // Precondition: the first layout really used a fallback font (so the
-    // route still delays the font files and this test can't pass vacuously).
+    // Precondition: the play screen's first layout really used a fallback
+    // font (so the route still delays the font files and this test can't
+    // pass vacuously).
     const first = await vars(late);
     expect(Math.abs(first['--box-w'] - normal['--box-w']), 'fallback --box-w').toBeGreaterThan(0.01);
     await late.waitForFunction(() => document.fonts.check('500 64px "IBM Plex Mono"') && [...document.fonts].some(

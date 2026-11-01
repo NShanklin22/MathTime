@@ -55,8 +55,9 @@
   <!-- Outside .stage so announcements survive the switch to the level selector. -->
   <p class="sr-only" role="status" id="status"></p>
 
-  <!-- The level selector: a row per level, built by selector.js. -->
-  <div class="select"></div>
+  <!-- The level selector: a row per level, built by selector.js. A landmark
+       of its own, as the only <main> is the problem area, hidden here. -->
+  <div class="select" role="region" aria-label="Levels"></div>
 
   <div class="pad" role="group" aria-label="Keypad">
     <button tabindex="-1" data-k="1"><span class="kl">1</span></button>

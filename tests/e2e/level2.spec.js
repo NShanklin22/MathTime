@@ -51,14 +51,15 @@ test('a wrong answer costs a life, and a right one moves on to another subtracti
 });
 
 // Level 2 then Level 1 again: everything the level sets is Level 1's again,
-// as at startup. On the phone (375px wide) the header is tight for
-// "Subtraction" and not for "Addition", so it must be fitted again too.
+// as when Level 1 is first chosen. On the phone (375px wide) the header is
+// tight for "Subtraction" and not for "Addition", so it must be fitted again
+// too.
 test('back on Level 1, the operator, box, answer length, breadcrumb and word are its own again', async ({ page }) => {
   const boxW = () => page.evaluate(() => parseFloat(getComputedStyle(document.querySelector('#eq')).getPropertyValue('--box-w')));
   const play = i => page.evaluate(i => window.mathtime.play(window.mathtime.levels[i]), i);
   const phone = test.info().project.name === 'phone';
   const topic = page.locator('.crumbs .topic');
-  await open(page);                                      // Level 1, as at startup
+  await open(page);                                      // Level 1, chosen from the selector
   const levelOne = await boxW();
   if (phone) await expect(topic).toBeVisible();
   await play(1);
