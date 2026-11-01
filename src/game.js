@@ -1,23 +1,25 @@
 // The rules of play, with no DOM. The view asks it what happened and animates.
 //
 // `state` is one object, updated in place and never replaced: the view and the
-// browser tests hold references to it.
+// browser tests hold references to it. `level` is the level being played;
+// start() switches it.
 //
 // phase: 'playing' – accepting input
-//        'correct' – answer was right; input locked until next()
-//        'out'     – third miss; input locked until restart()
+//        'correct' – answer was right; input locked until next() or start()
+//        'out'     – third miss; input locked until restart() or start()
 export function createGame(level, rng = Math.random) {
+  let current = level;
   const state = {
     phase: 'playing',
     question: 1,
-    lives: level.livesPerProblem,
+    lives: current.livesPerProblem,
     typed: '',
-    problem: level.makeProblem(rng),
+    problem: current.makeProblem(rng),
   };
 
   function fresh() {
-    state.problem = level.makeProblem(rng);
-    state.lives = level.livesPerProblem;
+    state.problem = current.makeProblem(rng);
+    state.lives = current.livesPerProblem;
     state.typed = '';
     state.phase = 'playing';
   }
@@ -28,7 +30,7 @@ export function createGame(level, rng = Math.random) {
   function press(key) {
     if (state.phase !== 'playing') return 'ignored';
     if (/^\d$/.test(key)) {
-      if (state.typed.length >= level.maxAnswerLength) return 'ignored';
+      if (state.typed.length >= current.maxAnswerLength) return 'ignored';
       state.typed += key;
       return 'typed';
     }
@@ -61,10 +63,17 @@ export function createGame(level, rng = Math.random) {
     fresh();
   }
 
-  function restart() {
+  // Begin `chosen` (the level being played, by default) at question 1, with
+  // full lives and a new problem, whatever the phase.
+  function start(chosen = current) {
+    current = chosen;
     state.question = 1;
     fresh();
   }
 
-  return { state, press, next, restart };
+  function restart() {
+    start();
+  }
+
+  return { state, press, next, start, restart, get level() { return current; } };
 }

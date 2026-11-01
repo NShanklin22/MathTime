@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { LEVEL1 } from '../../src/level1.js';
+import { LEVEL2 } from '../../src/level2.js';
 import { createGame } from '../../src/game.js';
 
 // An rng that returns the given values in order, then repeats them.
@@ -17,6 +18,8 @@ const sevenPlusFive = () => createGame(LEVEL1, seq(0.75, 0.55));
 const threeProblems = () => createGame(LEVEL1, seq(0.75, 0.55, 0.25, 0.35, 0.15, 0.95));
 // The first problem is 2 + 3 = 5, a single-digit answer.
 const twoPlusThree = () => createGame(LEVEL1, seq(0.25, 0.35));
+// Every rng value is 0.25, so Level 1 asks 2 + 2 and Level 2 asks 4 − 3.
+const quarters = () => createGame(LEVEL1, () => 0.25);
 
 // Miss the current problem (answer 9 is wrong for every problem used here).
 const miss = (game) => {
@@ -279,4 +282,58 @@ test('a leading zero is part of the answer, and still counts as correct', () => 
   assert.equal(game.state.typed, '05');
   assert.equal(game.press('Enter'), 'correct');
   assert.equal(game.state.phase, 'correct');
+});
+
+test('start() begins another level at question 1 with full lives', () => {
+  const game = quarters();
+  const { state } = game;
+  game.press('4');
+  game.press('Enter');
+  game.next();                                   // question 2 of Level 1
+  miss(game);                                    // 2 lives
+  game.press('3');
+  game.start(LEVEL2);
+  assert.equal(game.level, LEVEL2);
+  assert.equal(game.state, state);               // still the same object
+  assert.equal(state.phase, 'playing');
+  assert.equal(state.question, 1);
+  assert.equal(state.lives, 3);
+  assert.equal(state.typed, '');
+  assert.deepEqual(state.problem, { a: 4, b: 3, answer: 1 });
+});
+
+test('the game says which level it is playing, from the start', () => {
+  assert.equal(quarters().level, LEVEL1);
+  assert.equal(createGame(LEVEL2, () => 0.25).level, LEVEL2);
+});
+
+test('after start(), answers are as long as the new level allows', () => {
+  const game = quarters();
+  game.start(LEVEL2);
+  assert.equal(game.press('4'), 'typed');
+  assert.equal(game.press('5'), 'ignored');
+  assert.equal(game.state.typed, '4');
+});
+
+test('start() unlocks a game that is out of lives, and restart() keeps the new level', () => {
+  const game = quarters();
+  runOut(game);
+  assert.equal(game.state.phase, 'out');
+  game.start(LEVEL2);
+  assert.equal(game.state.phase, 'playing');
+  runOut(game);                                   // 9 is wrong for 4 − 3 too
+  game.restart();
+  assert.equal(game.level, LEVEL2);
+  assert.equal(game.state.phase, 'playing');
+  assert.deepEqual(game.state.problem, { a: 4, b: 3, answer: 1 });
+});
+
+test('start() unlocks a correct answer too, and next() then does nothing', () => {
+  const game = quarters();
+  game.press('4');
+  assert.equal(game.press('Enter'), 'correct');
+  game.start(LEVEL2);
+  assert.equal(game.state.phase, 'playing');
+  game.next();
+  assert.equal(game.state.question, 1);
 });
