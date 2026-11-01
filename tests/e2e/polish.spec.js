@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import {
-  open, freeze, showOutline, settle, resize, setProblem, layOut, rect, capture, ink, digitBand, groupOffset,
+  open, levelRow, freeze, showOutline, settle, resize, setProblem, layOut, rect, capture, ink, digitBand, groupOffset,
   equalsGap, labelInk, clearances, note, fontSize, cssFontSize, typeKeys, TOL, MUTED, LOST,
 } from './helpers.js';
 
@@ -108,12 +108,12 @@ test('the first problem of a restarted game is centred from its first frame', as
     // Where the equation is once the click is handled (this listener runs
     // after the game's own). A later layout, when the problem area reappears,
     // must not be what puts it right.
-    document.querySelector('#level1').addEventListener('click', () => {
+    document.querySelector('.select .row[data-level="1"]').addEventListener('click', () => {
       window.leftAtRestart = document.querySelector('#eq').style.left;
     });
   });
   for (let i = 0; i < 3; i++) await typeKeys(page, ['9', 'Enter']);
-  await page.locator('#level1').click();
+  await levelRow(page, 1).click();
   await expect(page.locator('#a')).toHaveText('7');
   await settle(page);                                     // any later layout has run
   expect(await page.evaluate(() => document.querySelector('#eq').style.left)).toBe(await page.evaluate(() => window.leftAtRestart));

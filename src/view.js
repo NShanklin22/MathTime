@@ -107,8 +107,8 @@ export function createView(dom, layout, level) {
     play('shake');
   }
 
-  // Third miss: shake, then the level selector 0.45s later, unless the game
-  // was restarted meanwhile. Resolves true if the selector is showing.
+  // Third miss: shake, then resolve true 0.45s later, when the level selector
+  // is due, unless the game was restarted meanwhile.
   async function showOut(state) {
     render(state);
     status.textContent = 'Out of lives';
@@ -116,7 +116,6 @@ export function createView(dom, layout, level) {
     await wait(450);
     if (state.phase !== 'out') return false;
     eq.classList.remove(...ANIMS);
-    document.body.classList.add('at-select');
     return true;
   }
 

@@ -5,11 +5,13 @@ import { createScanner } from './scanner.js';
 import { createLayout } from './layout.js';
 import { createView } from './view.js';
 import { bindInput } from './input.js';
+import { createSelector } from './selector.js';
 
 const $ = sel => document.querySelector(sel);
 const dom = {
   eq: $('#eq'), slot: $('#slot'), shown: $('#shown'), caret: $('.caret'), qnum: $('#qnum'),
   a: $('#a'), b: $('#b'), op: $('#eq .op'), ans: $('#ans'), pad: $('.pad'), stage: $('.stage'), topBar: $('.top'),
+  select: $('.select'),
   topic: $('.crumbs .topic'), here: $('.crumbs .here'),
   livesBox: $('.lives'), hearts: [...document.querySelectorAll('.lives svg')], status: $('#status'),
 };
@@ -19,6 +21,7 @@ const scan = createScanner();
 const layout = createLayout(dom, scan, game.level.possibleAnswers);
 const view = createView(dom, layout, game.level);
 layout.afterMeasure = () => view.render(game.state);
+const selector = createSelector(dom.select, LEVELS, play);
 
 // Start `level` at question 1 with full lives, focus on the answer. The
 // screen is measured again: the operator and the answer box are the level's.
@@ -33,8 +36,17 @@ function play(level) {
   dom.ans.focus({ preventScroll: true });
 }
 
+// Back to the level selector, with the level you came from marked and
+// focused (Level 2 spec §3).
+function toSelector() {
+  selector.mark(game.level);
+  document.body.classList.add('at-select');
+  safeLayout();
+  selector.focus();
+}
+
 // Handle for the browser tests (tests/e2e) to put a known problem or level on screen.
-window.mathtime = { game, view, layout, levels: LEVELS, play };
+window.mathtime = { game, view, layout, selector, levels: LEVELS, play };
 
 // The game locks input itself during the correct and out-of-lives
 // transitions (spec §2), so every key just goes to game.press().
@@ -43,9 +55,7 @@ bindInput(dom, key => {
   if (result === 'typed') view.renderAnswer(game.state.typed);
   if (result === 'wrong') view.showWrong(game.state);
   if (result === 'correct') view.showCorrect(game.state, () => game.next());
-  if (result === 'out') {
-    view.showOut(game.state).then(shown => { if (shown) $('#level1').focus({ preventScroll: true }); });
-  }
+  if (result === 'out') view.showOut(game.state).then(shown => { if (shown) toSelector(); });
   return result;
 }, () => game.state.typed);
 
@@ -96,14 +106,8 @@ function watchPixelRatio() {
   }, { once: true });
 }
 
-$('#level1').addEventListener('click', () => play(LEVELS[0]));
-// The Enter that made the third miss may still be held: its key repeat
-// (about 0.5s) would otherwise press "Level 1" as soon as it has focus.
-$('#level1').addEventListener('keydown', e => { if (e.repeat) e.preventDefault(); });
-
 fontsReady().then(() => {
   safeLayout();
-  view.announceProblem(game.state);
   document.documentElement.classList.remove('loading');
   // The header too: on the level selector the stage is hidden, so it alone
   // would never report a resize. Fitting the header only changes which
@@ -113,5 +117,4 @@ fontsReady().then(() => {
   resized.observe(dom.topBar);
   document.fonts.addEventListener('loadingdone', onFontsLoaded);
   watchPixelRatio();
-  dom.ans.focus({ preventScroll: true });
 });

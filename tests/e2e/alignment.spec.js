@@ -306,6 +306,7 @@ test('the equation lands on whole device pixels at ratios that are not powers of
       const page = await browser.newPage({ viewport: null, deviceScaleFactor: undefined });   // not the project's
       await page.goto(baseURL + '/');
       await page.waitForFunction(() => !document.documentElement.classList.contains('loading'));
+      await page.locator('.select .row[data-level="1"]').click();
       expect(await page.evaluate(() => devicePixelRatio)).toBe(dpr);
       await laidOutOnGrid(page);
     } finally {
@@ -358,6 +359,7 @@ test('fonts that arrive after the load timeout are measured again', async ({ pag
     });
     await late.goto('/', { waitUntil: 'commit' });
     await late.waitForFunction(() => !document.documentElement.classList.contains('loading'));
+    await late.locator('.select .row[data-level="1"]').click();
     // Precondition: the first layout really used a fallback font (so the
     // route still delays the font files and this test can't pass vacuously).
     const first = await vars(late);

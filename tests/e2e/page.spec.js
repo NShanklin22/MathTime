@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { open } from './helpers.js';
+import { open, levelRow, settle } from './helpers.js';
 
 test('the page loads in IBM Plex Mono with the Blueprint background', async ({ page }) => {
   await open(page);
@@ -46,7 +46,7 @@ test('a slow font stylesheet cannot hold the page for more than about 3 seconds'
   await expect(page.locator('.pad button')).toHaveCount(12);
 });
 
-test('startup measures the screen once', async ({ page }) => {
+test('startup measures the level selector once', async ({ page }) => {
   // Each ink scan reads the canvas once. Count the scans in the first layout
   // and after the page settles: the fonts it waited for must not trigger a
   // second, cold measure when their load event arrives.
@@ -65,12 +65,39 @@ test('startup measures the screen once', async ({ page }) => {
       }
     }).observe(document, { subtree: true, attributes: true, attributeFilter: ['class'] });
   });
-  await open(page);
+  await page.goto('/');
+  await page.waitForFunction(() => !document.documentElement.classList.contains('loading'));
   await page.evaluate(() => document.fonts.ready.then(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))));
   await page.waitForTimeout(500);
   const scans = await page.evaluate(() => ({ first: window.scansAtFirstLayout, total: window.scans }));
   expect(scans.first).toBeGreaterThan(0);
   expect(scans.total).toBe(scans.first);
+});
+
+test('starting a level measures the screen once', async ({ page }) => {
+  // The click lays the level out in full. The problem area appearing then
+  // makes the page lay out again, which must find everything measured.
+  await page.addInitScript(() => {
+    window.scans = 0;
+    const read = CanvasRenderingContext2D.prototype.getImageData;
+    CanvasRenderingContext2D.prototype.getImageData = function (...args) {
+      window.scans++;
+      return read.apply(this, args);
+    };
+  });
+  await page.goto('/');
+  await page.waitForFunction(() => !document.documentElement.classList.contains('loading'));
+  await page.evaluate(() => document.fonts.ready);
+  await settle(page);
+  const { before, after } = await page.evaluate(() => {
+    const before = window.scans;
+    document.querySelector('.select .row[data-level="1"]').click();
+    return { before, after: window.scans };
+  });
+  await settle(page);
+  await page.waitForTimeout(500);
+  expect(after).toBeGreaterThan(before);
+  expect(await page.evaluate(() => window.scans)).toBe(after);
 });
 
 test('a failed measurement still shows the page and the real problem', async ({ page }) => {
@@ -84,6 +111,7 @@ test('a failed measurement still shows the page and the real problem', async ({ 
   page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
   await page.goto('/');
   await page.waitForFunction(() => !document.documentElement.classList.contains('loading'), null, { timeout: 10_000 });
+  await levelRow(page, 1).click();
   await expect(page.locator('.pad')).toBeVisible();
   await expect(page.locator('#ans')).toBeFocused();
   expect(errors.join('\n')).toContain('No ink');

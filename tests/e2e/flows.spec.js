@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { open, setProblem, rect, typeKeys } from './helpers.js';
+import { open, levelRow, setProblem, rect, typeKeys } from './helpers.js';
 
 const answerText = page => page.locator('#shown').textContent();
 const lostHearts = page => page.locator('.lives svg.lost').count();
@@ -260,19 +260,19 @@ test('three misses go to the level selector; Level 1 restarts at question 1', as
   await setProblem(page, 3, 4);
   for (let i = 0; i < 3; i++) await typeKeys(page, ['9', 'Enter']);
   await expect(page.locator('.lives')).toHaveAttribute('aria-label', '0 lives left');
-  await expect(page.locator('#level1')).toBeVisible();
-  await expect(page.locator('#level1')).toBeFocused();
-  // An amber focus ring, not a second white border.
-  await expect(page.locator('#level1')).toHaveCSS('outline-color', 'rgb(255, 214, 107)');
-  await expect(page.locator('#level1')).toHaveCSS('outline-offset', '4px');
-  await page.locator('#level1').click();
+  await expect(levelRow(page, 1)).toBeVisible();
+  await expect(levelRow(page, 1)).toBeFocused();
+  // A white focus ring: amber means "current" (Level 2 spec §3).
+  await expect(levelRow(page, 1)).toHaveCSS('outline-color', 'rgb(238, 245, 255)');
+  await expect(levelRow(page, 1)).toHaveCSS('outline-offset', '4px');
+  await levelRow(page, 1).click();
   await expect(page.locator('#qnum')).toHaveText('Question 1');
   expect(await lostHearts(page)).toBe(0);
   await expect(page.locator('#ans')).toBeFocused();
   await expect(page.locator('#status')).toHaveText(await problemSaid(page));
 });
 
-test('a held Enter on the third miss does not press "Level 1"', async ({ page }) => {
+test('a held Enter on the third miss does not choose a level', async ({ page }) => {
   await typeKeys(page, ['7', 'Enter']);                  // to question 2, so a restart would show
   await expect(page.locator('#qnum')).toHaveText('Question 2');
   await setProblem(page, 3, 4);
@@ -280,15 +280,15 @@ test('a held Enter on the third miss does not press "Level 1"', async ({ page })
   for (let i = 0; i < 2; i++) await typeKeys(page, ['9', 'Enter']);
   await typeKeys(page, ['9']);
   await page.keyboard.down('Enter');                     // the third miss, held
-  await expect(page.locator('#level1')).toBeFocused();
+  await expect(levelRow(page, 1)).toBeFocused();
   // The operating system's key repeat, arriving once the selector has focus.
   const cdp = await page.context().newCDPSession(page);
   await cdp.send('Input.dispatchKeyEvent', {
     type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, text: '\r', unmodifiedText: '\r', autoRepeat: true,
   });
   await page.keyboard.up('Enter');
-  expect(await seen(page, { type: 'key', key: 'Enter', repeat: true })).toMatchObject({ target: 'level1' });
-  await expect(page.locator('#level1')).toBeVisible();
+  expect(await seen(page, { type: 'key', key: 'Enter', repeat: true })).toMatchObject({ target: 'BUTTON' });
+  await expect(levelRow(page, 1)).toBeVisible();
   await expect(page.locator('#qnum')).toHaveText('Question 2');
   await expect(page.locator('.lives')).toHaveAttribute('aria-label', '0 lives left');
 });
@@ -321,9 +321,9 @@ test('Level 1 draws the new game even if the layout fails', async ({ page }) => 
   await expect(page.locator('#qnum')).toHaveText('Question 2');
   await setProblem(page, 3, 4);
   for (let i = 0; i < 3; i++) await typeKeys(page, ['9', 'Enter']);
-  await expect(page.locator('#level1')).toBeFocused();
+  await expect(levelRow(page, 1)).toBeFocused();
   await page.evaluate(() => { window.mathtime.layout.layout = () => { throw new Error('layout failed (test)'); }; });
-  await page.locator('#level1').click();
+  await levelRow(page, 1).click();
   await expect(page.locator('#qnum')).toHaveText('Question 1');
   expect(await lostHearts(page)).toBe(0);
   const { a, b } = await page.evaluate(() => window.mathtime.game.state.problem);
@@ -343,7 +343,7 @@ test('from the third miss until the selector, digits are ignored and do not flas
   await record(page);
   await pressWhenSaid(page, 'Out of lives', [['5', 0], ['6', 200]]);
   for (let i = 0; i < 3; i++) await typeKeys(page, ['9', 'Enter']);
-  await expect(page.locator('#level1')).toBeVisible();
+  await expect(page.locator('.select')).toBeVisible();
   for (const key of ['5', '6']) {
     const press = await seen(page, { type: 'key', key });
     expect(press, `key ${key}`).toMatchObject({ selector: false, shown: '', pressed: false });
@@ -439,7 +439,7 @@ test('the typed answer is heard once, from the answer field', async ({ page }) =
   await expect(page.locator('.shown')).toHaveAttribute('aria-hidden', 'true');
 });
 
-test('the first problem is announced when the game starts', async ({ page }) => {
+test('the first problem is announced when a level starts', async ({ page }) => {
   await open(page);                                       // fresh: beforeEach replaced the problem
   await expect(page.locator('#status')).toHaveText(await problemSaid(page));
   expect(await problemSaid(page)).toMatch(/^Question 1: \d plus \d$/);

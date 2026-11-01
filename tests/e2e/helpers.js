@@ -1,13 +1,17 @@
 import { test } from '@playwright/test';
 import { PNG } from 'pngjs';
 
-// Load the game and wait until fonts are in and the first layout is done, on
-// Level 1. Any other level is then started through the test handle.
+// Load the game, wait until fonts are in and it is laid out on the level
+// selector, then choose Level `level` as the player does.
 export async function open(page, level = 1) {
   await page.goto('/');
   await page.waitForFunction(() => !document.documentElement.classList.contains('loading'));
-  if (level !== 1) await page.evaluate(n => window.mathtime.play(window.mathtime.levels[n - 1]), level);
+  await levelRow(page, level).click();
+  await page.waitForFunction(() => !document.body.classList.contains('at-select'));
 }
+
+// The level selector's row for Level `n`.
+export const levelRow = (page, n) => page.locator(`.select .row[data-level="${n}"]`);
 
 // For pixel measurement: plain background (no grid), a hidden caret (its rect
 // still works) and a transparent dashed outline (it still counts in layout).

@@ -10,7 +10,7 @@
 <link rel="stylesheet" href="src/styles.css">
 <script type="module" src="src/main.js"></script>
 </head>
-<body>
+<body class="at-select">
   <header class="top">
     <div class="where">
       <nav class="crumbs" aria-label="Breadcrumb">
@@ -19,6 +19,7 @@
         <span class="topic">Addition</span>
         <svg class="sep topic-sep" viewBox="0 0 12 12" aria-hidden="true"><path d="M4.5 2.5L8 6l-3.5 3.5"/></svg>
         <span class="here" aria-current="step">Level 1</span>
+        <span class="home" aria-current="page">Levels</span>
       </nav>
       <div class="road" role="img" aria-label="Roadmap stage 1 of 7: Arithmetic. Then fractions, algebra, geometry, trigonometry, calculus, physics.">
         <span class="now" title="Arithmetic"></span>
@@ -54,9 +55,8 @@
   <!-- Outside .stage so announcements survive the switch to the level selector. -->
   <p class="sr-only" role="status" id="status"></p>
 
-  <div class="select">
-    <button id="level1">Level 1</button>
-  </div>
+  <!-- The level selector: a row per level, built by selector.js. -->
+  <div class="select"></div>
 
   <div class="pad" role="group" aria-label="Keypad">
     <button tabindex="-1" data-k="1"><span class="kl">1</span></button>

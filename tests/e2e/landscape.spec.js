@@ -138,8 +138,8 @@ test('the level selector uses the whole width in landscape', async ({ page }) =>
   await open(page);
   await resize(page, 667, 375);
   await page.evaluate(() => document.body.classList.add('at-select'));
-  const button = await rect(page, '#level1');
-  expect(Math.abs(button.left + button.width / 2 - 667 / 2), 'centred across the screen').toBeLessThanOrEqual(0.5);
+  const column = await rect(page, '.select');
+  expect(Math.abs(column.left + column.width / 2 - 667 / 2), 'centred across the screen').toBeLessThanOrEqual(0.5);
 });
 
 // Landscape but nearly square (spec §3.4 is for screens at least 3:2): the
