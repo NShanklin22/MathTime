@@ -12,11 +12,12 @@ export const LEVEL2 = {
   // a − b with a and b from 0 to 9 and b ≤ a. Each of the 55 facts is
   // equally likely, as each of Level 1's 100 is: picking a, then b, would
   // make "x − x = 0" more than a quarter of all problems. The facts are
-  // numbered in order, a's from 0 to a.
+  // numbered 0 to 54 in the order 0 − 0, 1 − 0, 1 − 1, 2 − 0, …: each a has
+  // a + 1 of them, so the loop takes off whole a's and what is left is b.
   makeProblem(rng) {
-    let n = Math.floor(rng() * 55), a = 0;
-    while (n > a) n -= ++a;
-    return { a, b: n, answer: a - n };
+    let fact = Math.floor(rng() * 55), a = 0;
+    while (fact > a) fact -= ++a;
+    return { a, b: fact, answer: a - fact };
   },
   possibleAnswers: Array.from({ length: 10 }, (_, i) => String(i)),
 };
