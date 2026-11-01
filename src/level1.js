@@ -1,6 +1,12 @@
 // Level 1: single-digit addition. Everything that makes this level different
-// from later ones lives here.
+// from the others lives here.
 export const LEVEL1 = {
+  n: 1,
+  topic: 'Addition',
+  name: 'Single-digit addition',
+  op: '+',
+  word: 'plus',                // the operator, as screen readers hear it
+  sample: [3, 4],              // the problem the level selector shows
   livesPerProblem: 3,
   maxAnswerLength: 2,
   makeProblem(rng) {
