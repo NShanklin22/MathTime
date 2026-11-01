@@ -12,12 +12,13 @@ const px = v => onLayoutGrid(v, devicePixelRatio) + 'px';
 // and snapped to device pixels; header fitted (header.js); keypad labels
 // centred (keypad.js). `afterMeasure` runs once per layout, after the last
 // measurement, so the view can re-render digits with the new geometry.
+// `possibleAnswers` sizes the answer box; main.js sets it again for each level.
 // `place` centres the equation on its ink, which depends on the problem: the
 // view calls it again after drawing a new one.
 export function createLayout(dom, scan, possibleAnswers) {
   const { eq, a, slot, caret, qnum, stage, topBar, pad } = dom;
   const geo = { fs: 0, style: null, base: 0.8, mid: 0.5, inkH: 0.72, boxW: 1.2, wide: 0.6 };
-  const api = { geo, inkOf, leadIndent, answerAt, layout, place, afterMeasure: null };
+  const api = { geo, possibleAnswers, inkOf, leadIndent, answerAt, layout, place, afterMeasure: null };
 
   // Ink geometry of `text` centred across `width` em, at the current size
   // (all zeros before the first measurement).
@@ -86,7 +87,7 @@ export function createLayout(dom, scan, possibleAnswers) {
     geo.mid = digits.mid;
     geo.inkH = digits.h;
     geo.wide = Math.max(...each.map(m => m.adv));
-    geo.boxW = Math.max(...possibleAnswers.map(s => inkOf(s, 0).w));
+    geo.boxW = Math.max(...api.possibleAnswers.map(s => inkOf(s, 0).w));
     eq.style.setProperty('--fs', geo.fs + 'px');
     eq.style.setProperty('--ink-top', digits.top.toFixed(4));
     eq.style.setProperty('--ink-h', digits.h.toFixed(4));
@@ -111,11 +112,11 @@ export function createLayout(dom, scan, possibleAnswers) {
     // Even spacing (spec §3.2): the flex gap sits between side bearings, and
     // the box has none, so it gets a margin. With it, the ink gap from "=" to
     // the box is the mean of the ink gaps either side of the second number,
-    // "+" → digit and digit → "=", over all ten digits. A digit is
+    // the operator → digit and digit → "=", over all ten digits. A digit is
     // ink-centred in its cell, so its bearing is half the cell's spare width.
-    const plus = ops[0], equals = ops[ops.length - 1];
+    const op = ops[0], equals = ops[ops.length - 1];
     const bearing = each.reduce((sum, m) => sum + (geo.wide - m.abl - m.abr) / 2, 0) / each.length;
-    const around = bearing + (plus.adv - plus.abr - equals.abl) / 2;
+    const around = bearing + (op.adv - op.abr - equals.abl) / 2;
     eq.style.setProperty('--slot-gap', (around - (equals.adv - equals.abr)).toFixed(4));
     // Centre the digits' ink, not the line box, in the problem area.
     eq.style.marginTop = ((0.5 - digits.mid) * 2).toFixed(4) + 'em';

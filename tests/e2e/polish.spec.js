@@ -100,9 +100,9 @@ test('the first problem of a restarted game is centred from its first frame', as
   await layOut(page, 4, 3);
   await page.evaluate(() => {
     const { game } = window.mathtime;
-    const restart = game.restart;
-    game.restart = () => {
-      restart();
+    const start = game.start;
+    game.start = level => {
+      start(level);
       game.state.problem = { a: 7, b: 1, answer: 8 };
     };
     // Where the equation is once the click is handled (this listener runs

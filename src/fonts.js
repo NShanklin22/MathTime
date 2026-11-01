@@ -16,6 +16,6 @@ export function fontsReady(timeoutMs = 3000) {
   document.head.appendChild(link);
 
   const faces = sheet.then(() => Promise.all(
-    [400, 500, 600].map(w => document.fonts.load(`${w} 64px "IBM Plex Mono"`, '0123456789+=Q'))));
+    [400, 500, 600].map(w => document.fonts.load(`${w} 64px "IBM Plex Mono"`, '0123456789+−=Q'))));
   return Promise.race([faces, timeout]).catch(() => {}).finally(() => clearTimeout(timer));
 }

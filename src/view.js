@@ -1,7 +1,7 @@
 // Draws game state into the page and plays the feedback animations
 // (timings from spec §2).
 export function createView(dom, layout, level) {
-  const { eq, slot, shown, caret, qnum, hearts, livesBox, a, b, ans, status } = dom;
+  const { eq, slot, shown, caret, qnum, hearts, livesBox, a, b, op, ans, status, topic, here } = dom;
   const ANIMS = ['shake', 'in', 'out'];
   const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -51,6 +51,16 @@ export function createView(dom, layout, level) {
     livesBox.setAttribute('aria-label', state.lives === 1 ? '1 life left' : `${state.lives} lives left`);
   }
 
+  // Show `next`'s operator, answer length and place in the breadcrumb. Lay
+  // the screen out again after this: the operator and the box are the level's.
+  function setLevel(next) {
+    level = next;
+    op.textContent = level.op;
+    ans.maxLength = level.maxAnswerLength;
+    topic.textContent = level.topic;
+    here.textContent = `Level ${level.n}`;
+  }
+
   function play(cls) {
     eq.classList.remove(...ANIMS);
     void eq.offsetWidth;                 // restart the animation
@@ -63,7 +73,7 @@ export function createView(dom, layout, level) {
 
   // Tell screen readers which problem is now on screen.
   function announceProblem(state) {
-    status.textContent = `Question ${state.question}: ${state.problem.a} plus ${state.problem.b}`;
+    status.textContent = `Question ${state.question}: ${state.problem.a} ${level.word} ${state.problem.b}`;
   }
 
   // Green for 0.35s, slide out, swap in the next problem, slide in. The swap
@@ -110,5 +120,5 @@ export function createView(dom, layout, level) {
     return true;
   }
 
-  return { render, renderAnswer, announceProblem, showCorrect, showWrong, showOut };
+  return { render, renderAnswer, setLevel, announceProblem, showCorrect, showWrong, showOut };
 }

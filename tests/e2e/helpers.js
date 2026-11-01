@@ -1,10 +1,12 @@
 import { test } from '@playwright/test';
 import { PNG } from 'pngjs';
 
-// Load the game and wait until fonts are in and the first layout is done.
-export async function open(page) {
+// Load the game and wait until fonts are in and the first layout is done, on
+// Level 1. Any other level is then started through the test handle.
+export async function open(page, level = 1) {
   await page.goto('/');
   await page.waitForFunction(() => !document.documentElement.classList.contains('loading'));
+  if (level !== 1) await page.evaluate(n => window.mathtime.play(window.mathtime.levels[n - 1]), level);
 }
 
 // For pixel measurement: plain background (no grid), a hidden caret (its rect
@@ -61,7 +63,7 @@ export const cssFontSize = page => page.evaluate(() => {
 // A new problem, laid out in full as the first one is at startup.
 export const layOut = (page, a, b) => page.evaluate(([a, b]) => {
   const { game, layout } = window.mathtime;
-  game.state.problem = { a, b, answer: a + b };
+  game.state.problem = { a, b, answer: game.level.op === '+' ? a + b : a - b };
   layout.layout();
 }, [a, b]);
 
@@ -70,7 +72,7 @@ export const layOut = (page, a, b) => page.evaluate(([a, b]) => {
 export async function setProblem(page, a, b) {
   await page.evaluate(([a, b]) => {
     const { game, view, layout } = window.mathtime;
-    game.state.problem = { a, b, answer: a + b };
+    game.state.problem = { a, b, answer: game.level.op === '+' ? a + b : a - b };
     view.render(game.state);
     layout.place();
   }, [a, b]);
@@ -129,6 +131,34 @@ export async function boxEdges(page, shot) {
   return ink(shot, { left: s.left - 2, right: s.right + 2, top, bottom });
 }
 
+// The box's outer edges and centre, and the area inside its border (with 1px
+// to spare) where answers are measured. Needs freeze().
+export async function boxInside(page) {
+  const bw = await page.evaluate(() => parseFloat(getComputedStyle(document.querySelector('#eq')).getPropertyValue('--bw')));
+  const outer = await boxEdges(page, await capture(page));
+  const inner = { left: outer.left + bw + 1, right: outer.right - bw - 1, top: outer.top + bw + 1, bottom: outer.bottom - bw - 1 };
+  return { bw, outer, inner, centre: (outer.left + outer.right) / 2 };
+}
+
+// The inner edges of the box border, from pixels: each side's border alone,
+// in a strip wider than the border and narrower than the padding.
+export function borderInner(shot, outer, bw) {
+  const w = bw + 3;
+  return {
+    left: ink(shot, { left: outer.left - 1, right: outer.left + w, top: outer.top + w, bottom: outer.bottom - w }).right,
+    right: ink(shot, { left: outer.right - w, right: outer.right + 1, top: outer.top + w, bottom: outer.bottom - w }).left,
+    top: ink(shot, { left: outer.left + w, right: outer.right - w, top: outer.top - 1, bottom: outer.top + w }).bottom,
+    bottom: ink(shot, { left: outer.left + w, right: outer.right - w, top: outer.bottom - w, bottom: outer.bottom + 1 }).top,
+  };
+}
+
+// Show an answer in the box directly (typing itself is tested in flows.spec.js).
+export const showAnswer = (page, typed) => page.evaluate(t => {
+  const { game, view } = window.mathtime;
+  game.state.typed = t;
+  view.renderAnswer(t);
+}, typed);
+
 // The dashed outline's outer edges, from pixels. Needs showOutline() after freeze().
 export async function outlineEdges(page, shot) {
   const { left, right, top, bottom } = await boxWindow(page);
@@ -154,13 +184,13 @@ export async function equalsGap(page) {
   for (let b = 0; b <= 9; b++) {
     await setProblem(page, 5, b);
     const shot = await capture(page);
-    const plus = ink(shot, await rect(page, '.op', 0), MUTED);
+    const plus = ink(shot, await rect(page, '#eq .op', 0), MUTED);
     const digit = await digitInk(page, shot, '#b');
-    const equals = ink(shot, await rect(page, '.op', 1), MUTED);
+    const equals = ink(shot, await rect(page, '#eq .op', 1), MUTED);
     sum += (digit.left - plus.right) + (equals.left - digit.right);
   }
   const shot = await capture(page);
-  const equals = ink(shot, await rect(page, '.op', 1), MUTED);
+  const equals = ink(shot, await rect(page, '#eq .op', 1), MUTED);
   return { mean: sum / 20, gap: (await boxEdges(page, shot)).left - equals.right };
 }
 

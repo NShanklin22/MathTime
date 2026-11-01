@@ -1,4 +1,4 @@
-import { LEVEL1 } from './level1.js';
+import { LEVELS } from './levels.js';
 import { createGame } from './game.js';
 import { fontsReady } from './fonts.js';
 import { createScanner } from './scanner.js';
@@ -9,18 +9,32 @@ import { bindInput } from './input.js';
 const $ = sel => document.querySelector(sel);
 const dom = {
   eq: $('#eq'), slot: $('#slot'), shown: $('#shown'), caret: $('.caret'), qnum: $('#qnum'),
-  a: $('#a'), b: $('#b'), ans: $('#ans'), pad: $('.pad'), stage: $('.stage'), topBar: $('.top'),
+  a: $('#a'), b: $('#b'), op: $('#eq .op'), ans: $('#ans'), pad: $('.pad'), stage: $('.stage'), topBar: $('.top'),
+  topic: $('.crumbs .topic'), here: $('.crumbs .here'),
   livesBox: $('.lives'), hearts: [...document.querySelectorAll('.lives svg')], status: $('#status'),
 };
 
-const game = createGame(LEVEL1);
+const game = createGame(LEVELS[0]);
 const scan = createScanner();
-const layout = createLayout(dom, scan, LEVEL1.possibleAnswers);
-const view = createView(dom, layout, LEVEL1);
+const layout = createLayout(dom, scan, game.level.possibleAnswers);
+const view = createView(dom, layout, game.level);
 layout.afterMeasure = () => view.render(game.state);
 
-// Handle for the browser tests (tests/e2e) to put a known problem on screen.
-window.mathtime = { game, view, layout };
+// Start `level` at question 1 with full lives, focus on the answer. The
+// screen is measured again: the operator and the answer box are the level's.
+function play(level) {
+  game.start(level);
+  layout.possibleAnswers = level.possibleAnswers;
+  view.setLevel(level);
+  document.body.classList.remove('at-select');
+  safeLayout();
+  view.render(game.state);           // drawn even if the layout failed
+  view.announceProblem(game.state);
+  dom.ans.focus({ preventScroll: true });
+}
+
+// Handle for the browser tests (tests/e2e) to put a known problem or level on screen.
+window.mathtime = { game, view, layout, levels: LEVELS, play };
 
 // The game locks input itself during the correct and out-of-lives
 // transitions (spec §2), so every key just goes to game.press().
@@ -82,14 +96,7 @@ function watchPixelRatio() {
   }, { once: true });
 }
 
-$('#level1').addEventListener('click', () => {
-  game.restart();
-  document.body.classList.remove('at-select');
-  safeLayout();
-  view.render(game.state);           // drawn even if the layout failed
-  view.announceProblem(game.state);
-  dom.ans.focus({ preventScroll: true });
-});
+$('#level1').addEventListener('click', () => play(LEVELS[0]));
 // The Enter that made the third miss may still be held: its key repeat
 // (about 0.5s) would otherwise press "Level 1" as soon as it has focus.
 $('#level1').addEventListener('keydown', e => { if (e.repeat) e.preventDefault(); });

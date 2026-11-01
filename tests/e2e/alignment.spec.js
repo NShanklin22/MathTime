@@ -2,29 +2,8 @@ import { test, expect } from '@playwright/test';
 import { chromium } from 'playwright-core';
 import {
   open, freeze, showOutline, resize, setProblem, rect, capture, ink, digitInk, digitBand, boxEdges, outlineEdges,
-  fontSize, cssFontSize, TOL,
+  boxInside, borderInner, showAnswer, fontSize, cssFontSize, TOL,
 } from './helpers.js';
-
-// The box's outer edges and centre, and the area inside its border (with 1px
-// to spare) where answers are measured.
-async function boxInside(page) {
-  const bw = await page.evaluate(() => parseFloat(getComputedStyle(document.querySelector('#eq')).getPropertyValue('--bw')));
-  const outer = await boxEdges(page, await capture(page));
-  const inner = { left: outer.left + bw + 1, right: outer.right - bw - 1, top: outer.top + bw + 1, bottom: outer.bottom - bw - 1 };
-  return { bw, outer, inner, centre: (outer.left + outer.right) / 2 };
-}
-
-// The inner edges of the box border, from pixels: each side's border alone,
-// in a strip wider than the border and narrower than the padding.
-function borderInner(shot, outer, bw) {
-  const w = bw + 3;
-  return {
-    left: ink(shot, { left: outer.left - 1, right: outer.left + w, top: outer.top + w, bottom: outer.bottom - w }).right,
-    right: ink(shot, { left: outer.right - w, right: outer.right + 1, top: outer.top + w, bottom: outer.bottom - w }).left,
-    top: ink(shot, { left: outer.left + w, right: outer.right - w, top: outer.top - 1, bottom: outer.top + w }).bottom,
-    bottom: ink(shot, { left: outer.left + w, right: outer.right - w, top: outer.bottom - w, bottom: outer.bottom + 1 }).top,
-  };
-}
 
 // Space between the stage edges and what you see of the equation, from
 // pixels: the first digit's ink on the left, the box's dashed outline on the
@@ -51,7 +30,7 @@ test('box and operators are centred on the digit ink', async ({ page }) => {
   const box = await boxEdges(page, shot);
   expect(Math.abs(box.midY - digits.mid)).toBeLessThanOrEqual(TOL);
   for (const i of [0, 1]) {
-    const op = ink(shot, await rect(page, '.op', i), [182, 205, 238]);   // muted #b6cdee
+    const op = ink(shot, await rect(page, '#eq .op', i), [182, 205, 238]);   // muted #b6cdee
     // Recorded so drift shows in reports: "=" sits at the 0.5px floor at 1x.
     test.info().annotations.push({ type: `"${['+', '='][i]}" offset`, description: `${(op.midY - digits.mid).toFixed(4)}px` });
     expect(Math.abs(op.midY - digits.mid)).toBeLessThanOrEqual(TOL);
@@ -67,13 +46,6 @@ test('the caret reaches the digit ink at both ends, never short', async ({ page 
   expect(caret.bottom).toBeGreaterThanOrEqual(digits.bottom - 0.01);
   expect(caret.bottom).toBeLessThan(digits.bottom + 1 / dpr + 0.01);
 });
-
-// Show an answer in the box directly (typing itself is tested in flows.spec.js).
-const showAnswer = (page, typed) => page.evaluate(t => {
-  const { game, view } = window.mathtime;
-  game.state.typed = t;
-  view.renderAnswer(t);
-}, typed);
 
 test('every possible answer is ink-centred in the box, and wide wrong entries fit', async ({ page }) => {
   const { inner, centre } = await boxInside(page);
@@ -342,39 +314,30 @@ test('the equation lands on whole device pixels at ratios that are not powers of
   }
 });
 
+// Whether the breadcrumb fits on one line: its crumbs within its own box,
+// which is the header's room plus the first crumb's left side bearing
+// (fitHeader moves the box out by it, so the ink starts at the edge).
+const crumbsFit = page => page.evaluate(() => {
+  const crumbs = document.querySelector('.crumbs');
+  return crumbs.scrollWidth <= crumbs.clientWidth;
+});
+
 test('the header stays on one line at 320px wide', async ({ page }) => {
   // Note: setViewportSize drops the phone project to 1x; this test measures no pixels.
   await page.setViewportSize({ width: 320, height: 640 });
-  await expect.poll(() => page.evaluate(() => {
-    const where = document.querySelector('.where');
-    return document.querySelector('.crumbs').scrollWidth <= where.clientWidth;
-  })).toBe(true);
+  await expect.poll(() => crumbsFit(page)).toBe(true);
   await expect(page.locator('.crumbs .here')).toBeVisible();
 });
 
-test('the header is fitted on the level selector too', async ({ page }) => {
-  // Note: setViewportSize drops the phone project to 1x; this test measures no pixels.
-  await page.setViewportSize({ width: 375, height: 700 });
-  await expect(page.locator('.crumbs .stage-name')).toBeHidden();    // no room beside the lives
-  await page.evaluate(() => document.body.classList.add('at-select'));
-  // The selector hides the lives (and the stage), leaving room for every crumb.
-  await expect(page.locator('.crumbs .stage-name')).toBeVisible();
-  expect(await page.evaluate(() => document.querySelector('.crumbs').scrollWidth <= document.querySelector('.where').clientWidth)).toBe(true);
-});
-
-test('the header is refitted when the window resizes on the level selector', async ({ page }) => {
+test('a tight header drops the topic crumb; "Levels" and the level stay', async ({ page }) => {
   // Note: setViewportSize drops the phone project to 1x; this test measures no pixels.
   await page.setViewportSize({ width: 1440, height: 900 });
-  await page.evaluate(() => document.body.classList.add('at-select'));
-  await expect(page.locator('.crumbs .stage-name')).toBeVisible();
-  // Without the lives the full breadcrumb needs about 304px, so at 280 a
-  // crumb must go.
-  await page.setViewportSize({ width: 280, height: 700 });
-  await expect.poll(() => page.evaluate(() => {
-    const where = document.querySelector('.where');
-    return document.querySelector('.crumbs').scrollWidth <= where.clientWidth;
-  })).toBe(true);
-  await expect(page.locator('.crumbs .here')).toBeVisible();
+  for (const crumb of ['.back', '.topic', '.topic-sep', '.here']) await expect(page.locator(`.crumbs ${crumb}`)).toBeVisible();
+  await page.setViewportSize({ width: 320, height: 640 });
+  await expect(page.locator('.crumbs .topic')).toBeHidden();
+  await expect(page.locator('.crumbs .topic-sep')).toBeHidden();
+  for (const crumb of ['.back', '.here']) await expect(page.locator(`.crumbs ${crumb}`)).toBeVisible();
+  expect(await crumbsFit(page)).toBe(true);
 });
 
 test('fonts that arrive after the load timeout are measured again', async ({ page, browser, viewport, deviceScaleFactor, baseURL }) => {

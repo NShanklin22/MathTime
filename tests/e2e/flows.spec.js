@@ -3,10 +3,11 @@ import { open, setProblem, rect, typeKeys } from './helpers.js';
 
 const answerText = page => page.locator('#shown').textContent();
 const lostHearts = page => page.locator('.lives svg.lost').count();
-// What screen readers should hear for the problem on screen, from the screen.
+// What screen readers should hear for the problem on screen, from the screen
+// and the level's word for its operator.
 const problemSaid = page => page.evaluate(() => {
   const text = sel => document.querySelector(sel).textContent;
-  return `${text('#qnum')}: ${text('#a')} plus ${text('#b')}`;
+  return `${text('#qnum')}: ${text('#a')} ${window.mathtime.game.level.word} ${text('#b')}`;
 });
 
 // An in-page log, timed with performance.now(), of what these tests time or
