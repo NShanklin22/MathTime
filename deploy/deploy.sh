@@ -45,8 +45,14 @@ step "Checking the live site"
 # Through this machine's own nginx: the home router may not route mainframe back to its own public IP.
 # --resolve keeps the real hostname, so TLS and the server block still match.
 live() { curl -fsS --max-time 10 --resolve "$SITE_HOST:443:127.0.0.1" "$@"; }
-live "https://$SITE_HOST/" | cmp -s - "$stage/index.html" \
-  || fail "https://$SITE_HOST/ is not the index.html just published. Check sudo nginx -t and deploy/README.md."
+live -o "$stage/live.html" "https://$SITE_HOST/" || {
+  code=$?
+  # 60: nginx has no server block with a certificate for this name, so it answered with another site's.
+  [ "$code" -eq 60 ] && fail "nginx has no valid certificate for $SITE_HOST yet. Do steps 3 and 4 of deploy/README.md (the nginx site, then certbot), then deploy again."
+  fail "https://$SITE_HOST/ did not load through this machine's nginx (curl exit $code, above)."
+}
+cmp -s "$stage/live.html" "$stage/index.html" \
+  || fail "https://$SITE_HOST/ answers, but not with the index.html just published. Is root $WEB_ROOT in /etc/nginx/sites-available/mathtime?"
 type="$(live -o /dev/null -w '%{content_type}' "https://$SITE_HOST/src/main.js")" \
   || fail "https://$SITE_HOST/src/main.js did not load."
 # Browsers refuse to run a module served as anything but JavaScript.
