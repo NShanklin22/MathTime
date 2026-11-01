@@ -43,8 +43,9 @@ export async function resize(page, width, height) {
   await settle(page);
 }
 
-// Records a measurement in the test report, so drift shows.
-export const note = (type, px) => test.info().annotations.push({ type, description: `${px.toFixed(3)}px` });
+// Records a measurement in the test report, so drift shows: a length in px,
+// unless another unit is given ('' for a ratio).
+export const note = (type, value, unit = 'px') => test.info().annotations.push({ type, description: `${value.toFixed(3)}${unit}` });
 
 // The equation's font size as laid out (what layout.js fitted).
 export const fontSize = page => page.evaluate(() => parseFloat(getComputedStyle(document.querySelector('#eq')).fontSize));
@@ -177,17 +178,17 @@ export async function groupOffset(page) {
 }
 
 // The ink gap from "=" to the box's outer edge, and the mean of the ink gaps
-// either side of the second number over all ten digits ("+" → digit and
-// digit → "="). Needs freeze().
+// either side of the second number over all ten digits (the operator → digit
+// and digit → "="). Needs freeze().
 export async function equalsGap(page) {
   let sum = 0;
   for (let b = 0; b <= 9; b++) {
     await setProblem(page, 5, b);
     const shot = await capture(page);
-    const plus = ink(shot, await rect(page, '#eq .op', 0), MUTED);
+    const op = ink(shot, await rect(page, '#eq .op', 0), MUTED);
     const digit = await digitInk(page, shot, '#b');
     const equals = ink(shot, await rect(page, '#eq .op', 1), MUTED);
-    sum += (digit.left - plus.right) + (equals.left - digit.right);
+    sum += (digit.left - op.right) + (equals.left - digit.right);
   }
   const shot = await capture(page);
   const equals = ink(shot, await rect(page, '#eq .op', 1), MUTED);

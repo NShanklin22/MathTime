@@ -225,7 +225,7 @@ test('a narrow screen shrinks the equation to fit, measured again', async ({ pag
   const digits = await digitBand(page);
   const shot = await capture(page);
   const box = await boxEdges(page, shot);
-  const plus = ink(shot, await rect(page, '.op', 0), [182, 205, 238]);   // muted #b6cdee
+  const plus = ink(shot, await rect(page, '#eq .op', 0), [182, 205, 238]);   // muted #b6cdee
   expect(Math.abs(box.midY - digits.mid), 'box').toBeLessThanOrEqual(TOL);
   expect(Math.abs(plus.midY - digits.mid), '+').toBeLessThanOrEqual(TOL);
   // Last: this shows the dashed outline, which the box measurement hides.

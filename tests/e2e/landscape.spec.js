@@ -63,7 +63,7 @@ for (const [width, height] of [[667, 375], [844, 390], [568, 320], [740, 360], [
       const box = await boxEdges(page, shot);
       expect(Math.abs(box.midY - digits.mid), 'box').toBeLessThanOrEqual(TOL);
       for (const i of [0, 1]) {
-        const op = ink(shot, await rect(page, '.op', i), MUTED);
+        const op = ink(shot, await rect(page, '#eq .op', i), MUTED);
         expect(Math.abs(op.midY - digits.mid), ['"+"', '"="'][i]).toBeLessThanOrEqual(TOL);
       }
       expect(Math.abs(digits.mid - (stage.top + stage.bottom) / 2), 'digit ink centre').toBeLessThanOrEqual(TOL);

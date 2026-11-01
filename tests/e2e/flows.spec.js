@@ -477,7 +477,7 @@ test('accepted physical keys flash their key; ignored ones do not', async ({ pag
 
 test('nothing in the equation moves while typing or after a wrong answer', async ({ page }) => {
   const positions = async () => Promise.all(['#a', '#b', '#slot', '#qnum'].map(s => rect(page, s))
-    .concat([rect(page, '.op', 0), rect(page, '.op', 1)]));
+    .concat([rect(page, '#eq .op', 0), rect(page, '#eq .op', 1)]));
   await record(page);
   const before = await positions();
   await typeKeys(page, ['1']);

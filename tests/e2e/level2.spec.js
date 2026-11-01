@@ -16,8 +16,9 @@ test.beforeEach(async ({ page }) => {
 test('Level 2 asks a − b with the minus sign, and screen readers hear "minus"', async ({ page }) => {
   await expect(page.locator('#eq .op').first()).toHaveText('−');
   await expect(page.locator('#eq .op').nth(1)).toHaveText('=');
-  const { a, b } = await page.evaluate(() => window.mathtime.game.state.problem);
+  const { a, b, answer } = await page.evaluate(() => window.mathtime.game.state.problem);
   expect(b).toBeLessThanOrEqual(a);
+  expect(answer).toBe(a - b);
   await expect(page.locator('#a')).toHaveText(String(a));
   await expect(page.locator('#b')).toHaveText(String(b));
   await expect(page.locator('#status')).toHaveText(`Question 1: ${a} minus ${b}`);
@@ -43,8 +44,39 @@ test('a wrong answer costs a life, and a right one moves on to another subtracti
   await typeKeys(page, ['4', 'Enter']);
   await expect(page.locator('#qnum')).toHaveText('Question 2');
   await expect(page.locator('.lives')).toHaveAttribute('aria-label', '3 lives left');
-  const { a, b } = await page.evaluate(() => window.mathtime.game.state.problem);
+  const { a, b, answer } = await page.evaluate(() => window.mathtime.game.state.problem);
   expect(b).toBeLessThanOrEqual(a);
+  expect(answer).toBe(a - b);
+  await expect(page.locator('#status')).toHaveText(`Question 2: ${a} minus ${b}`);
+});
+
+// Level 2 then Level 1 again: everything the level sets is Level 1's again,
+// as at startup. On the phone (375px wide) the header is tight for
+// "Subtraction" and not for "Addition", so it must be fitted again too.
+test('back on Level 1, the operator, box, answer length, breadcrumb and word are its own again', async ({ page }) => {
+  const boxW = () => page.evaluate(() => parseFloat(getComputedStyle(document.querySelector('#eq')).getPropertyValue('--box-w')));
+  const play = i => page.evaluate(i => window.mathtime.play(window.mathtime.levels[i]), i);
+  const phone = test.info().project.name === 'phone';
+  const topic = page.locator('.crumbs .topic');
+  await open(page);                                      // Level 1, as at startup
+  const levelOne = await boxW();
+  if (phone) await expect(topic).toBeVisible();
+  await play(1);
+  await expect(page.locator('#eq .op').first()).toHaveText('−');
+  await expect(page.locator('#ans')).toHaveAttribute('maxlength', '1');
+  await expect(topic).toHaveText('Subtraction');
+  expect(await boxW()).not.toBe(levelOne);
+  if (phone) await expect(topic, '"Subtraction" does not fit at 375px').toBeHidden();
+  await play(0);
+  await expect(page.locator('#eq .op').first()).toHaveText('+');
+  await expect(page.locator('#ans')).toHaveAttribute('maxlength', '2');
+  await expect(topic).toHaveText('Addition');
+  await expect(page.locator('.crumbs .here')).toHaveText('Level 1');
+  const { a, b, answer } = await page.evaluate(() => window.mathtime.game.state.problem);
+  expect(answer).toBe(a + b);
+  await expect(page.locator('#status')).toHaveText(`Question 1: ${a} plus ${b}`);
+  expect(await boxW()).toBe(levelOne);
+  if (phone) await expect(topic, '"Addition" fits again').toBeVisible();
 });
 
 test.describe('alignment', () => {
@@ -57,7 +89,7 @@ test.describe('alignment', () => {
     const one = await boxW();
     const box = await boxEdges(page, await capture(page));
     const ratio = (box.right - box.left) / (box.bottom - box.top);
-    note('box width / height', ratio);
+    note('box width / height', ratio, '');
     expect(ratio).toBeGreaterThan(0.75);
     expect(ratio).toBeLessThan(0.9);
     await page.evaluate(() => window.mathtime.play(window.mathtime.levels[0]));
