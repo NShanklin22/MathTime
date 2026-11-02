@@ -32,8 +32,8 @@ for (const [width, height] of [[667, 375], [844, 390], [568, 320], [740, 360], [
       expect(Math.abs(stage.top - top.bottom), 'problem area under the header').toBeLessThanOrEqual(0.01);
       // Then the run bar's row: its 6px segments, the keypad's bottom gutter below.
       const run = await rect(page, '.run');
-      expect(Math.abs(stage.bottom - run.top), 'problem area down to the run bar').toBeLessThanOrEqual(0.5);
-      expect(Math.abs(run.bottom - height), 'run bar to the bottom').toBeLessThanOrEqual(0.5);
+      expect(Math.abs(stage.bottom - run.top), 'problem area down to the run bar').toBeLessThanOrEqual(0.01);
+      expect(Math.abs(run.bottom - height), 'run bar to the bottom').toBeLessThanOrEqual(0.01);
       expect(stage.left).toBe(0);
       // The keypad: right of it, in the same 3×4 order, 16px from the right edge.
       const left = Math.min(...pad.map(k => k.left));
@@ -184,6 +184,10 @@ test('a phone sideways with safe-area insets keeps everything inside them', asyn
   const stage = await rect(page, '.stage');
   expect(stage.left, 'problem area starts at the inset').toBe(47);
   expect(stage.right, 'problem area ends at the keypad').toBeLessThanOrEqual(Math.min(...pad.map(k => k.left)) + 0.01);
+  // The keys share the height below the header (48px), less the home bar's
+  // 21px gutter above and below, three 8px gaps and the run bar's row, its
+  // 6px segments and that gutter again: 62.25px, under the 64px cap.
+  pad.forEach(k => expect(Math.abs(k.height - (390 - 48 - 2 * 21 - 24 - (6 + 21)) / 4), `${k.k} height`).toBeLessThanOrEqual(0.01));
   // The keypad's band ends where the run bar's row starts, so the keypad is
   // centred on the problem area's centre, home bar or not.
   const keysMid = (Math.min(...pad.map(k => k.top)) + Math.max(...pad.map(k => k.bottom))) / 2;

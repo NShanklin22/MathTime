@@ -125,11 +125,35 @@ test.describe('alignment', () => {
     });
   });
 
+  // Where the bar has less room than its 318px (inside its 16px gutters),
+  // its segments are 12px wide, and under 278px 10px: still whole pixels,
+  // 2px apart, and inside the gutters. Sideways on the smallest phone, and
+  // upright at 320 and 280 wide.
+  for (const [width, height, seg] of [[568, 320, 12], [320, 640, 12], [280, 700, 10]]) test(`at ${width}×${height} the segments are ${seg}px wide, on whole device pixels, inside the gutters`, async ({ page }) => {
+    await resize(page, width, height);
+    const dpr = await page.evaluate(() => devicePixelRatio);
+    const segs = await segments(page);
+    const run = await rect(page, '.run');
+    segs.forEach((s, i) => {
+      expect([s.width, s.height], `segment ${i}`).toEqual([seg, 6]);
+      expect(Math.abs(s.left * dpr - Math.round(s.left * dpr)), `segment ${i}`).toBeLessThan(0.02);
+      if (i) expect(Math.abs(s.left - segs[i - 1].right - 2), `gap before segment ${i}`).toBeLessThan(0.01);
+    });
+    note('left gutter', segs[0].left - run.left);
+    note('right gutter', run.right - segs[19].right);
+    // (The snap moves the segments by up to half a device pixel.)
+    expect(segs[0].left - run.left, 'left gutter').toBeGreaterThanOrEqual(16 - 0.5 / dpr);
+    expect(run.right - segs[19].right, 'right gutter').toBeGreaterThanOrEqual(16 - 0.5 / dpr);
+  });
+
   // Where the page paints the segments, which their rects alone can't show:
   // on whole device pixels, every pixel of a segment is wholly its colour
-  // and every pixel round it wholly background. A fraction of a pixel off,
-  // or moved by a transform after the page has rounded its place, a segment
-  // leaves rows or columns of partly covered pixels. At each project's own
+  // and every pixel round it wholly background. The page paints a plain box
+  // on whole device pixels by itself, so a skipped snap still paints sharp;
+  // the rect check above catches that. This guards against the other ways
+  // to place the bar: a transform, which the page adds after rounding and
+  // which leaves rows or columns of partly covered pixels, and moving the
+  // bar's own box, which scrolls the window sideways. At each project's own
   // size, where the keypad's height puts the bar a fraction of a device
   // pixel down on the phone; at 1439 wide, where centring puts it half a
   // pixel across at 1x; and sideways at 667×375, where the keypad's width
