@@ -26,11 +26,12 @@
   --top-h: calc(var(--top-safe) + var(--crumb-line) + var(--road-gap) + var(--road-h));   /* the header */
   --key-gap: 8px;
   --pad-bottom: max(16px, env(safe-area-inset-bottom));   /* below the keypad */
+  --run-bar: 6px;            /* the run bar's segments (runs spec §2) */
 }
 
 *, *::before, *::after { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; }
-html.loading .top, html.loading .stage, html.loading .select, html.loading .pad { visibility: hidden; }
+html.loading .top, html.loading .stage, html.loading .run, html.loading .select, html.loading .pad { visibility: hidden; }
 body {
   background:
     linear-gradient(rgba(255, 255, 255, 0.14) 1px, transparent 1px) -1px -1px / 100px 100px,
@@ -43,7 +44,7 @@ body {
   overflow: hidden;
   height: 100dvh;
   display: grid;
-  grid-template-rows: auto 1fr auto;
+  grid-template-rows: auto 1fr auto auto;   /* header, problem area, run bar, keypad */
   grid-template-columns: minmax(0, 1fr);
   -webkit-tap-highlight-color: transparent;
   user-select: none;
@@ -242,6 +243,25 @@ body.at-select .crumbs .home { display: block; }
 @keyframes out { to { transform: translateX(-40vw); opacity: 0; } }
 @keyframes in { from { transform: translateX(40vw); opacity: 0; } }
 
+/* ---------- Run bar (runs spec §2) ---------- */
+/* A segment per problem, filled green on each correct answer: the only
+   progress mark. Centred over the keypad, 16px above its keys (held
+   sideways, under the problem area), and put on whole device pixels by
+   layout.js (--run-dx, --run-dy: relative offsets, not a transform).
+   Segments are 14px wide and 2px apart; where the bar has less room, 12px
+   or 10px, still whole pixels. Only a filling segment changes. */
+.run {
+  container-type: inline-size;
+  display: flex;
+  justify-content: center;
+  gap: 2px;
+  padding: 0 16px 16px;
+}
+.run span { position: relative; left: var(--run-dx, 0px); top: var(--run-dy, 0px); flex: none; width: 14px; height: var(--run-bar); background: var(--faint); transition: background-color .2s; }
+.run span.done { background: var(--good); }
+@container (width < 318px) { .run span { width: 12px; } }
+@container (width < 278px) { .run span { width: 10px; } }
+
 /* ---------- Keypad ---------- */
 .pad {
   width: 100%;
@@ -292,7 +312,7 @@ body.at-select .crumbs .home { display: block; }
   overflow-y: auto;
   padding: 40px 16px max(32px, env(safe-area-inset-bottom));
 }
-body.at-select .stage, body.at-select .pad, body.at-select .lives { display: none; }
+body.at-select .stage, body.at-select .run, body.at-select .pad, body.at-select .lives { display: none; }
 body.at-select .select { display: block; }
 .select .group + .group { margin-top: 32px; }
 .select .group-name, .select .title, .select .name { display: block; text-box: trim-both cap alphabetic; white-space: nowrap; }
@@ -347,34 +367,39 @@ body.at-select .select { display: block; }
 /* ---------- Landscape phones (spec §3.4) ---------- */
 /* At least 3:2 (a nearly square window would leave the equation a sliver
    beside the keypad, so it keeps the keypad below). The problem area on the
-   left at the full height below the header, the keypad on the right. Its
-   four rows share that height, less the gutters above and below and three
-   gaps. The gutters are equal (16px, or the home bar's inset if larger), so
-   the band's centre is the problem area's. Keys are up to 64px tall, and at
-   least 40px from 264px tall up; on shorter screens they shrink rather than
-   run into the header. They are 1.5 times as wide as they are tall. Capped
-   at 64px, the keypad is centred in that band. */
+   left, below the header and above the run bar, the keypad on the right.
+   Its four rows share the height below the header, less the gutters above
+   and below, three gaps and the run bar's row (runs spec §2). The gutters
+   are equal (16px, or the home bar's inset if larger), and the band ends
+   where the run bar's row starts, so the band's centre is the problem
+   area's. Keys are up to 64px tall, and at least 40px from 286px tall up;
+   on shorter screens they shrink rather than run into the header. They are
+   1.5 times as wide as they are tall. Capped at 64px, the keypad is centred
+   in that band. */
 @media (orientation: landscape) and (max-height: 560px) and (min-aspect-ratio: 3/2) {
   body {
     grid-template-columns: minmax(0, 1fr) auto;
-    grid-template-rows: auto minmax(0, 1fr);
-    grid-template-areas: "top top" "stage pad";
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    grid-template-areas: "top top" "stage pad" "run pad";
   }
   .top { grid-area: top; }
   .stage, .select { grid-area: stage; }
-  .stage { margin-left: env(safe-area-inset-left); }   /* its rect is the safe part, which layout.js centres in */
+  .stage, .run { margin-left: env(safe-area-inset-left); }   /* their rects are the safe part, which layout.js centres in */
+  /* The run bar under the problem area, centred on it, the keypad's bottom gutter below it. */
+  .run { grid-area: run; padding: 0 var(--gutter) var(--pad-bottom); }
   .pad {
-    --key-h: min(64px, (100dvh - var(--top-h) - 2 * var(--pad-bottom) - 3 * var(--key-gap)) / 4);
+    --run-row: calc(var(--run-bar) + var(--pad-bottom));
+    --key-h: min(64px, (100dvh - var(--top-h) - 2 * var(--pad-bottom) - var(--run-row) - 3 * var(--key-gap)) / 4);
     grid-area: pad;
     width: auto;
     max-width: none;
     grid-template-columns: repeat(3, calc(var(--key-h) * 1.5));
     grid-auto-rows: var(--key-h);
     align-content: center;
-    padding: var(--pad-bottom) max(var(--gutter), env(safe-area-inset-right)) var(--pad-bottom) 0;
+    padding: var(--pad-bottom) max(var(--gutter), env(safe-area-inset-right)) calc(var(--pad-bottom) + var(--run-row)) 0;
   }
   .pad button { height: auto; }
   @supports not (height: 1dvh) {
-    .pad { --key-h: min(64px, (100vh - var(--top-h) - 2 * var(--pad-bottom) - 3 * var(--key-gap)) / 4); }
+    .pad { --key-h: min(64px, (100vh - var(--top-h) - 2 * var(--pad-bottom) - var(--run-row) - 3 * var(--key-gap)) / 4); }
   }
 }

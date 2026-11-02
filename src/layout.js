@@ -10,13 +10,14 @@ const px = v => onLayoutGrid(v, devicePixelRatio) + 'px';
 // Measures the real ink of the equation's font and lays the screen out around
 // it (spec §6.1): box, caret and operators from measured ink; equation fitted
 // and snapped to device pixels; header fitted (header.js); keypad labels
-// centred (keypad.js). `afterMeasure` runs once per layout, after the last
-// measurement, so the view can re-render digits with the new geometry.
+// centred (keypad.js); the run bar on whole device pixels. `afterMeasure`
+// runs once per layout, after the last measurement, so the view can
+// re-render digits with the new geometry.
 // `possibleAnswers` sizes the answer box; main.js sets it again for each level.
 // `place` centres the equation on its ink, which depends on the problem: the
 // view calls it again after drawing a new one.
 export function createLayout(dom, scan, possibleAnswers) {
-  const { eq, a, slot, caret, qnum, stage, topBar, pad } = dom;
+  const { eq, a, slot, caret, qnum, stage, topBar, pad, run } = dom;
   const geo = { fs: 0, style: null, base: 0.8, mid: 0.5, inkH: 0.72, boxW: 1.2, wide: 0.6 };
   const api = { geo, possibleAnswers, inkOf, leadIndent, answerAt, layout, place, afterMeasure: null };
 
@@ -264,6 +265,27 @@ export function createLayout(dom, scan, possibleAnswers) {
     api.afterMeasure?.();
     place();
     centreKeys(pad, scan);
+    placeRun();
+  }
+
+  // The run bar (runs spec §2) on whole device pixels, across and down:
+  // centred as laid out, it can start at a fraction of a device pixel (half
+  // a pixel at 1x), which would blur every segment's edges. Its segments are
+  // whole pixels wide. Each segment is moved by a relative offset, which is
+  // part of its layout position, onto the nearest device pixel. Not by a
+  // transform: the page paints a plain box at its layout position rounded
+  // to device pixels, and a transform would add the fraction again on top
+  // of that. Not the bar's own box either: it is as wide as the window, and
+  // moving it would push its edge past the window's.
+  function placeRun() {
+    const first = run?.firstElementChild;
+    if (!first) return;
+    const dpr = devicePixelRatio;
+    run.style.removeProperty('--run-dx');
+    run.style.removeProperty('--run-dy');
+    const r = first.getBoundingClientRect();
+    run.style.setProperty('--run-dx', px(snap(r.left, dpr) - r.left));
+    run.style.setProperty('--run-dy', px(snap(r.top, dpr) - r.top));
   }
 
   // Place the equation for the problem on screen: what you see centred in

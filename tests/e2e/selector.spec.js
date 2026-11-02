@@ -44,12 +44,12 @@ for (const n of [1, 2]) test(`choosing Level ${n} starts it at question 1 with 3
   await home(page);
   await levelRow(page, n).click();
   await expect(page.locator('.select')).toBeHidden();
-  await expect(page.locator('#qnum')).toHaveText('Question 1');
+  await expect(page.locator('#qnum')).toHaveText('Question 1 of 20');
   await expect(page.locator('.lives')).toHaveAttribute('aria-label', '3 lives left');
   await expect(page.locator('#ans')).toBeFocused();
   await expect(page.locator('.crumbs .here')).toHaveText(`Level ${n}`);
   await expect(page.locator('.crumbs .home')).toBeHidden();
-  await expect(page.locator('#status')).toHaveText(new RegExp(`^Question 1: \\d ${n === 1 ? 'plus' : 'minus'} \\d$`));
+  await expect(page.locator('#status')).toHaveText(new RegExp(`^Question 1 of 20: \\d ${n === 1 ? 'plus' : 'minus'} \\d$`));
 });
 
 test('the rows are buttons in the tab order', async ({ page }) => {
@@ -82,7 +82,7 @@ test('running out of lives comes back with that level marked and focused, in whi
   await expect(levelRow(page, 1)).toHaveCSS('outline-style', 'none');
   await levelRow(page, 1).click();
   await expect(page.locator('.crumbs .here')).toHaveText('Level 1');
-  await expect(page.locator('#qnum')).toHaveText('Question 1');
+  await expect(page.locator('#qnum')).toHaveText('Question 1 of 20');
 });
 
 test('the mark moves to the level you came from last', async ({ page }) => {

@@ -11,7 +11,7 @@ const $ = sel => document.querySelector(sel);
 const dom = {
   eq: $('#eq'), slot: $('#slot'), shown: $('#shown'), caret: $('.caret'), qnum: $('#qnum'),
   a: $('#a'), b: $('#b'), op: $('#eq .op'), ans: $('#ans'), pad: $('.pad'), stage: $('.stage'), topBar: $('.top'),
-  select: $('.select'),
+  run: $('.run'), select: $('.select'),
   topic: $('.crumbs .topic'), here: $('.crumbs .here'),
   livesBox: $('.lives'), hearts: [...document.querySelectorAll('.lives svg')], status: $('#status'),
 };

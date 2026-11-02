@@ -52,6 +52,11 @@
     </div>
   </main>
 
+  <!-- How far through the run you are (runs spec §2): a segment per
+       problem, built by view.js. Screen readers hear "Question N of 20"
+       instead. -->
+  <div class="run" aria-hidden="true"></div>
+
   <!-- Outside .stage so announcements survive the switch to the level selector. -->
   <p class="sr-only" role="status" id="status"></p>
 

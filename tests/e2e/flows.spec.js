@@ -102,13 +102,13 @@ test('a correct answer turns green, then the next question slides in', async ({ 
   await typeKeys(page, ['7', 'Enter']);
   const green = await seen(page, { type: 'add', name: 'correct' });
   expect(green.caret).toBe('hidden');                     // spec §4: no caret while the answer shows green
-  await expect(page.locator('#qnum')).toHaveText('Question 2');
+  await expect(page.locator('#qnum')).toHaveText('Question 2 of 20');
   await expect(page.locator('#eq')).not.toHaveClass(/correct/);
   expect(await answerText(page)).toBe('');
   expect(await lostHearts(page)).toBe(0);
   // Announced at once, then the new problem once it is on screen.
   const said = await problemSaid(page);
-  expect(said).toMatch(/^Question 2: \d plus \d$/);
+  expect(said).toMatch(/^Question 2 of 20: \d plus \d$/);
   await seen(page, { type: 'status', text: said });
   expect((await entries(page, { type: 'status' })).map(e => e.text)).toEqual(['Correct', said]);
 });
@@ -155,7 +155,7 @@ test('the next problem waits for the slide-out to finish', async ({ page }) => {
     };
   });
   await typeKeys(page, ['7', 'Enter']);
-  await expect(page.locator('#qnum')).toHaveText('Question 2');
+  await expect(page.locator('#qnum')).toHaveText('Question 2 of 20');
   expect(await page.evaluate(() => window.atSwap)).toEqual({ slide: 'finished', opacity: '0' });
 });
 
@@ -168,7 +168,7 @@ test('with the slide animation off, the next problem arrives at once', async ({ 
   const enter = await seen(page, { type: 'key', key: 'Enter' });
   const swap = await seen(page, { type: 'add', name: 'in' });   // the next problem slides in
   near(swap.t - enter.t, 350);
-  await expect(page.locator('#qnum')).toHaveText('Question 2');
+  await expect(page.locator('#qnum')).toHaveText('Question 2 of 20');
 });
 
 test('a slide-out that never finishes gives way after 1s', async ({ page }) => {
@@ -180,7 +180,7 @@ test('a slide-out that never finishes gives way after 1s', async ({ page }) => {
   const out = await seen(page, { type: 'add', name: 'out' });
   const swap = await seen(page, { type: 'add', name: 'in' });
   near(swap.t - out.t, 1000);
-  await expect(page.locator('#qnum')).toHaveText('Question 2');
+  await expect(page.locator('#qnum')).toHaveText('Question 2 of 20');
 });
 
 test('you can type as the next problem slides in', async ({ page }) => {
@@ -221,7 +221,7 @@ test('digits are ignored and do not flash while a correct answer is locked in', 
     expect(press.eq, `key ${key}`).toMatch(during);
     expect(press, `key ${key}`).toMatchObject({ shown: '7', pressed: false });
   }
-  await expect(page.locator('#qnum')).toHaveText('Question 2');
+  await expect(page.locator('#qnum')).toHaveText('Question 2 of 20');
   expect(await answerText(page)).toBe('');
 });
 
@@ -233,7 +233,7 @@ test('a wrong answer shakes, clears and costs one life', async ({ page }) => {
   expect(await lostHearts(page)).toBe(1);
   await expect(page.locator('.lives')).toHaveAttribute('aria-label', '2 lives left');
   await expect(page.locator('#status')).toHaveText('Wrong, 2 lives left');
-  await expect(page.locator('#qnum')).toHaveText('Question 1');
+  await expect(page.locator('#qnum')).toHaveText('Question 1 of 20');
 });
 
 test('the shake takes 0.32s', async ({ page }) => {
@@ -256,7 +256,7 @@ test('with one life left, the label and the announcement say "1 life left"', asy
 
 test('three misses go to the level selector; Level 1 restarts at question 1', async ({ page }) => {
   await typeKeys(page, ['7', 'Enter']);                  // to question 2
-  await expect(page.locator('#qnum')).toHaveText('Question 2');
+  await expect(page.locator('#qnum')).toHaveText('Question 2 of 20');
   await setProblem(page, 3, 4);
   for (let i = 0; i < 3; i++) await typeKeys(page, ['9', 'Enter']);
   await expect(page.locator('.lives')).toHaveAttribute('aria-label', '0 lives left');
@@ -270,7 +270,7 @@ test('three misses go to the level selector; Level 1 restarts at question 1', as
   await expect(levelRow(page, 1)).toHaveCSS('outline-offset', '4px');
   await expect(levelRow(page, 2)).toHaveCSS('outline-style', 'none');
   await levelRow(page, 1).click();
-  await expect(page.locator('#qnum')).toHaveText('Question 1');
+  await expect(page.locator('#qnum')).toHaveText('Question 1 of 20');
   expect(await lostHearts(page)).toBe(0);
   await expect(page.locator('#ans')).toBeFocused();
   await expect(page.locator('#status')).toHaveText(await problemSaid(page));
@@ -278,7 +278,7 @@ test('three misses go to the level selector; Level 1 restarts at question 1', as
 
 test('a held Enter on the third miss does not choose a level', async ({ page }) => {
   await typeKeys(page, ['7', 'Enter']);                  // to question 2, so a restart would show
-  await expect(page.locator('#qnum')).toHaveText('Question 2');
+  await expect(page.locator('#qnum')).toHaveText('Question 2 of 20');
   await setProblem(page, 3, 4);
   await record(page);
   for (let i = 0; i < 2; i++) await typeKeys(page, ['9', 'Enter']);
@@ -294,7 +294,7 @@ test('a held Enter on the third miss does not choose a level', async ({ page }) 
   // It reached the row, and the selector's guard cancelled it.
   expect(await seen(page, { type: 'key', key: 'Enter', repeat: true })).toMatchObject({ target: 'BUTTON', prevented: true });
   await expect(levelRow(page, 1)).toBeVisible();
-  await expect(page.locator('#qnum')).toHaveText('Question 2');
+  await expect(page.locator('#qnum')).toHaveText('Question 2 of 20');
   await expect(page.locator('.lives')).toHaveAttribute('aria-label', '0 lives left');
 });
 
@@ -323,13 +323,13 @@ test('the selector does not appear if the game restarted while it waited', async
 
 test('Level 1 draws the new game even if the layout fails', async ({ page }) => {
   await typeKeys(page, ['7', 'Enter']);
-  await expect(page.locator('#qnum')).toHaveText('Question 2');
+  await expect(page.locator('#qnum')).toHaveText('Question 2 of 20');
   await setProblem(page, 3, 4);
   for (let i = 0; i < 3; i++) await typeKeys(page, ['9', 'Enter']);
   await expect(levelRow(page, 1)).toBeFocused();
   await page.evaluate(() => { window.mathtime.layout.layout = () => { throw new Error('layout failed (test)'); }; });
   await levelRow(page, 1).click();
-  await expect(page.locator('#qnum')).toHaveText('Question 1');
+  await expect(page.locator('#qnum')).toHaveText('Question 1 of 20');
   expect(await lostHearts(page)).toBe(0);
   const { a, b } = await page.evaluate(() => window.mathtime.game.state.problem);
   await expect(page.locator('#a')).toHaveText(String(a));
@@ -380,7 +380,7 @@ test('the on-screen keypad works the same as the keyboard', async ({ page }) => 
   expect(await answerText(page)).toBe('');
   await page.locator('.pad button[data-k="7"]').click();
   await page.locator('.pad button[data-k="Enter"]').click();
-  await expect(page.locator('#qnum')).toHaveText('Question 2');
+  await expect(page.locator('#qnum')).toHaveText('Question 2 of 20');
   await expect(page.locator('#ans')).toBeFocused();       // taps never steal focus
 });
 
@@ -447,7 +447,7 @@ test('the typed answer is heard once, from the answer field', async ({ page }) =
 test('the first problem is announced when a level starts', async ({ page }) => {
   await open(page);                                       // fresh: beforeEach replaced the problem
   await expect(page.locator('#status')).toHaveText(await problemSaid(page));
-  expect(await problemSaid(page)).toMatch(/^Question 1: \d plus \d$/);
+  expect(await problemSaid(page)).toMatch(/^Question 1 of 20: \d plus \d$/);
 });
 
 test('a quick second press of a key flashes for its full time', async ({ page }) => {
@@ -499,6 +499,6 @@ test('the next problem slides in even if placing it fails', async ({ page }) => 
   await page.evaluate(() => { window.mathtime.layout.place = () => { throw new Error('place failed (test)'); }; });
   await typeKeys(page, ['7', 'Enter']);
   await seen(page, { type: 'add', name: 'in' });
-  await expect(page.locator('#qnum')).toHaveText('Question 2');
+  await expect(page.locator('#qnum')).toHaveText('Question 2 of 20');
   await expect.poll(() => page.evaluate(() => getComputedStyle(document.querySelector('#eq')).opacity)).toBe('1');
 });

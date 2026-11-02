@@ -21,7 +21,7 @@ test('Level 2 asks a − b with the minus sign, and screen readers hear "minus"'
   expect(answer).toBe(a - b);
   await expect(page.locator('#a')).toHaveText(String(a));
   await expect(page.locator('#b')).toHaveText(String(b));
-  await expect(page.locator('#status')).toHaveText(`Question 1: ${a} minus ${b}`);
+  await expect(page.locator('#status')).toHaveText(`Question 1 of 20: ${a} minus ${b}`);
   await expect(page.locator('.crumbs .topic')).toHaveText('Subtraction');
   await expect(page.locator('.crumbs .here')).toHaveText('Level 2');
 });
@@ -42,12 +42,12 @@ test('a wrong answer costs a life, and a right one moves on to another subtracti
   await expect(page.locator('.lives')).toHaveAttribute('aria-label', '2 lives left');
   await expect(page.locator('#shown')).toHaveText('');
   await typeKeys(page, ['4', 'Enter']);
-  await expect(page.locator('#qnum')).toHaveText('Question 2');
+  await expect(page.locator('#qnum')).toHaveText('Question 2 of 20');
   await expect(page.locator('.lives')).toHaveAttribute('aria-label', '3 lives left');
   const { a, b, answer } = await page.evaluate(() => window.mathtime.game.state.problem);
   expect(b).toBeLessThanOrEqual(a);
   expect(answer).toBe(a - b);
-  await expect(page.locator('#status')).toHaveText(`Question 2: ${a} minus ${b}`);
+  await expect(page.locator('#status')).toHaveText(`Question 2 of 20: ${a} minus ${b}`);
 });
 
 // Level 2 then Level 1 again: everything the level sets is Level 1's again,
@@ -75,7 +75,7 @@ test('back on Level 1, the operator, box, answer length, breadcrumb and word are
   await expect(page.locator('.crumbs .here')).toHaveText('Level 1');
   const { a, b, answer } = await page.evaluate(() => window.mathtime.game.state.problem);
   expect(answer).toBe(a + b);
-  await expect(page.locator('#status')).toHaveText(`Question 1: ${a} plus ${b}`);
+  await expect(page.locator('#status')).toHaveText(`Question 1 of 20: ${a} plus ${b}`);
   expect(await boxW()).toBe(levelOne);
   if (phone) await expect(topic, '"Addition" fits again').toBeVisible();
 });

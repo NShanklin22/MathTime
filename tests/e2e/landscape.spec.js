@@ -27,18 +27,21 @@ for (const [width, height] of [[667, 375], [844, 390], [568, 320], [740, 360], [
       const pad = await keys(page);
       note('font size', await fontSize(page));
       note('key height', pad[0].height);
-      // The problem area: the full height below the full-width header.
+      // The problem area: below the full-width header.
       expect(top.width).toBe(width);
       expect(Math.abs(stage.top - top.bottom), 'problem area under the header').toBeLessThanOrEqual(0.01);
-      expect(Math.abs(stage.bottom - height), 'problem area to the bottom').toBeLessThanOrEqual(0.01);
+      // Then the run bar's row: its 6px segments, the keypad's bottom gutter below.
+      const run = await rect(page, '.run');
+      expect(Math.abs(stage.bottom - run.top), 'problem area down to the run bar').toBeLessThanOrEqual(0.5);
+      expect(Math.abs(run.bottom - height), 'run bar to the bottom').toBeLessThanOrEqual(0.5);
       expect(stage.left).toBe(0);
       // The keypad: right of it, in the same 3×4 order, 16px from the right edge.
       const left = Math.min(...pad.map(k => k.left));
       expect(left, 'keypad right of the problem area').toBeGreaterThanOrEqual(stage.right - 0.01);
       expect(pad.map(k => k.k).join(' ')).toBe('1 2 3 4 5 6 7 8 9 Backspace 0 Enter');
       // The rows share the height below the header, less 16px above and
-      // below and three 8px gaps, up to 64px each.
-      const keyH = Math.min(64, (height - top.bottom - 16 - 16 - 24) / 4);
+      // below, three 8px gaps and the run bar's 22px row, up to 64px each.
+      const keyH = Math.min(64, (height - top.bottom - 16 - 16 - 24 - 22) / 4);
       pad.forEach((k, i) => {
         expect(Math.abs(k.left - pad[i % 3].left), `${k.k} column`).toBeLessThanOrEqual(0.01);
         expect(Math.abs(k.top - pad[3 * Math.floor(i / 3)].top), `${k.k} row`).toBeLessThanOrEqual(0.01);
@@ -181,10 +184,10 @@ test('a phone sideways with safe-area insets keeps everything inside them', asyn
   const stage = await rect(page, '.stage');
   expect(stage.left, 'problem area starts at the inset').toBe(47);
   expect(stage.right, 'problem area ends at the keypad').toBeLessThanOrEqual(Math.min(...pad.map(k => k.left)) + 0.01);
-  // The keys are capped at 64px here, so the keypad is centred on the problem area's centre, home bar or not.
+  // The keypad's band ends where the run bar's row starts, so the keypad is
+  // centred on the problem area's centre, home bar or not.
   const keysMid = (Math.min(...pad.map(k => k.top)) + Math.max(...pad.map(k => k.bottom))) / 2;
   note('keypad centre below the problem area\'s', keysMid - (stage.top + stage.bottom) / 2);
-  expect(pad[0].height, 'keys capped').toBe(64);
   expect(Math.abs(keysMid - (stage.top + stage.bottom) / 2), 'keypad centred on the problem area').toBeLessThanOrEqual(TOL);
   await showOutline(page);
   const { offset } = await groupOffset(page);

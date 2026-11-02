@@ -86,7 +86,7 @@ test('a new problem after a correct answer is centred before it slides in', asyn
     watch.observe(eq, { attributes: true, attributeFilter: ['class'] });
   });
   await typeKeys(page, ['7', 'Enter']);
-  await expect(page.locator('#qnum')).toHaveText('Question 2');
+  await expect(page.locator('#qnum')).toHaveText('Question 2 of 20');
   await expect(page.locator('#eq')).not.toHaveClass(/\bin\b/);   // it has slid in
   expect(await page.evaluate(() => document.querySelector('#eq').style.left)).toBe(await page.evaluate(() => window.leftAtSlideIn));
   const off = (await groupOffset(page)).offset;

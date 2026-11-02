@@ -1,7 +1,7 @@
 // Draws game state into the page and plays the feedback animations
 // (timings from spec §2).
 export function createView(dom, layout, level) {
-  const { eq, slot, shown, caret, qnum, hearts, livesBox, a, b, op, ans, status, topic, here } = dom;
+  const { eq, slot, shown, caret, qnum, hearts, livesBox, a, b, op, ans, status, topic, here, run } = dom;
   const ANIMS = ['shake', 'in', 'out'];
   const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -42,13 +42,21 @@ export function createView(dom, layout, level) {
     slot.classList.toggle('full', typed.length >= level.maxAnswerLength);
   }
 
+  // The run bar (runs spec §2): a segment filled for each correct answer.
+  // (The Level 2 play mockup, a record of its design, has no bar.)
+  function renderRun(state) {
+    if (!run) return;
+    [...run.children].forEach((seg, i) => seg.classList.toggle('done', i < state.solved));
+  }
+
   function render(state) {
     renderDigits(a, String(state.problem.a));
     renderDigits(b, String(state.problem.b));
     renderAnswer(state.typed);
-    qnum.textContent = 'Question ' + state.question;
+    qnum.textContent = `Question ${state.question} of ${level.problemsPerRun}`;
     hearts.forEach((h, i) => h.classList.toggle('lost', i >= state.lives));
     livesBox.setAttribute('aria-label', state.lives === 1 ? '1 life left' : `${state.lives} lives left`);
+    renderRun(state);
   }
 
   // Show `next`'s operator, answer length and place in the breadcrumb. Lay
@@ -59,6 +67,7 @@ export function createView(dom, layout, level) {
     ans.maxLength = level.maxAnswerLength;
     topic.textContent = level.topic;
     here.textContent = `Level ${level.n}`;
+    run?.replaceChildren(...Array.from({ length: level.problemsPerRun }, () => document.createElement('span')));
   }
 
   function play(cls) {
@@ -73,7 +82,7 @@ export function createView(dom, layout, level) {
 
   // Tell screen readers which problem is now on screen.
   function announceProblem(state) {
-    status.textContent = `Question ${state.question}: ${state.problem.a} ${level.word} ${state.problem.b}`;
+    status.textContent = `Question ${state.question} of ${level.problemsPerRun}: ${state.problem.a} ${level.word} ${state.problem.b}`;
   }
 
   // Green for 0.35s, slide out, swap in the next problem, slide in. The swap
@@ -85,6 +94,7 @@ export function createView(dom, layout, level) {
   async function showCorrect(state, next) {
     status.textContent = 'Correct';      // always differs from the problem before it, so it is announced
     eq.classList.add('correct');
+    renderRun(state);                    // its segment fills with the green
     await wait(350);
     play('out');
     const slide = eq.getAnimations().find(anim => anim.animationName === 'out');
