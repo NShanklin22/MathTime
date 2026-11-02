@@ -47,3 +47,43 @@ test('the built levels are Level 1 then Level 2, each with its topic, name and s
     [2, 'Subtraction', 'Subtraction within 10', [7, 3]],
   ]);
 });
+
+test('Level 1\'s facts are a + b for every a and b from 0 to 9, each once, in the order a × 10 + b', () => {
+  assert.equal(LEVEL1.facts.length, 100);
+  LEVEL1.facts.forEach((fact, i) => {
+    const a = Math.floor(i / 10), b = i % 10;
+    assert.deepEqual(fact, { a, b, answer: a + b });
+  });
+});
+
+test('Level 2\'s facts are a − b with b at most a, each once: 55, in the order 0 − 0, 1 − 0, 1 − 1, 2 − 0, …', () => {
+  const { facts } = LEVEL2;
+  assert.equal(facts.length, 55);
+  for (const { a, b, answer } of facts) {
+    assert.ok(Number.isInteger(a) && Number.isInteger(b), `${a} − ${b}`);
+    assert.ok(0 <= b && b <= a && a <= 9, `${a} − ${b}`);
+    assert.equal(answer, a - b);
+  }
+  assert.equal(new Set(facts.map(f => `${f.a} ${f.b}`)).size, 55);
+  assert.deepEqual(facts.slice(0, 4), [
+    { a: 0, b: 0, answer: 0 }, { a: 1, b: 0, answer: 1 }, { a: 1, b: 1, answer: 0 }, { a: 2, b: 0, answer: 2 },
+  ]);
+  assert.deepEqual(facts.at(-1), { a: 9, b: 9, answer: 0 });
+  // "x − x" is 10 facts in 55.
+  assert.equal(facts.filter(f => f.a === f.b).length, 10);
+});
+
+test('a run is 20 problems on every level, and no level has fewer facts than that', () => {
+  for (const level of LEVELS) {
+    assert.equal(level.problemsPerRun, 20, `Level ${level.n}`);
+    assert.ok(level.facts.length >= level.problemsPerRun, `Level ${level.n}`);
+  }
+});
+
+test('every fact\'s answer is one the answer box was sized for', () => {
+  for (const level of LEVELS) {
+    for (const { a, b, answer } of level.facts) {
+      assert.ok(level.possibleAnswers.includes(String(answer)), `Level ${level.n}: ${a}, ${b}`);
+    }
+  }
+});

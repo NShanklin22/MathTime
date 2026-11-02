@@ -9,6 +9,12 @@ export const LEVEL1 = {
   sample: [3, 4],              // the problem the level selector shows
   livesPerProblem: 3,
   maxAnswerLength: 2,
+  problemsPerRun: 20,          // a run's length (runs spec §1)
+  // Every fact, a + b with a and b from 0 to 9: 100, in the order a × 10 + b.
+  facts: Array.from({ length: 100 }, (_, i) => {
+    const a = Math.floor(i / 10), b = i % 10;
+    return { a, b, answer: a + b };
+  }),
   makeProblem(rng) {
     const a = Math.floor(rng() * 10);
     const b = Math.floor(rng() * 10);

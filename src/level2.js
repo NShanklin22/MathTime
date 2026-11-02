@@ -9,6 +9,10 @@ export const LEVEL2 = {
   sample: [7, 3],
   livesPerProblem: 3,
   maxAnswerLength: 1,
+  problemsPerRun: 20,
+  // Every fact, 55, numbered as makeProblem numbers them: 0 − 0, 1 − 0,
+  // 1 − 1, 2 − 0, …
+  facts: Array.from({ length: 10 }, (_, a) => Array.from({ length: a + 1 }, (_, b) => ({ a, b, answer: a - b }))).flat(),
   // a − b with a and b from 0 to 9 and b ≤ a. Each of the 55 facts is
   // equally likely, as each of Level 1's 100 is: picking a, then b, would
   // make "x − x = 0" more than a quarter of all problems. The facts are
