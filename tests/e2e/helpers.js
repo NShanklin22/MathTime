@@ -98,6 +98,20 @@ export const playTo = (page, n) => page.evaluate(n => {
   view.announceProblem(game.state);
 }, n);
 
+// Type the answer to the problem on screen, then Enter, as the player does.
+export async function answer(page) {
+  const right = await page.evaluate(() => window.mathtime.game.state.problem.answer);
+  await typeKeys(page, [...String(right), 'Enter']);
+}
+
+// Play the run to its end: questions answered at once through the handle,
+// the last one typed. Returns once the finish screen shows.
+export async function finishRun(page) {
+  await playTo(page, 20);
+  await answer(page);
+  await page.waitForFunction(() => document.body.classList.contains('at-finish'));
+}
+
 export async function rect(page, selector, index = 0) {
   return page.evaluate(([sel, i]) => {
     const r = document.querySelectorAll(sel)[i].getBoundingClientRect();

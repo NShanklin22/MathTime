@@ -64,6 +64,20 @@
        of its own, as the only <main> is the problem area, hidden here. -->
   <div class="select" role="region" aria-label="Levels"></div>
 
+  <!-- The finish screen (runs spec §3), filled in by finish.js, which
+       centres each line on its ink. -->
+  <div class="finish" role="region" aria-labelledby="done-title">
+    <h1 class="line done-title" id="done-title"></h1>
+    <p class="line done-time"></p>
+    <p class="line done-best"></p>
+    <p class="line done-misses"></p>
+    <!-- Part 2 puts the key field here (runs spec §6). -->
+    <div class="done-buttons">
+      <button class="again"><span class="line">Again</span></button>
+      <button class="levels"><span class="line">Levels</span></button>
+    </div>
+  </div>
+
   <div class="pad" role="group" aria-label="Keypad">
     <button tabindex="-1" data-k="1"><span class="kl">1</span></button>
     <button tabindex="-1" data-k="2"><span class="kl">2</span></button>

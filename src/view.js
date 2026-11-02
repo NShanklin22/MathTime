@@ -129,5 +129,18 @@ export function createView(dom, layout, level) {
     return true;
   }
 
-  return { render, renderAnswer, setLevel, announceProblem, showCorrect, showWrong, showOut };
+  // The run's last correct answer: green for 0.35s, its segment filled at
+  // once, then resolve true when the finish screen is due (runs spec §3),
+  // unless a new run started meanwhile. No slide: the screen gives way.
+  async function showFinished(state) {
+    status.textContent = 'Correct';
+    eq.classList.add('correct');
+    renderRun(state);
+    await wait(350);
+    if (state.phase !== 'finished') return false;
+    eq.classList.remove('correct');
+    return true;
+  }
+
+  return { render, renderAnswer, setLevel, announceProblem, showCorrect, showWrong, showOut, showFinished };
 }

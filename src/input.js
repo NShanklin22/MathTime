@@ -2,7 +2,8 @@
 // returns the game's result, and 'ignored' keys don't flash. answer() returns
 // the current answer, which the hidden field must always match.
 export function bindInput({ ans, pad, slot }, onKey, answer) {
-  const playing = () => !document.body.classList.contains('at-select');
+  // Playing: neither the level selector nor the finish screen shows.
+  const playing = () => !document.body.matches('.at-select, .at-finish');
   const keep = () => ans.focus({ preventScroll: true });
 
   // One flash timer per key, restarted by each press, so a quick second
