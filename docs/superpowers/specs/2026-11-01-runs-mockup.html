@@ -26,8 +26,9 @@
   /* A segment per problem, filled green on each correct answer: the only
      progress mark. Centred over the keypad, 16px above its keys (held
      sideways, under the problem area), and put on whole device pixels by
-     the layout. Segments are 14px wide and 2px apart; where the bar has less
-     room, 12px or 10px, still whole pixels. Only a filling segment changes. */
+     the layout (--run-dx, --run-dy: relative offsets, not a transform).
+     Segments are 14px wide and 2px apart; where the bar has less room, 12px
+     or 10px, still whole pixels. Only a filling segment changes. */
   .run {
     container-type: inline-size;
     display: flex;
@@ -35,7 +36,7 @@
     gap: 2px;
     padding: 0 16px 16px;
   }
-  .run span { flex: none; width: 14px; height: var(--run-bar); background: var(--faint); transition: background-color .2s; }
+  .run span { position: relative; left: var(--run-dx, 0px); top: var(--run-dy, 0px); flex: none; width: 14px; height: var(--run-bar); background: var(--faint); transition: background-color .2s; }
   .run span.done { background: var(--good); }
   @container (width < 318px) { .run span { width: 12px; } }
   @container (width < 278px) { .run span { width: 10px; } }
@@ -62,7 +63,9 @@
   .finish .done-best { margin-top: 24px; font-size: 15px; font-weight: 600; letter-spacing: 0.02em; color: var(--muted); }
   .finish .done-best.new { color: var(--good); }
   .finish .done-misses { margin-top: 12px; font-size: 15px; font-weight: 400; letter-spacing: 0.02em; color: var(--muted); }
-  .finish .done-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 40px; }
+  /* 12px apart, so "Again"'s focus ring (2px, 4px out) stays 6px clear of
+     "Levels". */
+  .finish .done-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 40px; }
   .finish button {
     display: flex;
     align-items: center;
@@ -188,6 +191,7 @@
   import { createScanner } from '/src/scanner.js';
   import { createLayout } from '/src/layout.js';
   import { createView } from '/src/view.js';
+  import { bindInput } from '/src/input.js';
   import { snap, onLayoutGrid } from '/src/ink.js';
 
   const $ = sel => document.querySelector(sel);
@@ -233,14 +237,22 @@
   [...run.children].forEach((seg, i) => seg.classList.toggle('done', i < filled));
 
   // The run bar on whole device pixels, across and down: centred as laid
-  // out, it can start at half a pixel at 1x, which would blur every
-  // segment's edges. Its segments are whole pixels wide.
+  // out, it can start at a fraction of a device pixel (half a pixel at 1x),
+  // which would blur every segment's edges. Its segments are whole pixels
+  // wide. Each segment is moved by a relative offset, which is part of its
+  // layout position, onto the nearest device pixel. Not by a transform: the
+  // page paints a plain box at its layout position rounded to device
+  // pixels, and a transform would add the fraction again on top of that.
+  // Not the bar's own box either: it is as wide as the window, and moving
+  // it would push its edge past the window's.
   function placeRun() {
     const first = run.firstElementChild;
     const dpr = devicePixelRatio;
-    run.style.translate = '';
+    run.style.removeProperty('--run-dx');
+    run.style.removeProperty('--run-dy');
     const r = first.getBoundingClientRect();
-    run.style.translate = `${px(snap(r.left, dpr) - r.left)} ${px(snap(r.top, dpr) - r.top)}`;
+    run.style.setProperty('--run-dx', px(snap(r.left, dpr) - r.left));
+    run.style.setProperty('--run-dy', px(snap(r.top, dpr) - r.top));
   }
 
   // Each line's ink centred in the column, and each button's label in its
@@ -248,7 +260,10 @@
   // letter spacing would leave the ink off-centre. Its start goes on a
   // whole device pixel, where it is drawn exactly as scanned (small text is
   // drawn on whole pixels at 1x), so the ink is within half a device pixel
-  // of the centre. All the reads happen in one pass, between the writes.
+  // of the centre. The centre is the parent's (the column, or the button):
+  // the line's own box is centred by auto margins, which the page rounds
+  // to its layout grid, so its centre can be a fraction of a pixel off.
+  // All the reads happen in one pass, between the writes.
   function centreLines() {
     const dpr = devicePixelRatio;
     const lines = [...finish.querySelectorAll('.line')].filter(line => line.textContent);
@@ -257,11 +272,12 @@
       const cs = getComputedStyle(line);
       const fs = parseFloat(cs.fontSize);
       const style = { weight: cs.fontWeight, family: cs.fontFamily, color: cs.color, spacing: (parseFloat(cs.letterSpacing) || 0) / fs };
-      return { box: line.getBoundingClientRect(), fs, m: scan(line.textContent, style, fs * dpr) };
+      const parent = line.parentElement.getBoundingClientRect();   // its padding is the same on both sides
+      return { box: line.getBoundingClientRect(), mid: parent.left + parent.width / 2, fs, m: scan(line.textContent, style, fs * dpr) };
     });
     lines.forEach((line, i) => {
-      const { box, fs, m } = found[i];
-      const start = box.left + box.width / 2 - (m.abr - m.abl) / 2 * fs;   // the start that centres the ink
+      const { box, mid, fs, m } = found[i];
+      const start = mid - (m.abr - m.abl) / 2 * fs;   // the start that centres the ink
       line.style.translate = px(snap(start, dpr) - box.left);
     });
   }
@@ -288,6 +304,10 @@
   } else {
     if (last) dom.eq.classList.add('correct');
     dom.status.textContent = `Question ${state.question} of 20: ${a} plus ${b}`;
+    // The game's focus handling, so the play screen shows as it plays: the
+    // answer keeps the focus, and the box shows the amber caret while it has
+    // it. Keys do nothing here.
+    bindInput(dom, () => 'ignored', () => state.typed);
   }
 
   let queued = false;
