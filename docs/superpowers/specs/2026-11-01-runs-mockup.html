@@ -1,0 +1,310 @@
+<!doctype html>
+<html lang="en" class="loading">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Runs mockup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<!-- Level runs (runs spec §2, §3) on the game's own styles and layout code
+     (src/): the play screen with "Question N of 20" and the run bar, and
+     the finish screen. Served by the dev server.
+       ?view=play&filled=N      N segments filled: 0 to 19 is question N + 1;
+                                20 is the last answer, right and green
+       ?view=finish&best=new    a new best
+       ?view=finish&best=slower slower than the best
+       ?view=finish&best=first  the first run, with no best to beat
+     &a=3&b=4 sets the problem on the play screen. -->
+<link rel="stylesheet" href="/src/styles.css">
+<style>
+  /* The rows: the header, the problem area (or the finish screen), the run
+     bar, the keypad. */
+  body { grid-template-rows: auto 1fr auto auto; }
+  :root { --run-bar: 6px; }
+
+  /* ---------- Run bar (runs spec §2) ---------- */
+  /* A segment per problem, filled green on each correct answer: the only
+     progress mark. Centred over the keypad, 16px above its keys (held
+     sideways, under the problem area), and put on whole device pixels by
+     the layout. Segments are 14px wide and 2px apart; where the bar has less
+     room, 12px or 10px, still whole pixels. Only a filling segment changes. */
+  .run {
+    container-type: inline-size;
+    display: flex;
+    justify-content: center;
+    gap: 2px;
+    padding: 0 16px 16px;
+  }
+  .run span { flex: none; width: 14px; height: var(--run-bar); background: var(--faint); transition: background-color .2s; }
+  .run span.done { background: var(--good); }
+  @container (width < 318px) { .run span { width: 12px; } }
+  @container (width < 278px) { .run span { width: 10px; } }
+
+  /* ---------- Finish screen (runs spec §3) ---------- */
+  /* The selector's column: as wide as the keypad, its first ink 40px below
+     the header. Each line's box is trimmed to its capitals and baseline, so
+     the gaps run from a baseline to the next capitals; each line is centred
+     on its ink. Part 2 puts the key field above the buttons (runs spec §6). */
+  .finish {
+    display: none;
+    width: 100%;
+    max-width: 420px;
+    min-height: 0;
+    justify-self: center;
+    overflow-y: auto;
+    padding: 40px 16px max(32px, env(safe-area-inset-bottom));
+  }
+  body.at-finish .stage, body.at-finish .run, body.at-finish .pad, body.at-finish .lives { display: none; }
+  body.at-finish .finish { display: block; }
+  .finish .line { display: block; width: fit-content; margin: 0 auto; text-box: trim-both cap alphabetic; white-space: nowrap; }
+  .finish .done-title { font-size: 17px; font-weight: 600; letter-spacing: 0.02em; }
+  .finish .done-time { margin-top: 28px; font-size: 64px; font-weight: 500; }
+  .finish .done-best { margin-top: 24px; font-size: 15px; font-weight: 600; letter-spacing: 0.02em; color: var(--muted); }
+  .finish .done-best.new { color: var(--good); }
+  .finish .done-misses { margin-top: 12px; font-size: 15px; font-weight: 400; letter-spacing: 0.02em; color: var(--muted); }
+  .finish .done-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 40px; }
+  .finish button {
+    display: flex;
+    align-items: center;
+    height: 56px;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: var(--key-ring);
+    color: var(--ink);
+    font: 600 17px/1 var(--font);
+    letter-spacing: 0.02em;
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+  /* "Again" is the one Enter presses: filled, as the keypad's check key is. */
+  .finish .again { background: var(--ink); color: var(--bg); box-shadow: none; }
+  .finish button:active { background: var(--key-press); }
+  .finish .again:active { background: var(--go-press); }
+  .finish button:focus-visible { outline: 2px solid var(--ink); outline-offset: 4px; }
+
+  /* ---------- Held sideways ---------- */
+  /* The bar under the problem area, centred on it, the keypad's bottom
+     gutter below it. The keypad's band ends where the bar's row starts, so
+     its centre is still the problem area's. */
+  @media (orientation: landscape) and (max-height: 560px) and (min-aspect-ratio: 3/2) {
+    body {
+      grid-template-rows: auto minmax(0, 1fr) auto;
+      grid-template-areas: "top top" "stage pad" "run pad";
+    }
+    .stage, .select, .finish { grid-area: stage; }
+    .stage, .run { margin-left: env(safe-area-inset-left); }
+    .run { grid-area: run; padding: 0 var(--gutter) var(--pad-bottom); }
+    .pad {
+      --run-row: calc(var(--run-bar) + var(--pad-bottom));
+      --key-h: min(64px, (100dvh - var(--top-h) - 2 * var(--pad-bottom) - var(--run-row) - 3 * var(--key-gap)) / 4);
+      padding: var(--pad-bottom) max(var(--gutter), env(safe-area-inset-right)) calc(var(--pad-bottom) + var(--run-row)) 0;
+    }
+    @supports not (height: 1dvh) {
+      .pad { --key-h: min(64px, (100vh - var(--top-h) - 2 * var(--pad-bottom) - var(--run-row) - 3 * var(--key-gap)) / 4); }
+    }
+  }
+</style>
+</head>
+<body>
+  <header class="top">
+    <div class="where">
+      <nav class="crumbs" aria-label="Breadcrumb">
+        <a class="back">Levels</a>
+        <svg class="sep" viewBox="0 0 12 12" aria-hidden="true"><path d="M4.5 2.5L8 6l-3.5 3.5"/></svg>
+        <span class="topic">Addition</span>
+        <svg class="sep topic-sep" viewBox="0 0 12 12" aria-hidden="true"><path d="M4.5 2.5L8 6l-3.5 3.5"/></svg>
+        <span class="here" aria-current="step">Level 1</span>
+        <span class="home" aria-current="page">Levels</span>
+      </nav>
+      <div class="road" role="img" aria-label="Roadmap stage 1 of 7: Arithmetic. Then fractions, algebra, geometry, trigonometry, calculus, physics.">
+        <span class="now" title="Arithmetic"></span>
+        <span title="Fractions"></span>
+        <span title="Algebra"></span>
+        <span title="Geometry"></span>
+        <span title="Trigonometry"></span>
+        <span title="Calculus"></span>
+        <span title="Physics"></span>
+      </div>
+    </div>
+    <div class="lives" role="img" aria-label="3 lives left">
+      <svg viewBox="2 3 20 18" aria-hidden="true"><path d="M19.5 12.572l-7.5 7.428l-7.5 -7.428a5 5 0 1 1 7.5 -6.566a5 5 0 1 1 7.5 6.572"/></svg>
+      <svg viewBox="2 3 20 18" aria-hidden="true"><path d="M19.5 12.572l-7.5 7.428l-7.5 -7.428a5 5 0 1 1 7.5 -6.566a5 5 0 1 1 7.5 6.572"/></svg>
+      <svg viewBox="2 3 20 18" aria-hidden="true"><path d="M19.5 12.572l-7.5 7.428l-7.5 -7.428a5 5 0 1 1 7.5 -6.566a5 5 0 1 1 7.5 6.572"/></svg>
+    </div>
+  </header>
+
+  <main class="stage">
+    <div class="eq" id="eq">
+      <span class="qnum" id="qnum">Question 1 of 20</span>
+      <span id="a">3</span>
+      <span class="op">+</span>
+      <span id="b">4</span>
+      <span class="op">=</span>
+      <span class="slot empty" id="slot">
+        <span class="shown" aria-hidden="true"><span id="shown"></span><span class="caret"></span></span>
+        <input id="ans" inputmode="none" maxlength="2" autocomplete="off" aria-label="Answer">
+      </span>
+    </div>
+  </main>
+
+  <!-- How far through the run you are: a segment per problem. Screen
+       readers hear "Question N of 20" instead. -->
+  <div class="run" aria-hidden="true"></div>
+
+  <p class="sr-only" role="status" id="status"></p>
+
+  <div class="finish" role="region" aria-labelledby="done-title">
+    <h1 class="line done-title" id="done-title"></h1>
+    <p class="line done-time"></p>
+    <p class="line done-best"></p>
+    <p class="line done-misses"></p>
+    <!-- Part 2 puts the key field here (runs spec §6). -->
+    <div class="done-buttons">
+      <button class="again"><span class="line">Again</span></button>
+      <button class="levels"><span class="line">Levels</span></button>
+    </div>
+  </div>
+
+  <div class="pad" role="group" aria-label="Keypad">
+    <button tabindex="-1" data-k="1"><span class="kl">1</span></button>
+    <button tabindex="-1" data-k="2"><span class="kl">2</span></button>
+    <button tabindex="-1" data-k="3"><span class="kl">3</span></button>
+    <button tabindex="-1" data-k="4"><span class="kl">4</span></button>
+    <button tabindex="-1" data-k="5"><span class="kl">5</span></button>
+    <button tabindex="-1" data-k="6"><span class="kl">6</span></button>
+    <button tabindex="-1" data-k="7"><span class="kl">7</span></button>
+    <button tabindex="-1" data-k="8"><span class="kl">8</span></button>
+    <button tabindex="-1" data-k="9"><span class="kl">9</span></button>
+    <button tabindex="-1" data-k="Backspace" aria-label="Delete"><svg viewBox="0 0 24 24" aria-hidden="true"><g transform="translate(-0.5 0)"><path d="M20 6H9l-5 6l5 6h11a1 1 0 0 0 1-1V7a1 1 0 0 0-1-1z"/><path d="M12.25 10.25l3.5 3.5m0-3.5l-3.5 3.5"/></g></svg></button>
+    <button tabindex="-1" data-k="0"><span class="kl">0</span></button>
+    <button tabindex="-1" data-k="Enter" class="go" aria-label="Check answer"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 12.5l5.5 5.5l11.5-11.5"/></svg></button>
+  </div>
+
+<script type="module">
+  import { LEVEL1 } from '/src/level1.js';
+  import { fontsReady } from '/src/fonts.js';
+  import { createScanner } from '/src/scanner.js';
+  import { createLayout } from '/src/layout.js';
+  import { createView } from '/src/view.js';
+  import { snap, onLayoutGrid } from '/src/ink.js';
+
+  const $ = sel => document.querySelector(sel);
+  const px = v => onLayoutGrid(v, devicePixelRatio) + 'px';
+  const params = new URLSearchParams(location.search);
+  const finished = params.get('view') === 'finish';
+  const filled = Math.min(20, Math.max(0, Math.floor(Number(params.get('filled')) || 0)));
+  const a = Number(params.get('a') ?? 3), b = Number(params.get('b') ?? 4);
+
+  // The finish screen's three cases (runs spec §3): faster than every
+  // earlier run, slower than the best, and the first run, which has no best
+  // to beat and so is a new best too.
+  const FINISH = {
+    new: { time: '1:12.4', best: 'New best', isNew: true, misses: '2 misses' },
+    slower: { time: '1:15.0', best: 'Best 1:08.9', isNew: false, misses: 'No misses' },
+    first: { time: '1:31.7', best: 'New best', isNew: true, misses: '1 miss' },
+  };
+
+  const dom = {
+    eq: $('#eq'), slot: $('#slot'), shown: $('#shown'), caret: $('.caret'), qnum: $('#qnum'),
+    a: $('#a'), b: $('#b'), op: $('#eq .op'), ans: $('#ans'), pad: $('.pad'), stage: $('.stage'), topBar: $('.top'),
+    topic: $('.crumbs .topic'), here: $('.crumbs .here'),
+    livesBox: $('.lives'), hearts: [...document.querySelectorAll('.lives svg')], status: $('#status'),
+  };
+  const run = $('.run');
+  const finish = $('.finish');
+
+  // Question `filled + 1`; with all 20 filled, the last answer, right and green.
+  const last = filled === 20;
+  const state = {
+    phase: last ? 'correct' : 'playing', question: last ? 20 : filled + 1, solved: filled,
+    lives: 3, typed: last ? String(a + b) : '', problem: { a, b, answer: a + b },
+  };
+  const scan = createScanner();
+  const layout = createLayout(dom, scan, LEVEL1.possibleAnswers);
+  const view = createView(dom, layout, LEVEL1);
+  layout.afterMeasure = () => {
+    view.render(state);
+    dom.qnum.textContent = `Question ${state.question} of 20`;
+  };
+  view.setLevel(LEVEL1);
+  for (let i = 0; i < 20; i++) run.append(document.createElement('span'));
+  [...run.children].forEach((seg, i) => seg.classList.toggle('done', i < filled));
+
+  // The run bar on whole device pixels, across and down: centred as laid
+  // out, it can start at half a pixel at 1x, which would blur every
+  // segment's edges. Its segments are whole pixels wide.
+  function placeRun() {
+    const first = run.firstElementChild;
+    const dpr = devicePixelRatio;
+    run.style.translate = '';
+    const r = first.getBoundingClientRect();
+    run.style.translate = `${px(snap(r.left, dpr) - r.left)} ${px(snap(r.top, dpr) - r.top)}`;
+  }
+
+  // Each line's ink centred in the column, and each button's label in its
+  // button. A line is centred by its advance, and its side bearings and
+  // letter spacing would leave the ink off-centre. Its start goes on a
+  // whole device pixel, where it is drawn exactly as scanned (small text is
+  // drawn on whole pixels at 1x), so the ink is within half a device pixel
+  // of the centre. All the reads happen in one pass, between the writes.
+  function centreLines() {
+    const dpr = devicePixelRatio;
+    const lines = [...finish.querySelectorAll('.line')].filter(line => line.textContent);
+    lines.forEach(line => { line.style.translate = ''; });
+    const found = lines.map(line => {
+      const cs = getComputedStyle(line);
+      const fs = parseFloat(cs.fontSize);
+      const style = { weight: cs.fontWeight, family: cs.fontFamily, color: cs.color, spacing: (parseFloat(cs.letterSpacing) || 0) / fs };
+      return { box: line.getBoundingClientRect(), fs, m: scan(line.textContent, style, fs * dpr) };
+    });
+    lines.forEach((line, i) => {
+      const { box, fs, m } = found[i];
+      const start = box.left + box.width / 2 - (m.abr - m.abl) / 2 * fs;   // the start that centres the ink
+      line.style.translate = px(snap(start, dpr) - box.left);
+    });
+  }
+
+  function draw() {
+    try {
+      layout.layout();
+      if (finished) centreLines();
+      else placeRun();
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  if (finished) {
+    const f = FINISH[params.get('best')] ?? FINISH.new;
+    document.body.classList.add('at-finish');
+    $('.done-title').textContent = 'Level 1 complete';
+    $('.done-time').textContent = f.time;
+    $('.done-best').textContent = f.best;
+    $('.done-best').classList.toggle('new', f.isNew);
+    $('.done-misses').textContent = f.misses;
+    dom.status.textContent = `Level 1 complete. ${f.time}, ${f.isNew ? 'new best' : f.best.toLowerCase()}.`;
+  } else {
+    if (last) dom.eq.classList.add('correct');
+    dom.status.textContent = `Question ${state.question} of 20: ${a} plus ${b}`;
+  }
+
+  let queued = false;
+  const relayout = () => {
+    if (queued) return;
+    queued = true;
+    requestAnimationFrame(() => { queued = false; draw(); });
+  };
+
+  fontsReady().then(() => {
+    draw();
+    document.documentElement.classList.remove('loading');
+    const resized = new ResizeObserver(relayout);
+    for (const el of [dom.stage, dom.topBar, finish]) resized.observe(el);
+    if (finished) $('.again').focus({ preventScroll: true });
+    else dom.ans.focus({ preventScroll: true });
+  });
+</script>
+</body>
+</html>
