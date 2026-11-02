@@ -9,16 +9,20 @@ const seq = (...values) => {
   let i = 0;
   return () => values[i++ % values.length];
 };
-// Math.floor(0.75 * 10) = 7 and Math.floor(0.55 * 10) = 5, so 7 + 5.
-// This rng repeats, so every problem is 7 + 5: use it when the test does not
-// care whether a new problem was drawn.
-const sevenPlusFive = () => createGame(LEVEL1, seq(0.75, 0.55));
+// The rng value that draws the `i`th (from 0) of `n` facts left. Each draw
+// takes the fact at Math.floor(rng() × n) among those not yet asked, in the
+// level's order: Level 1's fact a + b is number a × 10 + b.
+const nth = (i, n) => (i + 0.5) / n;
+// The first problem is 7 + 5. Use it when the test stays on the first problem.
+const sevenPlusFive = () => createGame(LEVEL1, () => nth(75, 100));
 // Problems come out as 7 + 5, then 2 + 3, then 1 + 9. They are all different,
 // so a test can tell "a new problem was drawn" from "the same problem stayed".
-const threeProblems = () => createGame(LEVEL1, seq(0.75, 0.55, 0.25, 0.35, 0.15, 0.95));
+// Drawn from all 100 facts, as after a restart, the second value is 2 + 3
+// too, and the third 1 + 9.
+const threeProblems = () => createGame(LEVEL1, seq(nth(75, 100), nth(23, 99), nth(19, 98)));
 // The first problem is 2 + 3 = 5, a single-digit answer.
-const twoPlusThree = () => createGame(LEVEL1, seq(0.25, 0.35));
-// Every rng value is 0.25, so Level 1 asks 2 + 2 and Level 2 asks 4 − 3.
+const twoPlusThree = () => createGame(LEVEL1, () => nth(23, 100));
+// Every rng value is 0.25, so Level 1 starts on 2 + 5 and Level 2 on 4 − 3.
 const quarters = () => createGame(LEVEL1, () => 0.25);
 
 // Miss the current problem (answer 9 is wrong for every problem used here).
@@ -42,11 +46,6 @@ const assertLocked = (game) => {
   }
   assert.deepEqual(game.state, before);
 };
-
-test('Level 1 problems use whole numbers 0 to 9', () => {
-  assert.deepEqual(LEVEL1.makeProblem(seq(0, 0)), { a: 0, b: 0, answer: 0 });
-  assert.deepEqual(LEVEL1.makeProblem(seq(0.999, 0.999)), { a: 9, b: 9, answer: 18 });
-});
 
 test('Level 1 lists every possible answer, 0 to 18, as strings', () => {
   assert.deepEqual(LEVEL1.possibleAnswers, [
@@ -287,7 +286,7 @@ test('a leading zero is part of the answer, and still counts as correct', () => 
 test('start() begins another level at question 1 with full lives', () => {
   const game = quarters();
   const { state } = game;
-  game.press('4');
+  game.press('7');                               // 2 + 5
   game.press('Enter');
   game.next();                                   // question 2 of Level 1
   miss(game);                                    // 2 lives
@@ -330,10 +329,186 @@ test('start() unlocks a game that is out of lives, and restart() keeps the new l
 
 test('start() unlocks a correct answer too, and next() then does nothing', () => {
   const game = quarters();
-  game.press('4');
+  game.press('7');
   assert.equal(game.press('Enter'), 'correct');
   game.start(LEVEL2);
   assert.equal(game.state.phase, 'playing');
   game.next();
   assert.equal(game.state.question, 1);
+});
+
+// A clock the test moves on by hand, in ms.
+const clock = () => {
+  let t = 0;
+  const now = () => t;
+  now.tick = ms => { t += ms; };
+  return now;
+};
+
+// Answer the problem on screen correctly; returns what the Enter did.
+const solve = (game) => {
+  for (const digit of String(game.state.problem.answer)) game.press(digit);
+  return game.press('Enter');
+};
+
+// Miss whatever the problem is, with a digit that can't be its answer.
+const missAny = (game) => {
+  game.press(String((game.state.problem.answer + 1) % 10));
+  return game.press('Enter');
+};
+
+// Answer every question of the run but the last, moving on after each.
+const toLast = (game) => {
+  while (game.state.question < game.level.problemsPerRun) {
+    solve(game);
+    game.next();
+  }
+};
+
+test('a run is 20 different facts of the level, and the 20th correct answer finishes it', () => {
+  for (const level of [LEVEL1, LEVEL2]) {
+    const game = createGame(level);
+    const asked = [];
+    for (let q = 1; q <= 20; q++) {
+      assert.equal(game.state.question, q);
+      asked.push(game.state.problem);
+      assert.equal(solve(game), q < 20 ? 'correct' : 'finished', `Level ${level.n}, question ${q}`);
+      game.next();
+    }
+    assert.equal(new Set(asked.map(p => `${p.a} ${p.b}`)).size, 20);
+    for (const p of asked) {
+      assert.ok(level.facts.some(f => f.a === p.a && f.b === p.b && f.answer === p.answer), `${p.a}, ${p.b}`);
+    }
+    assert.ok(Number.isFinite(game.result.totalMs), 'timed by the real clock');
+  }
+});
+
+test('the first problem is any of the level\'s facts, each equally likely', () => {
+  for (const level of [LEVEL1, LEVEL2]) {
+    const n = level.facts.length;
+    const firsts = Array.from({ length: n }, (_, k) => createGame(level, () => nth(k, n)).state.problem);
+    assert.deepEqual(firsts, level.facts);
+  }
+});
+
+test('each later problem is drawn evenly from the facts not yet asked', () => {
+  // The second problem after 7 + 5, for each of 99 equal slices of the
+  // rng's range: every other fact once, and 7 + 5 never.
+  const seconds = Array.from({ length: 99 }, (_, k) => {
+    const game = createGame(LEVEL1, seq(nth(75, 100), nth(k, 99)));
+    solve(game);
+    game.next();
+    return `${game.state.problem.a} ${game.state.problem.b}`;
+  });
+  assert.equal(new Set(seconds).size, 99);
+  assert.ok(!seconds.includes('7 5'));
+});
+
+test('solved counts the run\'s correct answers, each from the moment it is right', () => {
+  const game = threeProblems();
+  assert.equal(game.state.solved, 0);
+  miss(game);
+  assert.equal(game.state.solved, 0);
+  solve(game);
+  assert.equal(game.state.solved, 1);            // during the green, before next()
+  game.next();
+  assert.equal(game.state.question, 2);
+  assert.equal(game.state.solved, 1);
+});
+
+test('the finished run is locked, and next() does nothing', () => {
+  const game = createGame(LEVEL2);
+  toLast(game);
+  assert.equal(game.state.question, 20);
+  assert.equal(game.state.solved, 19);
+  assert.equal(game.result, null);
+  assert.equal(solve(game), 'finished');
+  assert.equal(game.state.phase, 'finished');
+  assert.equal(game.state.solved, 20);
+  assertLocked(game);
+  game.next();
+  assert.equal(game.state.question, 20);
+  assert.equal(game.state.phase, 'finished');
+});
+
+test('a third miss leaves the run unfinished, with no result', () => {
+  const game = createGame(LEVEL1);
+  toLast(game);
+  missAny(game);
+  missAny(game);
+  assert.equal(missAny(game), 'out');
+  assert.equal(game.result, null);
+});
+
+test('start() mid-run leaves it unfinished and begins a new run', () => {
+  const game = createGame(LEVEL1);
+  toLast(game);
+  game.start(LEVEL2);
+  assert.equal(game.result, null);
+  assert.equal(game.state.question, 1);
+  assert.equal(game.state.solved, 0);
+  toLast(game);
+  assert.equal(solve(game), 'finished');
+  assert.equal(game.result.level, 2);
+  assert.equal(game.result.problems.length, 20);
+});
+
+test('each run draws from all the level\'s facts again', () => {
+  // Three runs of Level 2 ask 60 problems, more than its 55 facts.
+  const game = createGame(LEVEL2);
+  for (let run = 0; run < 3; run++) {
+    if (run) game.start();
+    toLast(game);
+    assert.equal(solve(game), 'finished', `run ${run + 1}`);
+  }
+});
+
+test('a problem is timed from when it is shown to its correct answer, misses included; the run from the first to the last', () => {
+  const now = clock();
+  const game = createGame(LEVEL1, seq(nth(75, 100), nth(23, 99)), now);   // 7 + 5, then 2 + 3
+  now.tick(1000);
+  miss(game);                                    // 9 is wrong for 7 + 5
+  now.tick(500);
+  solve(game);                                   // 1.5s, with 1 miss
+  now.tick(570);                                 // the green and the slide-out
+  game.next();                                   // 2 + 3 is shown
+  now.tick(800);
+  solve(game);                                   // 0.8s
+  for (let q = 3; q <= 20; q++) {
+    now.tick(570);
+    game.next();
+    now.tick(100);
+    solve(game);
+  }
+  const { result } = game;
+  assert.equal(result.level, 1);
+  assert.equal(result.problems.length, 20);
+  assert.deepEqual(result.problems[0], { a: 7, b: 5, ms: 1500, misses: 1 });
+  assert.deepEqual(result.problems[1], { a: 2, b: 3, ms: 800, misses: 0 });
+  for (const p of result.problems.slice(2)) assert.deepEqual([p.ms, p.misses], [100, 0]);
+  // From Question 1 shown to the last Enter, feedback and slides included.
+  assert.equal(result.totalMs, 1500 + 570 + 800 + 18 * (570 + 100));
+  assert.equal(result.misses, 1);
+});
+
+test('the clock starts again when a run starts', () => {
+  const now = clock();
+  const game = createGame(LEVEL2, Math.random, now);
+  now.tick(5000);                                // on the level selector, say
+  game.start(LEVEL1);                            // Question 1 is shown
+  now.tick(300);
+  toLast(game);                                  // no time passes after the first answer
+  solve(game);
+  assert.equal(game.result.totalMs, 300);
+  assert.equal(game.result.problems[0].ms, 300);
+});
+
+test('the result records the problem on screen when it was answered', () => {
+  // The browser tests put known problems on screen; the record follows them.
+  const game = createGame(LEVEL1);
+  toLast(game);
+  game.state.problem = { a: 3, b: 4, answer: 7 };
+  solve(game);
+  const { a, b, misses } = game.result.problems.at(-1);
+  assert.deepEqual({ a, b, misses }, { a: 3, b: 4, misses: 0 });
 });

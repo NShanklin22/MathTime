@@ -102,7 +102,7 @@ test('starting a level measures the screen once', async ({ page }) => {
 
 test('a failed measurement still shows the page and the real problem', async ({ page }) => {
   // Every canvas read comes back blank, so the scanner finds no ink. A fixed
-  // random makes the problem 2 + 2, unlike the 7 + 5 in index.html.
+  // random makes the problem 2 + 5, unlike the 7 + 5 in index.html.
   await page.addInitScript(() => {
     CanvasRenderingContext2D.prototype.getImageData = (sx, sy, sw, sh) => new ImageData(sw, sh);
     Math.random = () => 0.25;

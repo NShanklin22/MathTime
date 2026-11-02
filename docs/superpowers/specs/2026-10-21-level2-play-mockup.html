@@ -101,6 +101,7 @@
 
 <script type="module">
   import { createGame } from '/src/game.js';
+  import { LEVEL2 as BUILT } from '/src/level2.js';
   import { fontsReady } from '/src/fonts.js';
   import { createScanner } from '/src/scanner.js';
   import { createLayout } from '/src/layout.js';
@@ -114,6 +115,8 @@
   const LEVEL2 = {
     livesPerProblem: 3,
     maxAnswerLength: 1,
+    problemsPerRun: 20,          // the game now draws a run from the facts (runs spec §1)
+    facts: BUILT.facts,
     makeProblem(rng) {
       let n = Math.floor(rng() * 55), a = 0;
       while (n > a) n -= ++a;          // a's facts are numbered 0 to a
