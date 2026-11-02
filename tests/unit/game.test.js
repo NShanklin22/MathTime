@@ -358,9 +358,10 @@ const missAny = (game) => {
 };
 
 // Answer every question of the run but the last, moving on after each.
+// Bounded, so a game that never reaches the last question fails, not hangs.
 const toLast = (game) => {
-  while (game.state.question < game.level.problemsPerRun) {
-    solve(game);
+  for (let q = game.state.question; q < game.level.problemsPerRun; q++) {
+    assert.equal(solve(game), 'correct', `question ${q}`);
     game.next();
   }
 };
@@ -457,7 +458,10 @@ test('each run draws from all the level\'s facts again', () => {
   // Three runs of Level 2 ask 60 problems, more than its 55 facts.
   const game = createGame(LEVEL2);
   for (let run = 0; run < 3; run++) {
-    if (run) game.start();
+    if (run) {
+      game.start();
+      assert.equal(game.result, null, 'start() clears the last run\'s result');
+    }
     toLast(game);
     assert.equal(solve(game), 'finished', `run ${run + 1}`);
   }
