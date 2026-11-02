@@ -65,10 +65,10 @@ test('Level 2\'s facts are a − b with b at most a, each once: 55, in the order
     assert.equal(answer, a - b);
   }
   assert.equal(new Set(facts.map(f => `${f.a} ${f.b}`)).size, 55);
-  assert.deepEqual(facts.slice(0, 4), [
-    { a: 0, b: 0, answer: 0 }, { a: 1, b: 0, answer: 1 }, { a: 1, b: 1, answer: 0 }, { a: 2, b: 0, answer: 2 },
-  ]);
-  assert.deepEqual(facts.at(-1), { a: 9, b: 9, answer: 0 });
+  // The whole order: the run tests pick facts by their place in it.
+  const inOrder = [];
+  for (let a = 0; a <= 9; a++) for (let b = 0; b <= a; b++) inOrder.push({ a, b, answer: a - b });
+  assert.deepEqual(facts, inOrder);
   // "x − x" is 10 facts in 55.
   assert.equal(facts.filter(f => f.a === f.b).length, 10);
 });
