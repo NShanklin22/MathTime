@@ -1,3 +1,5 @@
+import { reveal } from './reveal.js';
+
 // The level selector (Level 2 spec §3): a row per built level, grouped by
 // topic in route order, each a button that calls choose(level). The level
 // you came from is marked with an amber bar and gets the focus.
@@ -49,26 +51,13 @@ export function createSelector(root, levels, choose) {
     }
   }
 
-  // Focus the marked row, so the keyboard carries on from there, and show it.
+  // Focus the marked row, so the keyboard carries on from there, and show
+  // it and its focus ring, scrolling the list alone (reveal.js).
   function focus() {
     const row = root.querySelector('.row.current');
     if (!row) return;
     row.focus({ preventScroll: true });
-    reveal(row);
-  }
-
-  // Scroll the list, and only the list, as little as it takes to show `row`
-  // and its focus ring (2px, 4px out) whole, its top first if both can't
-  // fit. scrollIntoView() would scroll the page too, which never scrolls.
-  // Whole pixels, rounded outward, as the scroll position may be.
-  function reveal(row) {
-    const RING = 6;
-    const view = root.getBoundingClientRect();
-    const top = view.top + root.clientTop, bottom = top + root.clientHeight;
-    const r = row.getBoundingClientRect();
-    let by = Math.max(0, Math.ceil(r.bottom + RING - bottom));
-    by = Math.min(by, Math.floor(r.top - RING - top));
-    if (by) root.scrollTop += by;
+    reveal(root, row);
   }
 
   return { mark, focus };

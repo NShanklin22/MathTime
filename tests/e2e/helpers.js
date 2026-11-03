@@ -265,8 +265,8 @@ export async function capture(page) {
   return { png: PNG.sync.read(await page.screenshot({ animations: 'disabled' })), dpr };
 }
 
-const BG = [18, 64, 126];       // #12407e
-const INK = [238, 245, 255];   // #eef5ff
+export const BG = [18, 64, 126];       // #12407e
+export const INK = [238, 245, 255];   // #eef5ff
 export const MUTED = [182, 205, 238];     // #b6cdee: operators, crumbs, "Question N"
 export const LOST = [143, 176, 221];      // #8fb0dd: a lost heart
 export const FAINT = [111, 149, 204];     // #6f95cc: the run bar's empty segments
@@ -280,12 +280,13 @@ export const OUTLINE = INK.map((c, i) => Math.round(BG[i] + (c - BG[i]) * 140 / 
 // colour, clamped to 0..1. Averaging the channels keeps this correct for
 // anti-aliased edges. Other colours do not score zero (the amber caret reads
 // about 0.6 against the default ink), so hide them first: freeze() hides the
-// caret.
+// caret. Text in the background colour on an ink-coloured fill ("Again") is
+// read with the two swapped: `background` is what the ink is drawn on.
 // Returns null when the area is empty, off-screen or holds no ink.
 const MIN = 0.05;                 // below this a pixel holds no ink
-export function ink(shot, area, colour = INK) {
+export function ink(shot, area, colour = INK, background = BG) {
   const { dpr } = shot;
-  const px = pixels(shot, area, colour);
+  const px = pixels(shot, area, colour, background);
   if (!px) return null;
   const { x0, x1, y0, y1, cover } = px;
   const rows = new Float64Array(y1 - y0);
@@ -329,20 +330,20 @@ export function partlyCovered(shot, area, colour = INK) {
 }
 
 // The device pixels of `area` (CSS px) on screen, and each one's coverage by
-// `colour`, as described at ink(). Null if there are none, or the colour is
-// the background.
-function pixels({ png, dpr }, area, colour) {
+// `colour` on `background`, as described at ink(). Null if there are none,
+// or the colour is the background.
+function pixels({ png, dpr }, area, colour, background = BG) {
   const x0 = Math.max(0, Math.floor(area.left * dpr));
   const x1 = Math.min(png.width, Math.ceil(area.right * dpr));
   const y0 = Math.max(0, Math.floor(area.top * dpr));
   const y1 = Math.min(png.height, Math.ceil(area.bottom * dpr));
   if (x1 <= x0 || y1 <= y0) return null;
-  const chans = [0, 1, 2].filter(c => colour[c] !== BG[c]);
+  const chans = [0, 1, 2].filter(c => colour[c] !== background[c]);
   if (chans.length === 0) return null;
   const cover = (x, y) => {
     const i = (y * png.width + x) * 4;
     let sum = 0;
-    for (const c of chans) sum += (png.data[i + c] - BG[c]) / (colour[c] - BG[c]);
+    for (const c of chans) sum += (png.data[i + c] - background[c]) / (colour[c] - background[c]);
     return Math.min(1, Math.max(0, sum / chans.length));
   };
   return { x0, x1, y0, y1, cover };

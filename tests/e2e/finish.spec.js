@@ -1,10 +1,24 @@
 import { test, expect } from '@playwright/test';
 import {
-  open, levelRow, freeze, playTo, answer, finishRun, rect, capture, ink, note, typeKeys, TOL, MUTED, GOOD,
+  open, levelRow, freeze, playTo, answer, finishRun, rect, capture, ink, note, typeKeys, resize, TOL, BG, INK, MUTED, GOOD,
 } from './helpers.js';
+import { finishText } from '../../src/finish.js';
 
 // The end of a run (runs spec §3, §5): the finish screen, and the run's
 // record kept in the browser.
+
+// The words of a realistic run, put on the finish screen and centred as
+// after a finish. A run played through the handle takes no time, and its
+// "0:00.0", "New best", "No misses" are nearly symmetric in their advance:
+// their ink is centred to within the tolerance even unplaced. These are
+// not ("2:09.1" is 0.66px off at 2x, 0.80px at 1x), so centring is tested.
+const SLOWER = finishText(1, 129_100, 2, 68_900);        // 2:09.1, Best 1:08.9, 2 misses
+const NEW_BEST = finishText(1, 72_400, 1, null);         // 1:12.4, New best, 1 miss
+const showRun = (page, text) => page.evaluate(t => {
+  const { finish } = window.mathtime;
+  finish.show(t);
+  finish.place();
+}, text);
 
 const runs = page => page.evaluate(() => JSON.parse(localStorage.getItem('mathtime.runs')) ?? []);
 // Runs kept before the page loads.
@@ -204,6 +218,50 @@ test('with storage blocked, the run still finishes, as a new best', async ({ pag
   await expect(page.locator('.finish .again')).toBeFocused();
 });
 
+test('a record that can\'t be made still shows the finish screen, against the best kept', async ({ page }) => {
+  // As on an origin that isn't secure, where there is no crypto.randomUUID().
+  await page.addInitScript(() => Object.defineProperty(Crypto.prototype, 'randomUUID', { value: undefined }));
+  await keptBefore(page, [earlier(1, 1)]);
+  await open(page);
+  await finishRun(page);
+  await expect(page.locator('.finish .done-time')).toHaveText(TIME);
+  await expect(page.locator('.finish .done-best')).toHaveText('Best 0:00.0');
+  await expect(page.locator('.finish .again')).toBeFocused();
+  expect(await runs(page)).toEqual([earlier(1, 1)]);
+});
+
+// The column scrolls where the screen is too short for it (held sideways),
+// just far enough to show "Again" and its focus ring, and the page never
+// scrolls: as the level selector's list does.
+for (const [width, height] of [[568, 320], [640, 320]]) test(`at ${width}×${height} the column scrolls just far enough to show "Again" and its ring`, async ({ page }) => {
+  const RING = 6;                                         // 2px, 4px out
+  await open(page);
+  await resize(page, width, height);
+  await finishRun(page);
+  await expect(page.locator('.finish .again')).toBeFocused();
+  const { again, view, scrolled } = await page.evaluate(() => {
+    const col = document.querySelector('.finish');
+    const box = col.getBoundingClientRect();
+    const r = col.querySelector('.again').getBoundingClientRect();
+    const top = box.top + col.clientTop, left = box.left + col.clientLeft;
+    return {
+      again: { top: r.top, bottom: r.bottom, left: r.left, right: r.right },
+      // What the column shows: its padding box.
+      view: { top, bottom: top + col.clientHeight, left, right: left + col.clientWidth, scrollTop: col.scrollTop },
+      scrolled: [document.documentElement.scrollTop, document.body.scrollTop],
+    };
+  });
+  expect(view.scrollTop, '"Again" was below the fold, so the column scrolled').toBeGreaterThan(0);
+  expect(again.top - RING, 'ring top').toBeGreaterThanOrEqual(view.top - 0.01);
+  expect(again.bottom + RING, 'ring bottom').toBeLessThanOrEqual(view.bottom + 0.01);
+  expect(again.left - RING, 'ring left').toBeGreaterThanOrEqual(view.left - 0.01);
+  expect(again.right + RING, 'ring right').toBeLessThanOrEqual(view.right + 0.01);
+  // No further than needed: the ring ends at the column's bottom edge, give
+  // or take the scroll position's rounding to a whole pixel.
+  expect(view.bottom - (again.bottom + RING), 'scrolled just far enough').toBeLessThan(1);
+  expect(scrolled, 'the page itself never scrolls').toEqual([0, 0]);
+});
+
 test.describe('alignment', () => {
   test.beforeEach(async ({ page }) => {
     await open(page);
@@ -212,14 +270,17 @@ test.describe('alignment', () => {
   });
 
   test('each line\'s ink is centred in the column', async ({ page }) => {
-    const shot = await capture(page);
     const col = await rect(page, '.finish');
     const centre = (col.left + col.right) / 2;
-    for (const [sel, colour] of [['.done-title'], ['.done-time'], ['.done-best', GOOD], ['.done-misses', MUTED]]) {
-      const r = await rect(page, `.finish ${sel}`);
-      const line = ink(shot, { left: col.left, right: col.right, top: r.top - 4, bottom: r.bottom + 4 }, colour);
-      note(`${sel} offset`, line.midX - centre);
-      expect(Math.abs(line.midX - centre), sel).toBeLessThanOrEqual(TOL);
+    for (const text of [SLOWER, NEW_BEST]) {
+      await showRun(page, text);
+      const shot = await capture(page);
+      for (const [sel, colour] of [['.done-title'], ['.done-time'], ['.done-best', text.isNew ? GOOD : MUTED], ['.done-misses', MUTED]]) {
+        const r = await rect(page, `.finish ${sel}`);
+        const line = ink(shot, { left: col.left, right: col.right, top: r.top - 4, bottom: r.bottom + 4 }, colour);
+        note(`${text.time}: ${sel} offset`, line.midX - centre);
+        expect(Math.abs(line.midX - centre), `${text.time}: ${sel}`).toBeLessThanOrEqual(TOL);
+      }
     }
   });
 
@@ -235,7 +296,11 @@ test.describe('alignment', () => {
   });
 
   // 12px apart, so "Again"'s focus ring (2px, 4px out) stays 6px clear of "Levels".
-  test('the buttons are 56px tall and 12px apart, filling the column; "Levels" has its label on its ink', async ({ page }) => {
+  // "Again" is drawn in the background colour on an ink fill. Its label is
+  // 0.61px off unplaced at 2x; "Levels" is nearly symmetric in its advance,
+  // and at 1x neither is more than half a pixel off, so only the phone's
+  // "Again" can show a label left unplaced.
+  test('the buttons are 56px tall and 12px apart, filling the column; each has its label on its ink', async ({ page }) => {
     const col = await rect(page, '.finish');
     const again = await rect(page, '.finish .again');
     const levels = await rect(page, '.finish .levels');
@@ -244,9 +309,40 @@ test.describe('alignment', () => {
     expect(Math.abs(levels.left - again.right - 12)).toBeLessThanOrEqual(0.01);
     expect(Math.abs(again.left - col.left - 16)).toBeLessThanOrEqual(0.01);
     expect(Math.abs(col.right - levels.right - 16)).toBeLessThanOrEqual(0.01);
-    const label = ink(await capture(page), { left: levels.left + 4, right: levels.right - 4, top: levels.top + 4, bottom: levels.bottom - 4 });
-    const off = label.midX - (levels.left + levels.right) / 2;
-    note('"Levels" label offset', off);
-    expect(Math.abs(off)).toBeLessThanOrEqual(TOL);
+    const shot = await capture(page);
+    const inside = b => ({ left: b.left + 4, right: b.right - 4, top: b.top + 4, bottom: b.bottom - 4 });
+    for (const [name, button, label] of [['Again', again, ink(shot, inside(again), BG, INK)], ['Levels', levels, ink(shot, inside(levels))]]) {
+      const off = label.midX - (button.left + button.right) / 2;
+      note(`"${name}" label offset`, off);
+      expect(Math.abs(off), name).toBeLessThanOrEqual(TOL);
+    }
   });
+});
+
+// Desktop browsers' scrollbars take room from the column (Playwright hides
+// them unless told not to): the lines are centred over the buttons, which
+// fill what is left, not on the column's box.
+const withScrollbars = test.extend({
+  launchOptions: [async ({ launchOptions }, use) => use({ ...launchOptions, ignoreDefaultArgs: ['--hide-scrollbars'] }), { scope: 'worker' }],
+});
+
+withScrollbars('with a scrollbar taking room, each line\'s ink is centred over the buttons', async ({ page }) => {
+  await open(page);
+  await freeze(page);
+  await resize(page, 568, 320);
+  await finishRun(page);
+  await showRun(page, SLOWER);
+  const bar = await page.evaluate(() => { const col = document.querySelector('.finish'); return col.offsetWidth - col.clientWidth; });
+  expect(bar, 'the scrollbar takes room').toBeGreaterThan(0);
+  const shot = await capture(page);
+  const again = await rect(page, '.finish .again');
+  const levels = await rect(page, '.finish .levels');
+  const centre = (again.left + levels.right) / 2;
+  // Between the buttons' outer edges, so the scrollbar is not read as ink.
+  for (const [sel, colour] of [['.done-title'], ['.done-time'], ['.done-best', MUTED], ['.done-misses', MUTED]]) {
+    const r = await rect(page, `.finish ${sel}`);
+    const line = ink(shot, { left: again.left, right: levels.right, top: r.top - 4, bottom: r.bottom + 4 }, colour);
+    note(`${sel} offset`, line.midX - centre);
+    expect(Math.abs(line.midX - centre), sel).toBeLessThanOrEqual(TOL);
+  }
 });

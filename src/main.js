@@ -53,12 +53,20 @@ function toSelector() {
 
 // The run is finished: its record goes into the queue at once (runs spec
 // §6), and the finish screen's words are settled against the best of the
-// runs kept before it.
+// runs kept before it. The time is in whole ms, as the record has it.
+// Keeping it must never stop the finish screen: a record that can't be made
+// (no crypto.randomUUID() on an origin that isn't secure) is not kept, and
+// the screen still shows the time.
 function keepRun() {
-  const record = buildRecord(game.result);
-  const text = finishText(record.level, record.totalMs, record.misses, queue.best(record.level));
-  queue.add(record);
-  return text;
+  const { level, totalMs, misses } = game.result;
+  let best = null;
+  try {
+    best = queue.best(level);
+    queue.add(buildRecord(game.result));
+  } catch (err) {
+    console.error(err);
+  }
+  return finishText(level, Math.round(totalMs), misses, best);
 }
 
 // The finish screen, with "Again" focused (runs spec §3).
@@ -70,8 +78,9 @@ function toFinish(text) {
   dom.status.textContent = text.said;
 }
 
-// Handle for the browser tests (tests/e2e) to put a known problem or level on screen.
-window.mathtime = { game, view, layout, selector, levels: LEVELS, play };
+// Handle for the browser tests (tests/e2e) to put a known problem, level or
+// finish screen on screen.
+window.mathtime = { game, view, layout, selector, finish, levels: LEVELS, play };
 
 // The game locks input itself during the correct, out-of-lives and finished
 // transitions (spec §2), so every key just goes to game.press().
