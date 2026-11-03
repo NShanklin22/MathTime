@@ -169,6 +169,63 @@ test('"Levels" goes to the selector, with this level marked and focused', async 
   await expect(levelRow(page, 2)).toBeFocused();
 });
 
+// "Levels" pressed twice at its centre by `twice(x, y)`, from a Level 1
+// run: the second press, on the Level 2 row that takes its place, must not
+// start Level 2 or take the focus from Level 1's. A tap there once the
+// double tap is over chooses Level 2.
+async function pressLevelsTwice(page, twice, tap) {
+  await open(page);
+  await finishRun(page);
+  const box = await page.locator('.finish .levels').boundingBox();
+  const [x, y] = [box.x + box.width / 2, box.y + box.height / 2];
+  await twice(x, y);
+  await expect(page.locator('.select')).toBeVisible();
+  expect(await page.evaluate(([x, y]) => document.elementFromPoint(x, y).closest('.row')?.dataset.level, [x, y])).toBe('2');
+  await expect(levelRow(page, 1)).toBeFocused();
+  await page.waitForTimeout(450);
+  await tap(x, y);
+  await expect(page.locator('.select')).toBeHidden();
+  await expect(page.locator('.crumbs .here')).toHaveText('Level 2');
+}
+
+test('a double click on "Levels" stops at the selector', async ({ page }) => {
+  await pressLevelsTwice(page, (x, y) => page.mouse.dblclick(x, y), (x, y) => page.mouse.click(x, y));
+});
+
+test('a second press on "Levels" that starts in time is ignored, even held past the double tap', async ({ page }) => {
+  await pressLevelsTwice(page, async (x, y) => {
+    await page.mouse.click(x, y);
+    await page.mouse.down();
+    await page.waitForTimeout(450);
+    await page.mouse.up();
+  }, (x, y) => page.mouse.click(x, y));
+});
+
+// As from a browser without pointer events, or a screen reader's press.
+test('a click seen without its pointer down is judged by its own time', async ({ page }) => {
+  await pressLevelsTwice(page, (x, y) => page.mouse.dblclick(x, y), (x, y) => page.evaluate(([x, y]) => {
+    document.elementFromPoint(x, y).dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 }));
+  }, [x, y]));
+});
+
+test.describe('by touch', () => {
+  test.use({ hasTouch: true });
+  test('a double tap on "Levels" stops at the selector', async ({ page }) => {
+    const tap = (x, y) => page.touchscreen.tap(x, y);
+    await pressLevelsTwice(page, async (x, y) => { await tap(x, y); await tap(x, y); }, tap);
+  });
+});
+
+test('"Levels" by keyboard: the selector takes a press at once', async ({ page }) => {
+  await open(page);
+  await finishRun(page);
+  await page.keyboard.press('Tab');
+  await page.keyboard.press('Enter');
+  await expect(levelRow(page, 1)).toBeFocused();
+  await levelRow(page, 2).click();
+  await expect(page.locator('.crumbs .here')).toHaveText('Level 2');
+});
+
 test('Tab moves between "Again" and "Levels"', async ({ page }) => {
   await open(page);
   await finishRun(page);

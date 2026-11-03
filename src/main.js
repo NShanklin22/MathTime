@@ -42,9 +42,11 @@ function play(level) {
 }
 
 // Back to the level selector, with the level you came from marked and
-// focused (Level 2 spec §3).
-function toSelector() {
+// focused (Level 2 spec §3). `press` is the click on "Levels", if that is
+// how you came.
+function toSelector(press) {
   selector.mark(game.level);
+  selector.cameFrom(press);
   document.body.classList.remove('at-finish');
   document.body.classList.add('at-select');
   safeLayout();

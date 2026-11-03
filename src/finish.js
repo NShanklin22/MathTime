@@ -31,7 +31,7 @@ export function finishText(n, totalMs, misses, best) {
 }
 
 // The screen in `root` (index.html): its lines, and two buttons that call
-// again() and levels().
+// again() and levels(), each with its click.
 export function createFinish(root, scan, { again, levels }) {
   const $ = sel => root.querySelector(sel);
   const buttons = $('.done-buttons');
