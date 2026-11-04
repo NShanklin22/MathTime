@@ -24,7 +24,7 @@ const scan = createScanner();
 const layout = createLayout(dom, scan, game.level.possibleAnswers);
 const view = createView(dom, layout, game.level);
 layout.afterMeasure = () => view.render(game.state);
-const selector = createSelector(dom.select, LEVELS, play);
+const selector = createSelector(dom.select, LEVELS, play, scan);
 const queue = createQueue();
 // Each finished level's best, from the runs kept (finished-mark spec §2).
 selector.showBests(queue.best);
@@ -108,6 +108,7 @@ const measuredFaces = new Set();
 let measuredOnce = false;
 
 // One bad measurement must never leave the page blank or stop later layouts.
+// The selector is laid out apart, so a failure in one leaves the other.
 function safeLayout() {
   try {
     layout.layout();
@@ -116,6 +117,11 @@ function safeLayout() {
       measuredOnce = true;
       for (const face of document.fonts) if (face.status === 'loaded') measuredFaces.add(face);
     }
+  } catch (err) {
+    console.error(err);
+  }
+  try {
+    selector.layout();
   } catch (err) {
     console.error(err);
   }
@@ -157,11 +163,14 @@ fontsReady().then(() => {
   // is hidden, so it alone would never report a resize. Fitting the header
   // only changes which crumbs show, not the header's size, so this can't
   // loop. The finish screen's column too, as in the mockup: centring its
-  // lines never changes its size either.
+  // lines never changes its size either. And the selector's list, whose
+  // rows narrow when a scrollbar comes into it: lining them up on their ink
+  // never changes its size.
   const resized = new ResizeObserver(relayout);
   resized.observe(dom.stage);
   resized.observe(dom.topBar);
   resized.observe(dom.finish);
+  resized.observe(dom.select);
   document.fonts.addEventListener('loadingdone', onFontsLoaded);
   watchPixelRatio();
 });

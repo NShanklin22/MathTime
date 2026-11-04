@@ -1,5 +1,8 @@
 import { reveal } from './reveal.js';
 import { formatTime } from './finish.js';
+import { band, snap, onLayoutGrid } from './ink.js';
+
+const DIGITS = [...'0123456789'];
 
 // How long after a tap its double tap can still come.
 const DOUBLE_TAP_MS = 400;
@@ -16,8 +19,11 @@ const CHECK = '<svg class="tick" viewBox="2 5 20 14.5"><path d="M3.5 12.5l5.5 5.
 
 // The level selector (Level 2 spec §3): a row per built level, grouped by
 // topic in route order, each a button that calls choose(level). The level
-// you came from is marked with an amber bar and gets the focus.
-export function createSelector(root, levels, choose) {
+// you came from is marked with an amber bar and gets the focus. layout()
+// lines the labels, samples and finished rows' times up on their ink,
+// measured with `scan` (Level 2 spec §5), as layout.js does the equation;
+// it can run any number of times.
+export function createSelector(root, levels, choose, scan) {
   const el = (tag, cls, text) => {
     const node = document.createElement(tag);
     if (cls) node.className = cls;
@@ -113,5 +119,98 @@ export function createSelector(root, levels, choose) {
     reveal(root, row);
   }
 
-  return { mark, cameFrom, showBests, focus };
+  // ---------- On its ink (Level 2 spec §5, finished-mark spec §1) ----------
+
+  // A text element's font as the scanner wants it, and its text as drawn.
+  function textOf(node) {
+    const cs = getComputedStyle(node);
+    const fs = parseFloat(cs.fontSize);
+    const style = { weight: cs.fontWeight, family: cs.fontFamily, color: cs.color, spacing: (parseFloat(cs.letterSpacing) || 0) / fs };
+    return { fs, style, text: cs.textTransform === 'uppercase' ? node.textContent.toUpperCase() : node.textContent };
+  }
+
+  // Where a row's sample or result ends: its right padding edge.
+  const rightEdge = row => row.getBoundingClientRect().right - parseFloat(getComputedStyle(row).paddingRight);
+
+  // Move a label so its ink, not its box, starts at its left edge (a
+  // heading's at the column's, a row's text at its padding). Its start goes
+  // on a whole device pixel, where it is drawn exactly as scanned (small
+  // text is drawn on whole pixels at 1x), as the breadcrumb's (header.js).
+  // It is placed from where its box starts unmoved, so placing it again
+  // changes nothing.
+  function inkLeft(node) {
+    const dpr = devicePixelRatio;
+    node.style.marginLeft = '';
+    const { fs, style, text } = textOf(node);
+    const left = node.getBoundingClientRect().left;
+    const at = snap(left + scan(text, style, fs * dpr).abl * fs, dpr);
+    node.style.marginLeft = onLayoutGrid(at - left, dpr) + 'px';
+  }
+
+  // Move a finished row's time so its ink ends at `edge`, as inkLeft() does
+  // on the left, by a relative offset. (Its check needs nothing: the check's
+  // viewBox is cropped to its ink, so its box, at the padding edge, is its
+  // ink.)
+  function inkRight(node, edge) {
+    const dpr = devicePixelRatio;
+    node.style.left = '';
+    const { fs, style, text } = textOf(node);
+    const left = node.getBoundingClientRect().left;
+    const at = snap(edge - scan(text, style, fs * dpr).abr * fs, dpr);
+    node.style.left = onLayoutGrid(at - left, dpr) + 'px';
+  }
+
+  // A sample, set as the equation is (layout.js): the baseline from a probe,
+  // the digit band from all ten digits' ink, each operator moved onto the
+  // band's centre. Then the whole sample moves by relative offsets: a
+  // transform would take it off the device pixels again. It moves down, so
+  // the band's centre is the row's, with the baseline on a whole device
+  // pixel. And across, so its last digit's ink ends at the row's right
+  // padding edge, with each digit starting on a whole device pixel. It is
+  // measured with its own offsets cleared, so placing it again changes
+  // nothing.
+  function placeSample(sample, row) {
+    const dpr = devicePixelRatio;
+    sample.style.removeProperty('--ink-dx');
+    sample.style.removeProperty('--ink-dy');
+    const { fs, style } = textOf(sample);
+    const size = fs * dpr;
+    const probe = document.createElement('span');
+    probe.style.cssText = 'position:absolute;visibility:hidden;display:block;height:1em;line-height:1;white-space:pre';
+    probe.innerHTML = '0<span style="display:inline-block;width:0;height:0;vertical-align:baseline"></span>';
+    sample.appendChild(probe);
+    const base = (probe.lastChild.getBoundingClientRect().top - probe.getBoundingClientRect().top) / fs;
+    probe.remove();
+    const each = DIGITS.map(c => scan(c, style, size));
+    const digits = band({ asc: Math.max(...each.map(m => m.asc)), desc: Math.max(...each.map(m => m.desc)) }, base);
+    for (const op of sample.querySelectorAll('.op')) {
+      const m = scan(op.textContent, { ...style, color: getComputedStyle(op).color }, size);
+      op.style.top = (digits.mid - band(m, base).mid).toFixed(4) + 'em';
+    }
+    const r = row.getBoundingClientRect();
+    const baseline = sample.getBoundingClientRect().top + base * fs;
+    const wanted = snap(r.top + r.height / 2 + (base - digits.mid) * fs, dpr);
+    sample.style.setProperty('--ink-dy', onLayoutGrid(wanted - baseline, dpr) + 'px');
+    const last = sample.lastElementChild;
+    const start = last.getBoundingClientRect().left;
+    const at = snap(rightEdge(row) - scan(last.textContent, style, size).abr * fs, dpr);
+    sample.style.setProperty('--ink-dx', onLayoutGrid(at - start, dpr) + 'px');
+  }
+
+  // Line the labels, samples and finished rows' times up on their ink. It
+  // has nothing to do while a level is played (the selector is hidden). What
+  // is hidden, a finished row's sample or the others' results, waits for
+  // the layout that shows it, after showBests().
+  function layout() {
+    if (!root.clientWidth) return;
+    const shown = node => node.getClientRects().length > 0;
+    for (const node of root.querySelectorAll('.group-name, .title, .name')) inkLeft(node);
+    for (const row of rows.values()) {
+      const sample = row.querySelector('.sample'), best = row.querySelector('.best');
+      if (shown(sample)) placeSample(sample, row);
+      if (shown(best)) inkRight(best, rightEdge(row));
+    }
+  }
+
+  return { mark, cameFrom, showBests, focus, layout };
 }
