@@ -1,7 +1,15 @@
 import { reveal } from './reveal.js';
+import { formatTime } from './finish.js';
 
 // How long after a tap its double tap can still come.
 const DOUBLE_TAP_MS = 400;
+
+// A level row's accessible name: the level, and once it is finished, its
+// best time `bestMs` (finished-mark spec §4). null is unfinished; 0 is a time.
+export function rowLabel(level, bestMs) {
+  const label = `Level ${level.n}: ${level.name}`;
+  return bestMs == null ? label : `${label}. Finished, best ${formatTime(bestMs)}.`;
+}
 
 // The level selector (Level 2 spec §3): a row per built level, grouped by
 // topic in route order, each a button that calls choose(level). The level
@@ -33,7 +41,7 @@ export function createSelector(root, levels, choose) {
     }
     const row = el('button', 'row');
     row.dataset.level = level.n;
-    row.setAttribute('aria-label', `Level ${level.n}: ${level.name}`);
+    row.setAttribute('aria-label', rowLabel(level, null));
     const txt = el('span', 'txt');
     txt.append(el('span', 'title', `Level ${level.n}`), el('span', 'name', level.name));
     // A sample problem, set like the equation: digits, then the operator.
