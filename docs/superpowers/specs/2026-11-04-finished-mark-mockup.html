@@ -24,9 +24,11 @@
      to its ink, stroke included. */
   .select .row.finished .sample, .select .row:not(.finished) .result { display: none; }
   .select .result { display: flex; flex-direction: column; align-items: flex-end; gap: 10px; }
-  .select .result .tick { display: block; font-size: 17px; height: 0.7em; height: 1cap; width: auto; aspect-ratio: 19.25 / 13.75; overflow: visible; color: var(--good); }
-  .select .result .tick path { fill: none; stroke: currentColor; stroke-width: 2.25; stroke-linecap: round; stroke-linejoin: round; }
-  .select .result .best { display: block; text-box: trim-both cap alphabetic; white-space: nowrap; font-size: 13px; letter-spacing: 0.02em; color: var(--ink); }
+  .select .result .tick { display: block; font-size: 17px; height: 0.7em; height: 1cap; width: auto; aspect-ratio: 20 / 14.5; overflow: visible; color: var(--good); }
+  /* The keypad's check, at the title's weight. */
+  .select .result .tick path { fill: none; stroke: currentColor; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+  /* Less the last letter's spacing: its box ends at its last digit. */
+  .select .result .best { display: block; text-box: trim-both cap alphabetic; white-space: nowrap; font-size: 13px; letter-spacing: 0.02em; margin-right: -0.02em; color: var(--ink); }
 </style>
 </head>
 <body class="at-select">
@@ -50,7 +52,7 @@
   const done = new Set((params.get('done') ?? '1').split(',').filter(Boolean).map(Number));
   const BEST = { 1: params.get('long') ? 729_100 : 72_400, 2: 95_000 };
   // The keypad's check (index.html), its viewBox cropped to its ink.
-  const CHECK = '<svg class="tick" viewBox="2.375 5.375 19.25 13.75"><path d="M3.5 12.5l5.5 5.5l11.5-11.5"/></svg>';
+  const CHECK = '<svg class="tick" viewBox="2 5 20 14.5"><path d="M3.5 12.5l5.5 5.5l11.5-11.5"/></svg>';
 
   const list = document.querySelector('.select');
   createSelector(list, LEVELS, () => {});
