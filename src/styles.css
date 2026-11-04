@@ -89,6 +89,31 @@ body {
 body.at-select .crumbs .home { display: block; }
 .crumbs .sep { width: 12px; height: 12px; flex: none; }
 .crumbs .sep path { fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+/* The way back (Level 2 spec §4): "Levels", a link to the level selector,
+   muted, with a faint underline from its first ink to its last, 4px below
+   the baseline (header.js sets --ul-left, --ul-right and --ul-top). Its
+   hit area runs from the top of the screen to the header's foot, all the
+   room the header has, and from past the screen edge (the gutter or the
+   inset is less than 100px) to 8px past the word. */
+.crumbs .back { position: relative; color: var(--muted); text-decoration: none; }
+.crumbs .back::before {
+  content: "";
+  position: absolute;
+  left: var(--ul-left, 0px);
+  right: var(--ul-right, 0px);
+  top: var(--ul-top, 19px);
+  height: 1px;
+  background: var(--faint);
+}
+.crumbs .back::after {
+  content: "";
+  position: absolute;
+  top: calc(-1 * var(--top-safe));
+  bottom: calc(-1 * var(--top-foot));
+  left: -100px;
+  right: -8px;
+}
+@media (hover: hover) { .crumbs .back:hover::before { background: currentColor; } }
 /* When the header gets tight, the topic crumb drops (set by header.js);
    "Levels" and the level never do (Level 2 spec §4). */
 .top.tight .topic, .top.tight .topic-sep { display: none; }

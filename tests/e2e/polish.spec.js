@@ -129,7 +129,11 @@ async function header(page, lives) {
     game.state.lives = n;
     view.render(game.state);
   }, lives);
+  // The hearts are centred on the crumbs' text, so the underline under
+  // "Levels" is hidden while it is measured.
+  const hide = await page.addStyleTag({ content: '.crumbs .back::before{visibility:hidden!important}' });
   const shot = await capture(page);
+  await hide.evaluate(el => el.remove());
   // All the crumbs and separators. The current crumb is brighter than the
   // muted colour, which still counts it as fully inked.
   const crumbs = ink(shot, await rect(page, '.crumbs'), MUTED);

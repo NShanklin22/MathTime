@@ -5,6 +5,17 @@ export function createView(dom, layout, level) {
   const ANIMS = ['shake', 'in', 'out'];
   const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 
+  // Feedback in flight belongs to the run it started in. reset() ends that
+  // run for the view, as leaving for the level selector and starting a run
+  // do (Level 2 spec §4). A pending showCorrect, showOut or showFinished
+  // then finds its token stale and stops, so nothing it had still to do
+  // happens: no slide, no next problem, no announcement, no screen after.
+  let runToken = 0;
+  function reset() {
+    runToken += 1;
+    eq.classList.remove(...ANIMS, 'correct');
+  }
+
   // Problem digits: one fixed cell each, nudged so the ink is centred. The
   // equation's first digit starts on a whole device pixel (layout.leadIndent).
   function renderDigits(el, str) {
@@ -92,13 +103,16 @@ export function createView(dom, layout, level) {
   // last resort for one that never ends. The new problem is centred on its
   // own ink before it slides in.
   async function showCorrect(state, next) {
+    const token = runToken;
     status.textContent = 'Correct';      // always differs from the problem before it, so it is announced
     eq.classList.add('correct');
     renderRun(state);                    // its segment fills with the green
     await wait(350);
+    if (token !== runToken) return;      // its run is over
     play('out');
     const slide = eq.getAnimations().find(anim => anim.animationName === 'out');
     if (slide) await Promise.race([slide.finished.catch(() => {}), wait(1000)]);
+    if (token !== runToken) return;
     next();
     eq.classList.remove('correct');
     render(state);
@@ -118,29 +132,32 @@ export function createView(dom, layout, level) {
   }
 
   // Third miss: shake, then resolve true 0.45s later, when the level selector
-  // is due, unless the game was restarted meanwhile.
+  // is due, unless the game was restarted or its run ended meanwhile.
   async function showOut(state) {
+    const token = runToken;
     render(state);
     status.textContent = 'Out of lives';
     play('shake');
     await wait(450);
-    if (state.phase !== 'out') return false;
+    if (token !== runToken || state.phase !== 'out') return false;
     eq.classList.remove(...ANIMS);
     return true;
   }
 
   // The run's last correct answer: green for 0.35s, its segment filled at
   // once, then resolve true when the finish screen is due (runs spec §3),
-  // unless a new run started meanwhile. No slide: the screen gives way.
+  // unless its run ended meanwhile (a new one started, or you left). No
+  // slide: the screen gives way.
   async function showFinished(state) {
+    const token = runToken;
     status.textContent = 'Correct';
     eq.classList.add('correct');
     renderRun(state);
     await wait(350);
-    if (state.phase !== 'finished') return false;
+    if (token !== runToken || state.phase !== 'finished') return false;
     eq.classList.remove('correct');
     return true;
   }
 
-  return { render, renderAnswer, setLevel, announceProblem, showCorrect, showWrong, showOut, showFinished };
+  return { render, renderAnswer, setLevel, announceProblem, showCorrect, showWrong, showOut, showFinished, reset };
 }
