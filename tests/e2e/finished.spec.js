@@ -103,10 +103,12 @@ for (const [width, height] of [[375, 812], [320, 640], [1440, 900]]) test(`at ${
   await resize(page, width, height);
   for (const n of [1, 2]) {
     const row = `.select .row[data-level="${n}"]`;
-    const [r, title, name, tick, best] = await Promise.all(['', ' .title', ' .name', ' .tick', ' .best'].map(s => rect(page, row + s)));    expect(Math.abs(tick.top - title.top), `Level ${n}: check on the title's line`).toBeLessThanOrEqual(0.05);
+    const [r, title, name, tick, best] = await Promise.all(['', ' .title', ' .name', ' .tick', ' .best'].map(s => rect(page, row + s)));
+    expect(Math.abs(tick.top - title.top), `Level ${n}: check on the title's line`).toBeLessThanOrEqual(0.05);
     expect(Math.abs(tick.height - title.height), `Level ${n}: check as tall as the capitals`).toBeLessThanOrEqual(0.05);
     expect(Math.abs(best.top - name.top), `Level ${n}: time on the name's line`).toBeLessThanOrEqual(0.05);
     expect(Math.abs(best.height - name.height), `Level ${n}: time as tall as the name`).toBeLessThanOrEqual(0.05);
-    expect(Math.abs(r.right - 24 - tick.right), `Level ${n}: check at the padding`).toBeLessThanOrEqual(0.05);    expect(best.left - name.right, `Level ${n}: time clear of the name`).toBeGreaterThanOrEqual(8);
+    expect(Math.abs(r.right - 24 - tick.right), `Level ${n}: check at the padding`).toBeLessThanOrEqual(0.05);
+    expect(best.left - name.right, `Level ${n}: time clear of the name`).toBeGreaterThanOrEqual(8);
   }
 });

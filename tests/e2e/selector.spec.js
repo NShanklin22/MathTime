@@ -353,14 +353,14 @@ test.describe('ink alignment', () => {
       headings.push(ink(shot, { left: column.left + 4, right: h.right + 4, top: h.top - 4, bottom: h.bottom + 4 }, MUTED));
     }
     const [r1, r2] = [await rect(page, '.select .row', 0), await rect(page, '.select .row', 1)];
-    for (const [name, gap, want] of [
-      ['header → first heading', headings[0].top - header.bottom, 40],
-      ['heading → row', r1.top - headings[0].bottom, 14],
-      ['row → next heading', headings[1].top - r1.bottom, 32],
-      ['next heading → its row', r2.top - headings[1].bottom, 14],
+    for (const [name, gap, want, tol] of [
+      ['header → first heading', headings[0].top - header.bottom, 40, TOL],
+      ['heading → row', r1.top - headings[0].bottom, 14, TOL],
+      ['row → next heading', headings[1].top - r1.bottom, 32, near],
+      ['next heading → its row', r2.top - headings[1].bottom, 14, TOL],
     ]) {
       note(name, gap);
-      expect(Math.abs(gap - want), name).toBeLessThanOrEqual(near);
+      expect(Math.abs(gap - want), name).toBeLessThanOrEqual(tol);
     }
   });
 
