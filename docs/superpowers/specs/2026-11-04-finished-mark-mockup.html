@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en" class="loading">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Finished-mark mockup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<!-- The finished-level mark (finished-mark spec §1) on the game's own
+     styles and selector code (src/): the level selector, with
+       ?done=1      Level 1 finished, Level 2 not (the default)
+       ?done=1,2    both finished
+       ?done=       neither
+     and &long=1 for a long best on Level 1, 12:09.1. Served by the dev
+     server. -->
+<link rel="stylesheet" href="/src/styles.css">
+<style>
+  /* ---------- Finished-level mark (finished-mark spec §1) ---------- */
+  /* A finished level's row: a green check on the title's line and the best
+     time on the name's, right-aligned, in place of the sample. The column
+     mirrors the title and name: boxes trimmed to the capitals and the
+     baseline, 10px apart, so the lines pair up. The check is as tall as
+     the title's capitals (1cap at the title's size; 0.7em, near it, where 1cap is unknown), its viewBox cropped
+     to its ink, stroke included. */
+  .select .row.finished .sample, .select .row:not(.finished) .result { display: none; }
+  .select .result { display: flex; flex-direction: column; align-items: flex-end; gap: 10px; }
+  .select .result .tick { display: block; font-size: 17px; height: 0.7em; height: 1cap; width: auto; aspect-ratio: 19.25 / 13.75; overflow: visible; color: var(--good); }
+  .select .result .tick path { fill: none; stroke: currentColor; stroke-width: 2.25; stroke-linecap: round; stroke-linejoin: round; }
+  .select .result .best { display: block; text-box: trim-both cap alphabetic; white-space: nowrap; font-size: 13px; letter-spacing: 0.02em; color: var(--ink); }
+</style>
+</head>
+<body class="at-select">
+  <header class="top">
+    <div class="where">
+      <nav class="crumbs" aria-label="Breadcrumb">
+        <span class="home" aria-current="page">Levels</span>
+      </nav>
+    </div>
+  </header>
+  <div class="select" role="region" aria-label="Levels"></div>
+<script type="module">
+  import { LEVELS } from '/src/levels.js';
+  import { fontsReady } from '/src/fonts.js';
+  import { createScanner } from '/src/scanner.js';
+  import { fitHeader } from '/src/header.js';
+  import { createSelector } from '/src/selector.js';
+  import { formatTime } from '/src/finish.js';
+
+  const params = new URLSearchParams(location.search);
+  const done = new Set((params.get('done') ?? '1').split(',').filter(Boolean).map(Number));
+  const BEST = { 1: params.get('long') ? 729_100 : 72_400, 2: 95_000 };
+  // The keypad's check (index.html), its viewBox cropped to its ink.
+  const CHECK = '<svg class="tick" viewBox="2.375 5.375 19.25 13.75"><path d="M3.5 12.5l5.5 5.5l11.5-11.5"/></svg>';
+
+  const list = document.querySelector('.select');
+  createSelector(list, LEVELS, () => {});
+  for (const level of LEVELS) {
+    const row = list.querySelector(`.row[data-level="${level.n}"]`);
+    // Built here until selector.js builds it (plan Task 3), then reused.
+    let result = row.querySelector('.result');
+    if (!result) {
+      result = document.createElement('span');
+      result.className = 'result';
+      result.setAttribute('aria-hidden', 'true');
+      result.innerHTML = `${CHECK}<span class="best"></span>`;
+      row.append(result);
+    }
+    if (!done.has(level.n)) continue;
+    const time = formatTime(BEST[level.n]);
+    row.classList.add('finished');
+    result.querySelector('.best').textContent = time;
+    row.setAttribute('aria-label', `Level ${level.n}: ${level.name}. Finished, best ${time}.`);
+  }
+
+  const scan = createScanner();
+  fontsReady().then(() => {
+    fitHeader(document.querySelector('.top'), scan);
+    document.documentElement.classList.remove('loading');
+  });
+</script>
+</body>
+</html>
