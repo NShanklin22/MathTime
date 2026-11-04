@@ -10,12 +10,16 @@ visual indication that a level has been completed."
   all 20 problems answered. A run that ran out of lives doesn't count.
 - On the level selector, a finished level's row shows a green **✓** and the
   **best time**, written as the finish screen writes it (m:ss.s), for
-  example "✓ 1:12.4". It sits where the row's sample problem sits now, at the
-  row's right, and replaces the sample.
+  example ✓ and 1:12.4. They sit where the row's sample problem sits now, at
+  the row's right, and replace the sample.
 - An unfinished level's row is unchanged and keeps its sample problem.
-- The ✓ is in `--good`, the green of "New best". The time is in `--ink`, in
-  the sample's size and weight. The mockup settles the exact spacing and ink
-  alignment, following the sample's rules.
+- The two mirror the row's title and name. The ✓ goes on the title's line
+  and is as tall as its capitals: an SVG check like the keypad's, in
+  `--good`, the green of "New best". The time goes on the name's line, in the
+  name's size (13px), in `--ink`. Both are right-aligned at the row's
+  padding. (Corrected while planning: at the sample's 30px, a time would not
+  fit beside the level's name on screens under about 400px wide. At 320
+  wide, only about 60px is free.) The mockup settles the rest.
 
 ## 2. Where the best comes from
 
