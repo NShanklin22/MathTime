@@ -8,12 +8,10 @@ import {
 
 // Runs in the page: `ms` after the status first reads "Correct", press Esc,
 // note what leaving left (window.left), choose Level `n`, and from then on
-// log #eq's own animations (window.since). With `thenAnswer`, the new
-// run's first problem is then answered at once.
-const leaveDuringCorrect = (page, { ms, n, thenAnswer = false }) => page.evaluate(({ ms, n, thenAnswer }) => {
+// log #eq's own animations (window.since).
+const leaveDuringCorrect = (page, { ms, n }) => page.evaluate(({ ms, n }) => {
   const status = document.querySelector('#status');
   const eq = document.querySelector('#eq');
-  const press = key => document.querySelector('#ans').dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }));
   new MutationObserver((_, watch) => {
     if (status.textContent !== 'Correct') return;
     watch.disconnect();
@@ -23,13 +21,9 @@ const leaveDuringCorrect = (page, { ms, n, thenAnswer = false }) => page.evaluat
       document.querySelector(`.select .row[data-level="${n}"]`).click();
       window.since = [];
       eq.addEventListener('animationstart', e => { if (e.target === eq) window.since.push(e.animationName); });
-      if (thenAnswer) {
-        for (const digit of String(window.mathtime.game.state.problem.answer)) press(digit);
-        press('Enter');
-      }
     }, ms);
   }).observe(status, { childList: true, characterData: true, subtree: true });
-}, { ms, n, thenAnswer });
+}, { ms, n });
 
 for (const [n, topic] of [[1, 'Addition'], [2, 'Subtraction']]) test(`Level ${n}'s breadcrumb reads "Levels › ${topic} › Level ${n}"`, async ({ page }) => {
   await open(page, n);
@@ -164,18 +158,36 @@ for (const ms of [100, 450]) test(`leaving ${ms}ms into a right answer's feedbac
   await expect(page.locator('#status')).toHaveText(/^Question 1 of 20: \d minus \d$/);
 });
 
-// The old run's next() must not move the new run on: a right answer straight
-// after coming back gets one green and one slide, not two.
-test('a right answer straight after coming back slides once: the old run\'s feedback is gone', async ({ page }) => {
+// The old run's next() must not move the new run on. play() is called
+// straight, not through toSelector(), so only play()'s own view.reset()
+// stops the old feedback: the new problem is not green, and a right answer
+// to it gets one slide out and one slide in.
+test('a run started during a right answer\'s feedback is not moved on by it', async ({ page }) => {
   await open(page);
   await setProblem(page, 3, 4);
-  await leaveDuringCorrect(page, { ms: 100, n: 1, thenAnswer: true });
+  await page.evaluate(() => {
+    const status = document.querySelector('#status'), eq = document.querySelector('#eq');
+    const { game, play, levels } = window.mathtime;
+    const press = key => document.querySelector('#ans').dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }));
+    new MutationObserver((_, watch) => {
+      if (status.textContent !== 'Correct') return;
+      watch.disconnect();
+      setTimeout(() => {
+        play(levels[0]);                       // no toSelector(): only play()'s reset stands guard
+        window.green = eq.classList.contains('correct');
+        window.since = [];
+        eq.addEventListener('animationstart', e => { if (e.target === eq) window.since.push(e.animationName); });
+        for (const d of String(game.state.problem.answer)) press(d);
+        press('Enter');
+      }, 100);
+    }).observe(status, { childList: true, characterData: true, subtree: true });
+  });
   await typeKeys(page, ['7', 'Enter']);
   await page.waitForFunction(() => window.since);
   await page.waitForTimeout(1500);
-  expect(await page.evaluate(() => window.since), 'one slide out, one slide in').toEqual(['out', 'in']);
+  expect(await page.evaluate(() => window.green), 'new problem not green').toBe(false);
+  expect(await page.evaluate(() => window.since)).toEqual(['out', 'in']);
   await expect(page.locator('#qnum')).toHaveText('Question 2 of 20');
-  await expect(page.locator('.run span.done')).toHaveCount(1);
 });
 
 test('leaving during the out-of-lives shake, then coming straight back, keeps you playing', async ({ page }) => {

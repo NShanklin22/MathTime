@@ -102,7 +102,9 @@ dom.back.addEventListener('click', e => {
   toSelector(e);
 });
 addEventListener('keydown', e => {
-  if (e.key !== 'Escape' || e.isComposing || document.body.classList.contains('at-select')) return;
+  // keyCode 229: Safari can send the keydown that ends a composition with
+  // isComposing false.
+  if (e.key !== 'Escape' || e.isComposing || e.keyCode === 229 || document.body.classList.contains('at-select')) return;
   e.preventDefault();
   toSelector();
 });
