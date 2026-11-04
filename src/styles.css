@@ -356,8 +356,9 @@ body.at-select .select { display: block; }
    line and the best time on the name's, right-aligned, in place of the
    sample. The column mirrors the title and name: boxes trimmed to the
    capitals and the baseline, 10px apart, so the lines pair up. The check
-   is as tall as the title's capitals (1cap at the title's size; 0.7em, near it, where 1cap is unknown), its
-   viewBox cropped to its ink, stroke included. */
+   is as tall as the title's capitals (1cap at the title's size; 0.7em,
+   near it, where 1cap is unknown), its viewBox cropped to its ink, stroke
+   included. */
 .select .row.finished .sample, .select .row:not(.finished) .result { display: none; }
 .select .result { display: flex; flex-direction: column; align-items: flex-end; gap: 10px; }
 .select .result .tick { display: block; font-size: 17px; height: 0.7em; height: 1cap; width: auto; aspect-ratio: 20 / 14.5; overflow: visible; color: var(--good); }

@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { open, levelRow, finishRun, rect, resize, setProblem, typeKeys, GOOD } from './helpers.js';
+import { open, levelRow, finishRun, rect, resize, setProblem, typeKeys, GOOD, INK } from './helpers.js';
 
 // The finished-level mark (finished-mark spec): a finished level's row
 // shows a green check and its best time in place of its sample.
@@ -37,7 +37,7 @@ test('a finished level shows a green check and its best time in place of its sam
   await expect(result(page, 1).locator('.best')).toHaveText('1:12.4');
   await expect(result(page, 1).locator('.tick')).toHaveCSS('color', rgb(GOOD));
   await expect(result(page, 1).locator('.best')).toHaveCSS('font-size', '13px');
-  await expect(result(page, 1).locator('.best')).toHaveCSS('color', 'rgb(238, 245, 255)');
+  await expect(result(page, 1).locator('.best')).toHaveCSS('color', rgb(INK));
   await expect(row).toHaveAttribute('aria-label', 'Level 1: Single-digit addition. Finished, best 1:12.4.');
   await expect(page.getByRole('button', { name: 'Level 1: Single-digit addition. Finished, best 1:12.4.' })).toBeVisible();
   await expect(levelRow(page, 2)).not.toHaveClass(/\bfinished\b/);
@@ -54,6 +54,18 @@ test('a run just finished shows on its row when you come back by "Levels"', asyn
   await expect(result(page, 2).locator('.best')).toHaveText(time);
   await expect(levelRow(page, 2)).toHaveAttribute('aria-label', `Level 2: Subtraction within 10. Finished, best ${time}.`);
   await expect(levelRow(page, 1)).not.toHaveClass(/\bfinished\b/);
+});
+
+test('a run just finished shows on its row when you come back by running out of lives', async ({ page }) => {
+  await open(page);
+  await finishRun(page);
+  const time = await page.locator('.finish .done-time').textContent();
+  await page.keyboard.press('Enter');                    // "Again"
+  await expect(page.locator('#qnum')).toHaveText('Question 1 of 20');
+  await setProblem(page, 3, 4);
+  for (let i = 0; i < 3; i++) await typeKeys(page, ['9', 'Enter']);
+  await expect(page.locator('.select')).toBeVisible();
+  await expect(result(page, 1).locator('.best')).toHaveText(time);
 });
 
 test('a run that runs out of lives leaves no mark', async ({ page }) => {
@@ -92,7 +104,7 @@ for (const [width, height] of [[375, 812], [320, 640], [1440, 900]]) test(`at ${
     const [r, title, name, tick, best] = await Promise.all(['', ' .title', ' .name', ' .tick', ' .best'].map(s => rect(page, row + s)));
     // The time's box holds its last letter's spacing too: less that, it
     // ends at its last digit, and that is what sits at the padding.
-    const spacing = await page.evaluate(sel => parseFloat(getComputedStyle(document.querySelector(sel)).letterSpacing), `${row} .best`);
+    const spacing = await page.evaluate(sel => parseFloat(getComputedStyle(document.querySelector(sel)).letterSpacing) || 0, `${row} .best`);
     expect(Math.abs(tick.top - title.top), `Level ${n}: check on the title's line`).toBeLessThanOrEqual(0.05);
     expect(Math.abs(tick.height - title.height), `Level ${n}: check as tall as the capitals`).toBeLessThanOrEqual(0.05);
     expect(Math.abs(best.top - name.top), `Level ${n}: time on the name's line`).toBeLessThanOrEqual(0.05);
