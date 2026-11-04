@@ -352,6 +352,19 @@ body.at-select .select { display: block; }
 .select .sample { display: flex; gap: 0.3em; font-size: 30px; font-weight: 500; line-height: 1; transform: translate(var(--ink-dx, 0), var(--ink-dy, 0)); }
 .select .sample > span { display: block; height: 1em; line-height: 1; }
 .select .sample .op { color: var(--muted); position: relative; }
+/* A finished level (finished-mark spec §1): a green check on the title's
+   line and the best time on the name's, right-aligned, in place of the
+   sample. The column mirrors the title and name: boxes trimmed to the
+   capitals and the baseline, 10px apart, so the lines pair up. The check
+   is as tall as the title's capitals (1cap at the title's size; 0.7em, near it, where 1cap is unknown), its
+   viewBox cropped to its ink, stroke included. */
+.select .row.finished .sample, .select .row:not(.finished) .result { display: none; }
+.select .result { display: flex; flex-direction: column; align-items: flex-end; gap: 10px; }
+.select .result .tick { display: block; font-size: 17px; height: 0.7em; height: 1cap; width: auto; aspect-ratio: 20 / 14.5; overflow: visible; color: var(--good); }
+/* The keypad's check, at the title's weight. */
+.select .result .tick path { fill: none; stroke: currentColor; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+/* Less the last letter's spacing: its box ends at its last digit. */
+.select .result .best { display: block; text-box: trim-both cap alphabetic; white-space: nowrap; font-size: 13px; letter-spacing: 0.02em; margin-right: -0.02em; color: var(--ink); }
 
 /* ---------- Finish screen (runs spec §3) ---------- */
 /* The selector's column: as wide as the keypad, its first ink 40px below

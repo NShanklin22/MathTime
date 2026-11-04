@@ -26,6 +26,8 @@ const view = createView(dom, layout, game.level);
 layout.afterMeasure = () => view.render(game.state);
 const selector = createSelector(dom.select, LEVELS, play);
 const queue = createQueue();
+// Each finished level's best, from the runs kept (finished-mark spec §2).
+selector.showBests(queue.best);
 const finish = createFinish(dom.finish, scan, { again: () => play(game.level), levels: toSelector });
 
 // Start a run of `level` at question 1 with full lives, focus on the answer.
@@ -46,6 +48,7 @@ function play(level) {
 // how you came.
 function toSelector(press) {
   selector.mark(game.level);
+  selector.showBests(queue.best);    // with the run just finished, if any
   selector.cameFrom(press);
   document.body.classList.remove('at-finish');
   document.body.classList.add('at-select');

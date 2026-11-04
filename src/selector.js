@@ -11,6 +11,9 @@ export function rowLabel(level, bestMs) {
   return bestMs == null ? label : `${label}. Finished, best ${formatTime(bestMs)}.`;
 }
 
+// The keypad's check (index.html), its viewBox cropped to its ink.
+const CHECK = '<svg class="tick" viewBox="2 5 20 14.5"><path d="M3.5 12.5l5.5 5.5l11.5-11.5"/></svg>';
+
 // The level selector (Level 2 spec §3): a row per built level, grouped by
 // topic in route order, each a button that calls choose(level). The level
 // you came from is marked with an amber bar and gets the focus.
@@ -49,7 +52,14 @@ export function createSelector(root, levels, choose) {
     sample.setAttribute('aria-hidden', 'true');
     const [a, b] = level.sample;
     sample.append(el('span', null, String(a)), el('span', 'op', level.op), el('span', null, String(b)));
-    row.append(txt, sample);
+    // Its result, once it is finished (finished-mark spec §1): a check on
+    // the title's line and the best time on the name's, shown in place of
+    // the sample by showBests().
+    const result = el('span', 'result');
+    result.setAttribute('aria-hidden', 'true');
+    result.innerHTML = CHECK;
+    result.append(el('span', 'best'));
+    row.append(txt, sample, result);
     row.addEventListener('click', e => {
       const startedAt = e.detail && downAt != null ? downAt : e.timeStamp;
       downAt = null;
@@ -82,6 +92,18 @@ export function createSelector(root, levels, choose) {
     downAt = null;
   }
 
+  // Show each level's result: a level with a best time, `best(n)` in ms
+  // (null if none), is finished. Its row shows the check and that time,
+  // and its name says so (finished-mark spec).
+  function showBests(best) {
+    for (const [level, row] of rows) {
+      const ms = best(level.n);
+      row.classList.toggle('finished', ms != null);
+      row.querySelector('.best').textContent = ms == null ? '' : formatTime(ms);
+      row.setAttribute('aria-label', rowLabel(level, ms));
+    }
+  }
+
   // Focus the marked row, so the keyboard carries on from there, and show
   // it and its focus ring, scrolling the list alone (reveal.js).
   function focus() {
@@ -91,5 +113,5 @@ export function createSelector(root, levels, choose) {
     reveal(root, row);
   }
 
-  return { mark, cameFrom, focus };
+  return { mark, cameFrom, showBests, focus };
 }
