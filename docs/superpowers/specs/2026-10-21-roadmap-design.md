@@ -72,9 +72,12 @@ The route therefore runs through all of school math and on through linear algebr
     - ⚛ **Quantum mechanics:** the Schrödinger equation, wells, the oscillator, spin, the hydrogen atom
 
 ## 4. Where we are
-- **Done:** Stage 1, Level 1, single-digit addition (0–9 + 0–9), merged to `main`.
-- **Next:** the rest of the whole-number facts: subtraction, multiplication and division. These are the first small steps. After them come the written methods, where the first multi-box filling-out mechanic appears. Each is designed as its own level.
+- **Done:**
+  - Stage 1, Level 1, single-digit addition (0–9 + 0–9).
+  - Stage 1, Level 2, subtraction within 10, with the level selector the game opens on and the breadcrumb's way back.
+  - Runs of 20 problems, the finish screen, each finished run kept in the browser, and the finished-level mark.
+- **Next:** Level 3, subtraction past 10 (2026-11-04-level3-design.md). Then the rest of the whole-number facts, multiplication and division. After them come the written methods, where the first multi-box filling-out mechanic appears. Each is designed as its own level.
 
 ## 5. Open, to decide when it comes up
-- **The header's roadmap strip** shows 7 placeholder stages (Arithmetic, Fractions, Algebra, Geometry, Trigonometry, Calculus, Physics). It should follow this route. Whether it shows the parts, the stages or something else is a UI question for a later level.
-- **The breadcrumb** reads "Arithmetic › Addition › Level 1". Its names should match whatever the strip shows.
+- **The header's roadmap strip** was removed on 2026-11-03: it showed 7 placeholder stages where the route has 21. Whether the route shows on screen again, and how, is a UI question for a later level.
+- **The breadcrumb** reads "Levels › Topic › Level N" (Level 2 spec §4). Its names should match whatever shows the route.

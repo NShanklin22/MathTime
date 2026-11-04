@@ -19,7 +19,7 @@ Decided 2026-10-21. Level 2 is the second step of the roadmap (2026-10-21-roadma
 This replaces Level 1's bare "Level 1" button (Level 1 spec §2 and §9).
 - **When it shows:** the game opens on it. Running out of lives returns to it, with the level you came from marked. Choosing a level starts it at Question 1 with 3 lives, focus on the answer.
 - **What it shows:** only the levels that exist, grouped by topic: Addition (Level 1), then Subtraction (Level 2).
-- **Header:** the breadcrumb reads "Levels", with the roadmap strip below it. There are no hearts.
+- **Header:** the breadcrumb reads "Levels". There are no hearts. (The roadmap strip below it was removed on 2026-11-03; the header keeps its height.)
 - **Column:** as wide as the keypad (420px including 16px sides), centred. On phones it spans the width less 16px gutters. The list starts 40px below the header.
 - **Topic heading:** uppercase, 12px, weight 500, muted, letter spacing 0.1em. It sits 14px above its rows (ink to edge), with 32px between groups.
 - **Level row:** a button 80px tall with the keypad's key outline (1.5px) and 24px padding.
@@ -38,10 +38,10 @@ This replaces Level 1's bare "Level 1" button (Level 1 spec §2 and §9).
   - The rows are buttons in the tab order.
 
 ## 4. The breadcrumb and the way back
-- **The breadcrumb** reads "Levels › Topic › Level N": "Levels › Addition › Level 1" and "Levels › Subtraction › Level 2". It replaces "Arithmetic › Addition › Level 1" (Level 1 spec §3.1). The stage is still shown by the roadmap strip.
+- **The breadcrumb** reads "Levels › Topic › Level N": "Levels › Addition › Level 1" and "Levels › Subtraction › Level 2". It replaces "Arithmetic › Addition › Level 1" (Level 1 spec §3.1). (The roadmap strip, which showed the stage, was removed on 2026-11-03.)
 - **"Levels" is a link to the selector.**
   - It is muted, with a faint 1px underline running from its first ink to its last, 4px below the baseline; on hover the underline takes the text colour.
-  - Its hit area runs from the top of the screen to 1px above the roadmap strip, and from the screen edge to 8px past the word. On phones that is 43px tall, all the room there is. It never covers the roadmap segments, which keep their tooltips.
+  - Its hit area runs from the top of the screen to the header's foot, and from the screen edge to 8px past the word: all the room the header has, 48px tall on phones. (Changed 2026-11-04: it ran to 1px above the roadmap strip, which has gone.)
 - **Esc also goes to the selector** (ignored while an input method is composing). The link declares the shortcut to screen readers. Otherwise keys go to the answer as in Level 1, so the link is not a Tab stop.
 - **When the header is tight**, the topic crumb drops first and "Levels" never drops. This replaces Level 1's drop-from-the-left rule. The first crumb's ink still starts at the header's edge.
 - **Leaving mid-problem** abandons it. Coming back starts the level at Question 1.

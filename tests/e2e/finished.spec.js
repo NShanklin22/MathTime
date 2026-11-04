@@ -93,8 +93,10 @@ test('with storage blocked, no row is marked and a level still starts', async ({
 });
 
 // The mark mirrors the title and name: the check level with the title's
-// capitals and as tall, the time level with the name's, both right-aligned
-// at the row's 24px padding, and clear of the name, a long time too.
+// capitals and as tall, the time level with the name's, the check's box
+// right-aligned at the row's 24px padding, and the time clear of the name,
+// a long time too. (The time is moved onto its ink at the padding by the
+// selector's layout: selector.spec.js checks it there.)
 for (const [width, height] of [[375, 812], [320, 640], [1440, 900]]) test(`at ${width}×${height} the check is on the title's line, the time on the name's, right-aligned`, async ({ page }) => {
   await keptBefore(page, [earlier(1, 729_100), earlier(2, 95_000)]);
   await home(page);
@@ -102,15 +104,11 @@ for (const [width, height] of [[375, 812], [320, 640], [1440, 900]]) test(`at ${
   for (const n of [1, 2]) {
     const row = `.select .row[data-level="${n}"]`;
     const [r, title, name, tick, best] = await Promise.all(['', ' .title', ' .name', ' .tick', ' .best'].map(s => rect(page, row + s)));
-    // The time's box holds its last letter's spacing too: less that, it
-    // ends at its last digit, and that is what sits at the padding.
-    const spacing = await page.evaluate(sel => parseFloat(getComputedStyle(document.querySelector(sel)).letterSpacing) || 0, `${row} .best`);
     expect(Math.abs(tick.top - title.top), `Level ${n}: check on the title's line`).toBeLessThanOrEqual(0.05);
     expect(Math.abs(tick.height - title.height), `Level ${n}: check as tall as the capitals`).toBeLessThanOrEqual(0.05);
     expect(Math.abs(best.top - name.top), `Level ${n}: time on the name's line`).toBeLessThanOrEqual(0.05);
     expect(Math.abs(best.height - name.height), `Level ${n}: time as tall as the name`).toBeLessThanOrEqual(0.05);
     expect(Math.abs(r.right - 24 - tick.right), `Level ${n}: check at the padding`).toBeLessThanOrEqual(0.05);
-    expect(Math.abs(r.right - 24 - (best.right - spacing)), `Level ${n}: time at the padding`).toBeLessThanOrEqual(0.05);
     expect(best.left - name.right, `Level ${n}: time clear of the name`).toBeGreaterThanOrEqual(8);
   }
 });

@@ -6,13 +6,14 @@
 //
 // A run is the level's `problemsPerRun` problems, each a different one of its
 // facts (runs spec §1). Its last correct answer finishes it, and `result`
-// then says what it took. A third miss, or start() before the end, leaves it
-// unfinished, with no result.
+// then says what it took. A third miss, leave() or start() before the end
+// leaves it unfinished, with no result.
 //
 // phase: 'playing'  – accepting input
 //        'correct'  – answer was right; input locked until next() or start()
 //        'out'      – third miss; input locked until restart() or start()
 //        'finished' – the run's last answer was right; locked until start()
+//        'left'     – the player left for the level selector; locked until start()
 //
 // `solved` counts the run's correct answers, each from the moment it is right.
 //
@@ -97,7 +98,9 @@ export function createGame(level, rng = Math.random, now = () => performance.now
 
   // Begin a run of `chosen` (the level being played, by default) at question
   // 1, with full lives and a new problem, whatever the phase. A run in
-  // progress is left unfinished.
+  // progress is left unfinished. Feedback the view is still playing for it
+  // is the view's to stop (view.reset()): a next() it still calls could move
+  // the new run on.
   function start(chosen = current) {
     current = chosen;
     left = [...current.facts];
@@ -109,10 +112,20 @@ export function createGame(level, rng = Math.random, now = () => performance.now
     startedAt = shownAt;
   }
 
+  // The same level again. The game itself starts runs with start(); the
+  // tests use this.
   function restart() {
     start();
   }
 
+  // The player left for the level selector (Level 2 spec §4). Until
+  // start(), the game takes no keys, and a next() still to come for a right
+  // answer does nothing. A run in progress is left unfinished, with no
+  // result; a finished one keeps its result.
+  function leave() {
+    state.phase = 'left';
+  }
+
   start(level);
-  return { state, press, next, start, restart, get level() { return current; }, get result() { return result; } };
+  return { state, press, next, start, restart, leave, get level() { return current; }, get result() { return result; } };
 }

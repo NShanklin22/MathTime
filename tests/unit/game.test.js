@@ -516,3 +516,37 @@ test('the result records the problem on screen when it was answered', () => {
   const { a, b, misses } = game.result.problems.at(-1);
   assert.deepEqual({ a, b, misses }, { a: 3, b: 4, misses: 0 });
 });
+
+test('leave() locks the game until start(), and a next() still to come does nothing', () => {
+  const game = threeProblems();
+  solve(game);                                   // correct: the view will call next()
+  game.leave();
+  assert.equal(game.state.phase, 'left');
+  assertLocked(game);
+  game.next();
+  assert.equal(game.state.question, 1);
+  assert.equal(game.state.phase, 'left');
+  game.start();
+  assert.equal(game.state.phase, 'playing');
+  assert.equal(game.state.question, 1);
+  assert.equal(game.state.lives, 3);
+});
+
+test('leave() mid-run leaves it unfinished, with no result', () => {
+  const game = createGame(LEVEL2);
+  toLast(game);
+  game.leave();
+  assert.equal(game.result, null);
+  assert.equal(solve(game), 'ignored');
+  assert.equal(game.result, null);
+});
+
+test('leave() after the last answer keeps the finished run\'s result, but not its phase', () => {
+  const game = createGame(LEVEL1);
+  toLast(game);
+  assert.equal(solve(game), 'finished');
+  game.leave();
+  assert.equal(game.state.phase, 'left');
+  assert.equal(game.result.level, 1);
+  assert.equal(game.result.problems.length, 20);
+});

@@ -89,6 +89,31 @@ body {
 body.at-select .crumbs .home { display: block; }
 .crumbs .sep { width: 12px; height: 12px; flex: none; }
 .crumbs .sep path { fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+/* The way back (Level 2 spec §4): "Levels", a link to the level selector,
+   muted, with a faint underline from its first ink to its last, 4px below
+   the baseline (header.js sets --ul-left, --ul-right and --ul-top). Its
+   hit area runs from the top of the screen to the header's foot, all the
+   room the header has, and from past the screen edge (the gutter or the
+   inset is less than 100px) to 8px past the word. */
+.crumbs .back { position: relative; color: var(--muted); text-decoration: none; }
+.crumbs .back::before {
+  content: "";
+  position: absolute;
+  left: var(--ul-left, 0px);
+  right: var(--ul-right, 0px);
+  top: var(--ul-top, 19px);
+  height: 1px;
+  background: var(--faint);
+}
+.crumbs .back::after {
+  content: "";
+  position: absolute;
+  top: calc(-1 * var(--top-safe));
+  bottom: calc(-1 * var(--top-foot));
+  left: -100px;
+  right: -8px;
+}
+@media (hover: hover) { .crumbs .back:hover::before { background: currentColor; } }
 /* When the header gets tight, the topic crumb drops (set by header.js);
    "Levels" and the level never do (Level 2 spec §4). */
 .top.tight .topic, .top.tight .topic-sep { display: none; }
@@ -348,8 +373,10 @@ body.at-select .select { display: block; }
 /* White: amber means "current". */
 .select .row:focus-visible { outline: 2px solid var(--ink); outline-offset: 4px; }
 /* A sample problem, set as the equation is: muted operators, and the whole
-   moved onto its ink by selector.js (--ink-dx, --ink-dy). */
-.select .sample { display: flex; gap: 0.3em; font-size: 30px; font-weight: 500; line-height: 1; transform: translate(var(--ink-dx, 0), var(--ink-dy, 0)); }
+   moved onto its ink by selector.js (--ink-dx, --ink-dy): relative offsets,
+   not a transform, which would take its digits off the device pixels
+   selector.js puts them on. */
+.select .sample { position: relative; left: var(--ink-dx, 0px); top: var(--ink-dy, 0px); display: flex; gap: 0.3em; font-size: 30px; font-weight: 500; line-height: 1; }
 .select .sample > span { display: block; height: 1em; line-height: 1; }
 .select .sample .op { color: var(--muted); position: relative; }
 /* A finished level (finished-mark spec §1): a green check on the title's
@@ -364,8 +391,9 @@ body.at-select .select { display: block; }
 .select .result .tick { display: block; font-size: 17px; height: 0.7em; height: 1cap; width: auto; aspect-ratio: 20 / 14.5; overflow: visible; color: var(--good); }
 /* The keypad's check, at the title's weight. */
 .select .result .tick path { fill: none; stroke: currentColor; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
-/* Less the last letter's spacing: its box ends at its last digit. */
-.select .result .best { display: block; text-box: trim-both cap alphabetic; white-space: nowrap; font-size: 13px; letter-spacing: 0.02em; margin-right: -0.02em; color: var(--ink); }
+/* Less the last letter's spacing: its box ends at its last digit.
+   selector.js then moves it onto its ink (left). */
+.select .result .best { position: relative; display: block; text-box: trim-both cap alphabetic; white-space: nowrap; font-size: 13px; letter-spacing: 0.02em; margin-right: -0.02em; color: var(--ink); }
 
 /* ---------- Finish screen (runs spec §3) ---------- */
 /* The selector's column: as wide as the keypad, its first ink 40px below
