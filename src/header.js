@@ -4,8 +4,8 @@ import { onLayoutGrid, snap } from './ink.js';
 
 // Drop the topic crumb if the header doesn't fit on one line: "Levels" and
 // the level always stay. Then line the first crumb's ink up with the
-// header's edge, where the roadmap strip starts, as the hearts' ink ends at
-// the other edge: its left side bearing would leave it inside. Its start
+// header's edge, as the hearts' ink ends at the other edge: its left side
+// bearing would leave it inside. Its start
 // goes on a whole device pixel, where it is drawn exactly as scanned (small
 // text is drawn on whole pixels at 1x), so the ink is within half a device
 // pixel of the edge; or, where the edge is a notch's safe-area inset, within

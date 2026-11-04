@@ -22,7 +22,6 @@ test('the page loads in IBM Plex Mono with the Blueprint background', async ({ p
 test('the controls have accessible names', async ({ page }) => {
   await open(page);
   await expect(page.locator('.crumbs .here')).toHaveAttribute('aria-current', 'step');
-  await expect(page.getByRole('img', { name: /Roadmap stage 1 of 7/ })).toBeVisible();
   await expect(page.getByRole('group', { name: 'Keypad' })).toBeVisible();
   await expect(page.getByRole('group', { name: 'Keypad' }).getByRole('button')).toHaveCount(12);
   await expect(page.getByRole('button', { name: 'Delete' })).toBeVisible();

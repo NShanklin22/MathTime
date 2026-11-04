@@ -181,10 +181,10 @@ test('the type is set as the spec says', async ({ page }) => {
 // layout distances are ink distances too (pixels: Task 5's tests).
 test('the list starts 40px below the header, headings 14px above their rows, topics 32px apart', async ({ page }) => {
   await home(page);
-  const road = await rect(page, '.road');
+  const header = await rect(page, '.top');
   const [h1, h2] = [await rect(page, '.select .group-name', 0), await rect(page, '.select .group-name', 1)];
   const [r1, r2] = [await rect(page, '.select .row', 0), await rect(page, '.select .row', 1)];
-  expect(h1.top - road.bottom).toBeCloseTo(40, 1);
+  expect(h1.top - header.bottom).toBeCloseTo(40, 1);
   expect(r1.top - h1.bottom).toBeCloseTo(14, 1);
   expect(h2.top - r1.bottom).toBeCloseTo(32, 1);
   expect(r2.top - h2.bottom).toBeCloseTo(14, 1);

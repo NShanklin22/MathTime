@@ -9,8 +9,8 @@
   --bg: #12407e;
   --ink: #eef5ff;
   --muted: #b6cdee;
-  --faint: #6f95cc;          /* upcoming roadmap segments, 3:1 on the background */
-  --amber: #ffd66b;          /* caret and current roadmap segment */
+  --faint: #6f95cc;          /* the run bar's empty segments, 3:1 on the background */
+  --amber: #ffd66b;          /* the caret, and the level you came from */
   --good: #8ff0c0;
   --heart-lost: #8fb0dd;
   --key-ring: inset 0 0 0 1.5px rgba(238, 245, 255, 0.8);
@@ -21,9 +21,8 @@
   --top-pad: 20px;           /* above the header */
   --top-safe: max(var(--top-pad), env(safe-area-inset-top));
   --crumb-line: 20px;        /* the breadcrumb's line */
-  --road-gap: 8px;           /* between it and the roadmap strip */
-  --road-h: 4px;             /* the roadmap strip */
-  --top-h: calc(var(--top-safe) + var(--crumb-line) + var(--road-gap) + var(--road-h));   /* the header */
+  --top-foot: 12px;          /* below it, in the header: the screens are set from its foot */
+  --top-h: calc(var(--top-safe) + var(--crumb-line) + var(--top-foot));   /* the header */
   --key-gap: 8px;
   --pad-bottom: max(16px, env(safe-area-inset-bottom));   /* below the keypad */
   --run-bar: 6px;            /* the run bar's segments (runs spec §2) */
@@ -64,14 +63,14 @@ body {
   white-space: nowrap;
 }
 
-/* ---------- Header: roadmap position and lives ---------- */
+/* ---------- Header: where you are, and lives ---------- */
 .top {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
   /* Clear of any notch or rounded corner (viewport-fit=cover). */
-  padding: var(--top-safe) max(var(--gutter), env(safe-area-inset-right)) 0 max(var(--gutter), env(safe-area-inset-left));
+  padding: var(--top-safe) max(var(--gutter), env(safe-area-inset-right)) var(--top-foot) max(var(--gutter), env(safe-area-inset-left));
 }
 .where { min-width: 0; }
 .crumbs {
@@ -93,9 +92,6 @@ body.at-select .crumbs .home { display: block; }
 /* When the header gets tight, the topic crumb drops (set by header.js);
    "Levels" and the level never do (Level 2 spec §4). */
 .top.tight .topic, .top.tight .topic-sep { display: none; }
-.road { display: flex; gap: 4px; margin-top: var(--road-gap); }
-.road span { width: 20px; height: var(--road-h); background: var(--faint); }
-.road span.now { background: var(--amber); }
 
 /* Each heart's viewBox is cropped to its ink, stroke included (index.html),
    so the right ink edge is the padding edge, like the crumbs' left ink edge.
