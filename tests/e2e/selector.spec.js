@@ -17,14 +17,18 @@ test('the game opens on the selector: the built levels by topic, nothing marked'
   // A landmark of its own: the only <main> is the hidden problem area.
   const list = page.getByRole('region', { name: 'Levels' });
   await expect(list).toBeVisible();
-  await expect(list.getByRole('button')).toHaveCount(3);
+  await expect(list.getByRole('button')).toHaveCount(5);
   await expect(page.locator('#status')).toBeEmpty();   // no problem yet, so nothing announced
-  await expect(page.locator('.select .group-name')).toHaveText(['Addition', 'Subtraction']);
-  await expect(page.locator('.select .group')).toHaveCount(2);
+  await expect(page.locator('.select .group-name')).toHaveText(['Addition', 'Subtraction', 'Multiplication', 'Division']);
+  await expect(page.locator('.select .group')).toHaveCount(4);
   await expect(page.locator('.select .group').nth(0).locator('.row')).toHaveAttribute('data-level', '1');
   await expect(page.locator('.select .group').nth(1).locator('.row')).toHaveCount(2);
   await expect(page.locator('.select .group').nth(1).locator('.row').nth(0)).toHaveAttribute('data-level', '2');
   await expect(page.locator('.select .group').nth(1).locator('.row').nth(1)).toHaveAttribute('data-level', '3');
+  await expect(page.locator('.select .group').nth(2).locator('.row')).toHaveCount(1);
+  await expect(page.locator('.select .group').nth(2).locator('.row')).toHaveAttribute('data-level', '4');
+  await expect(page.locator('.select .group').nth(3).locator('.row')).toHaveCount(1);
+  await expect(page.locator('.select .group').nth(3).locator('.row')).toHaveAttribute('data-level', '5');
   await expect(page.getByRole('button', { name: 'Level 1: Single-digit addition' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Level 2: Subtraction within 10' })).toBeVisible();
   await expect(levelRow(page, 1).locator('.title')).toHaveText('Level 1');
@@ -35,6 +39,14 @@ test('the game opens on the selector: the built levels by topic, nothing marked'
   await expect(levelRow(page, 3).locator('.title')).toHaveText('Level 3');
   await expect(levelRow(page, 3).locator('.name')).toHaveText('Subtraction past 10');
   await expect(levelRow(page, 3).locator('.sample')).toHaveText('13−5');
+  await expect(page.getByRole('button', { name: 'Level 4: Times tables' })).toBeVisible();
+  await expect(levelRow(page, 4).locator('.title')).toHaveText('Level 4');
+  await expect(levelRow(page, 4).locator('.name')).toHaveText('Times tables');
+  await expect(levelRow(page, 4).locator('.sample')).toHaveText('6×7');
+  await expect(page.getByRole('button', { name: 'Level 5: Division facts' })).toBeVisible();
+  await expect(levelRow(page, 5).locator('.title')).toHaveText('Level 5');
+  await expect(levelRow(page, 5).locator('.name')).toHaveText('Division facts');
+  await expect(levelRow(page, 5).locator('.sample')).toHaveText('56÷8');
   await expect(levelRow(page, 1).locator('.sample')).toHaveAttribute('aria-hidden', 'true');
   await expect(page.locator('.select .row.current')).toHaveCount(0);
   await expect(page.locator('.select .row[aria-current]')).toHaveCount(0);
@@ -47,7 +59,8 @@ test('on the selector the breadcrumb is "Levels" alone', async ({ page }) => {
   for (const crumb of ['.back', '.topic', '.here', '.sep']) await expect(page.locator(`.crumbs ${crumb}`).first()).toBeHidden();
 });
 
-for (const n of [1, 2, 3]) test(`choosing Level ${n} starts it at question 1 with 3 lives, focus on the answer`, async ({ page }) => {
+const WORD = { 1: 'plus', 2: 'minus', 3: 'minus', 4: 'times', 5: 'divided by' };
+for (const n of [1, 2, 3, 4, 5]) test(`choosing Level ${n} starts it at question 1 with 3 lives, focus on the answer`, async ({ page }) => {
   await home(page);
   await levelRow(page, n).click();
   await expect(page.locator('.select')).toBeHidden();
@@ -56,7 +69,7 @@ for (const n of [1, 2, 3]) test(`choosing Level ${n} starts it at question 1 wit
   await expect(page.locator('#ans')).toBeFocused();
   await expect(page.locator('.crumbs .here')).toHaveText(`Level ${n}`);
   await expect(page.locator('.crumbs .home')).toBeHidden();
-  await expect(page.locator('#status')).toHaveText(new RegExp(`^Question 1 of 20: \\d+ ${n === 1 ? 'plus' : 'minus'} \\d$`));
+  await expect(page.locator('#status')).toHaveText(new RegExp(`^Question 1 of 20: \\d+ ${WORD[n]} \\d$`));
 });
 
 test('the rows are buttons in the tab order', async ({ page }) => {
@@ -67,6 +80,37 @@ test('the rows are buttons in the tab order', async ({ page }) => {
   await expect(levelRow(page, 2)).toBeFocused();
   await page.keyboard.press('Enter');
   await expect(page.locator('.crumbs .here')).toHaveText('Level 2');
+});
+
+// On a short screen the list scrolls: a row reached by Tab shows whole,
+// with its focus ring (2px, 4px out), going down and coming back up.
+for (const [width, height] of [[844, 390], [320, 640]]) test(`at ${width}×${height} a row reached by Tab shows with its whole focus ring`, async ({ page }) => {
+  await home(page);
+  await resize(page, width, height);
+  const ringInside = async n => page.evaluate(n => {
+    const list = document.querySelector('.select');
+    const view = list.getBoundingClientRect();
+    const top = view.top + list.clientTop, bottom = top + list.clientHeight;
+    const r = document.querySelector(`.select .row[data-level="${n}"]`).getBoundingClientRect();
+    return { above: top - (r.top - 6), below: (r.bottom + 6) - bottom };
+  }, n);
+  const n = await rows(page);
+  for (let i = 1; i <= n; i++) {
+    await page.keyboard.press('Tab');
+    await expect(levelRow(page, i)).toBeFocused();
+  }
+  for (let i = n - 1; i >= 1; i--) {
+    await page.keyboard.press('Shift+Tab');
+    await expect(levelRow(page, i)).toBeFocused();
+  }
+  for (const [i, keys] of [[n, 'Tab'], [1, 'Shift+Tab']]) {
+    if (i === n) for (let k = 1; k < n; k++) await page.keyboard.press('Tab');
+    else for (let k = 1; k < n; k++) await page.keyboard.press('Shift+Tab');
+    await expect(levelRow(page, i)).toBeFocused();
+    const { above, below } = await ringInside(i);
+    expect(above, `Level ${i}'s ring below the list's top (${keys})`).toBeLessThanOrEqual(0.01);
+    expect(below, `Level ${i}'s ring above the list's bottom (${keys})`).toBeLessThanOrEqual(0.01);
+  }
 });
 
 test('running out of lives comes back with that level marked and focused, in white', async ({ page }) => {
@@ -189,12 +233,20 @@ test('the type is set as the spec says', async ({ page }) => {
 test('the list starts 40px below the header, headings 14px above their rows, topics 32px apart', async ({ page }) => {
   await home(page);
   const header = await rect(page, '.top');
-  const [h1, h2] = [await rect(page, '.select .group-name', 0), await rect(page, '.select .group-name', 1)];
-  const [r1, r2] = [await rect(page, '.select .row', 0), await rect(page, '.select .row', 1)];
-  expect(h1.top - header.bottom).toBeCloseTo(40, 1);
-  expect(r1.top - h1.bottom).toBeCloseTo(14, 1);
-  expect(h2.top - r1.bottom).toBeCloseTo(32, 1);
-  expect(r2.top - h2.bottom).toBeCloseTo(14, 1);
+  const groups = await page.locator('.select .group').count();
+  expect(groups, 'every topic').toBe(4);
+  expect((await rect(page, '.select .group-name', 0)).top - header.bottom).toBeCloseTo(40, 1);
+  for (let g = 0; g < groups; g++) {
+    const heading = await rect(page, '.select .group-name', g);
+    const first = await rect(page, `.select .group:nth-child(${g + 1}) .row`);
+    expect(first.top - heading.bottom, `topic ${g + 1}: heading → row`).toBeCloseTo(14, 1);
+    if (g === 0) continue;
+    const before = await page.evaluate(g => {
+      const r = document.querySelectorAll('.select .group')[g - 1].lastElementChild.getBoundingClientRect();
+      return r.bottom;
+    }, g);
+    expect(heading.top - before, `topic ${g}'s last row → topic ${g + 1}`).toBeCloseTo(32, 1);
+  }
 });
 
 test('the column is as wide as the keypad, centred', async ({ page }) => {
@@ -271,6 +323,22 @@ async function rowInk(page, shot, i) {
   return found;
 }
 
+// A screenshot with the `i`th `selector` in the list's view, 8px around it
+// too (a row's key ring). At 320×640 the five rows run past the fold, so
+// the list is scrolled as little as it takes, by whole pixels only: what
+// moves stays on the device-pixel grid the selector's layout put it on.
+async function shotWith(page, selector, i) {
+  await page.evaluate(([sel, i]) => {
+    const list = document.querySelector('.select');
+    const r = list.querySelectorAll(sel)[i].getBoundingClientRect();
+    const box = list.getBoundingClientRect();
+    const top = box.top + list.clientTop, bottom = top + list.clientHeight;
+    if (r.bottom + 8 > bottom) list.scrollTop += Math.ceil(r.bottom + 8 - bottom);
+    else if (r.top - 8 < top) list.scrollTop -= Math.ceil(top - (r.top - 8));
+  }, [selector, i]);
+  return capture(page);
+}
+
 // Each also at 320×640, where the samples are set at 24px (the narrow rule).
 for (const size of [null, [320, 640]]) test.describe(size ? `ink alignment, ${size.join('×')}` : 'ink alignment', () => {
   test.beforeEach(async ({ page }) => {
@@ -281,15 +349,15 @@ for (const size of [null, [320, 640]]) test.describe(size ? `ink alignment, ${si
 
   test('row text starts on its ink at the left padding edge, headings at the column\'s', async ({ page }) => {
     const near = await onEdge(page);
-    const shot = await capture(page);
     for (let i = 0; i < await rows(page); i++) {
-      const p = await rowInk(page, shot, i);
+      const p = await rowInk(page, await shotWith(page, '.select .row', i), i);
       note(`row ${i + 1} title from the padding edge`, p.title.left - (p.row.left + 24));
       expect(Math.abs(p.title.left - (p.row.left + 24)), `row ${i + 1} title`).toBeLessThanOrEqual(near);
       expect(Math.abs(p.name.left - (p.row.left + 24)), `row ${i + 1} name`).toBeLessThanOrEqual(near);
     }
     const column = await rect(page, '.select');
     for (let i = 0; i < await page.locator('.select .group-name').count(); i++) {
+      const shot = await shotWith(page, '.select .group-name', i);
       const h = await rect(page, '.select .group-name', i);
       const heading = ink(shot, { left: column.left + 4, right: h.right + 4, top: h.top - 4, bottom: h.bottom + 4 }, MUTED);
       expect(Math.abs(heading.left - (column.left + 16)), `heading ${i + 1}`).toBeLessThanOrEqual(near);
@@ -298,10 +366,9 @@ for (const size of [null, [320, 640]]) test.describe(size ? `ink alignment, ${si
 
   test('each sample ends on its ink at the right padding edge, so the samples line up', async ({ page }) => {
     const [near, together] = [await onEdge(page), await apart(page)];
-    const shot = await capture(page);
     const rights = [];
     for (let i = 0; i < await rows(page); i++) {
-      const p = await rowInk(page, shot, i);
+      const p = await rowInk(page, await shotWith(page, '.select .row', i), i);
       note(`row ${i + 1} sample from the padding edge`, p.sample.right - (p.row.right - 24));
       expect(Math.abs(p.sample.right - (p.row.right - 24)), `row ${i + 1}`).toBeLessThanOrEqual(near);
       rights.push(p.sample.right);
@@ -312,9 +379,8 @@ for (const size of [null, [320, 640]]) test.describe(size ? `ink alignment, ${si
 
   test('the two inner margins match', async ({ page }) => {
     const together = await apart(page);
-    const shot = await capture(page);
     for (let i = 0; i < await rows(page); i++) {
-      const p = await rowInk(page, shot, i);
+      const p = await rowInk(page, await shotWith(page, '.select .row', i), i);
       const left = p.title.left - p.row.left, right = p.row.right - p.sample.right;
       note(`row ${i + 1} margins, right less left`, right - left);
       expect(Math.abs(right - left), `row ${i + 1}: left ${left.toFixed(3)}, right ${right.toFixed(3)}`).toBeLessThanOrEqual(together);
@@ -322,9 +388,8 @@ for (const size of [null, [320, 640]]) test.describe(size ? `ink alignment, ${si
   });
 
   test('each sample\'s operator is centred on its digits\' ink', async ({ page }) => {
-    const shot = await capture(page);
     for (let i = 0; i < await rows(page); i++) {
-      const p = await rowInk(page, shot, i);
+      const p = await rowInk(page, await shotWith(page, '.select .row', i), i);
       const off = (p.op.top + p.op.bottom) / 2 - (p.digits.top + p.digits.bottom) / 2;
       note(`row ${i + 1} operator`, off);
       expect(Math.abs(off), `row ${i + 1}`).toBeLessThanOrEqual(TOL);
@@ -334,9 +399,8 @@ for (const size of [null, [320, 640]]) test.describe(size ? `ink alignment, ${si
   // The text block runs from the capitals' top of "Level N" to the name's
   // baseline (the review's measure: descenders hang outside it).
   test('the sample and the text block are each centred in their row', async ({ page }) => {
-    const shot = await capture(page);
     for (let i = 0; i < await rows(page); i++) {
-      const p = await rowInk(page, shot, i);
+      const p = await rowInk(page, await shotWith(page, '.select .row', i), i);
       const mid = p.row.top + p.row.height / 2;
       const sample = (p.digits.top + p.digits.bottom) / 2 - mid;
       const text = (p.cap.top + p.base.bottom) / 2 - mid;
@@ -352,21 +416,28 @@ for (const size of [null, [320, 640]]) test.describe(size ? `ink alignment, ${si
   // at .375, its ink on the next whole pixel), so the floor is 1x's.
   test('ink to edge: 40px from the header, 14px from a heading to its row, 32px between topics', async ({ page }) => {
     const near = Math.max(TOL, await apart(page));
-    const shot = await capture(page);
     const column = await rect(page, '.select');
     const header = await rect(page, '.top');
-    const headings = [];
-    for (const i of [0, 1]) {
-      const h = await rect(page, '.select .group-name', i);
-      headings.push(ink(shot, { left: column.left + 4, right: h.right + 4, top: h.top - 4, bottom: h.bottom + 4 }, MUTED));
+    // Every topic's heading, with its first row and the row before it (the
+    // last of the topic above), each scrolled into view where the list runs
+    // past the fold (at 320×640), the first at the list's top.
+    const count = await page.locator('.select .group').count();
+    expect(count, 'every topic').toBe(4);
+    const checks = [];
+    for (let i = 0; i < count; i++) {
+      const shot = await shotWith(page, '.select .group', i);
+      const { h, first, before } = await page.evaluate(i => {
+        const g = document.querySelectorAll('.select .group')[i];
+        const box = el => { const r = el.getBoundingClientRect(); return { left: r.left, right: r.right, top: r.top, bottom: r.bottom }; };
+        const prev = g.previousElementSibling?.lastElementChild;
+        return { h: box(g.querySelector('.group-name')), first: box(g.querySelector('.row')), before: prev && box(prev) };
+      }, i);
+      const heading = ink(shot, { left: column.left + 4, right: h.right + 4, top: h.top - 4, bottom: h.bottom + 4 }, MUTED);
+      if (i === 0) checks.push(['header → first heading', heading.top - header.bottom, 40, TOL]);
+      else checks.push([`topic ${i}'s last row → topic ${i + 1}`, heading.top - before.bottom, 32, near]);
+      checks.push([`topic ${i + 1}: heading → row`, first.top - heading.bottom, 14, TOL]);
     }
-    const [r1, r2] = [await rect(page, '.select .row', 0), await rect(page, '.select .row', 1)];
-    for (const [name, gap, want, tol] of [
-      ['header → first heading', headings[0].top - header.bottom, 40, TOL],
-      ['heading → row', r1.top - headings[0].bottom, 14, TOL],
-      ['row → next heading', headings[1].top - r1.bottom, 32, near],
-      ['next heading → its row', r2.top - headings[1].bottom, 14, TOL],
-    ]) {
+    for (const [name, gap, want, tol] of checks) {
       note(name, gap);
       expect(Math.abs(gap - want), name).toBeLessThanOrEqual(tol);
     }
@@ -434,29 +505,25 @@ test('below 360px the samples are 24px, and each row\'s name keeps 12px clear of
   await resize(page, 320, 640);
   for (let i = 1; i <= n; i++) await expect(levelRow(page, i).locator('.sample')).toHaveCSS('font-size', '24px');
   const hide = sel => page.addStyleTag({ content: `${sel} { visibility: hidden !important; }` });
-  const areas = [];
+  // Row by row, each scrolled into view: the five rows run past the fold.
   for (let i = 0; i < n; i++) {
+    await shotWith(page, '.select .row', i);
     const row = await rect(page, '.select .row', i);
     const [title, name] = [await rect(page, '.select .title', i), await rect(page, '.select .name', i)];
     // Clear of the key ring; the name's half below the text block's gap.
-    areas.push({
-      whole: { left: row.left + 8, right: row.right - 8, top: row.top + 4, bottom: row.bottom - 4 },
-      lower: { left: row.left + 8, right: row.right - 8, top: (title.bottom + name.top) / 2, bottom: row.bottom - 4 },
-    });
-  }
-  const texts = await hide('.select .title, .select .name');
-  const samplesOnly = await capture(page);
-  const samples = areas.map(a => ink(samplesOnly, a.whole));
-  await texts.evaluate(tag => tag.remove());
-  await hide('.select .sample');
-  const namesOnly = await capture(page);
-  areas.forEach((a, i) => {
-    const name = ink(namesOnly, a.lower, MUTED);
-    note(`row ${i + 1} name → sample`, samples[i].left - name.right);
+    const whole = { left: row.left + 8, right: row.right - 8, top: row.top + 4, bottom: row.bottom - 4 };
+    const lower = { left: row.left + 8, right: row.right - 8, top: (title.bottom + name.top) / 2, bottom: row.bottom - 4 };
+    const texts = await hide('.select .title, .select .name');
+    const sample = ink(await capture(page), whole);
+    await texts.evaluate(tag => tag.remove());
+    const samples = await hide('.select .sample');
+    const nameInk = ink(await capture(page), lower, MUTED);
+    await samples.evaluate(tag => tag.remove());
+    note(`row ${i + 1} name → sample`, sample.left - nameInk.right);
     // 12px: the gap between rows in a group, the least the selector leaves
     // between two things that must read apart.
-    expect(samples[i].left - name.right, `row ${i + 1} name → sample`).toBeGreaterThanOrEqual(12);
-  });
+    expect(sample.left - nameInk.right, `row ${i + 1} name → sample`).toBeGreaterThanOrEqual(12);
+  }
 });
 
 test.describe('ink alignment, finished rows', () => {
@@ -470,9 +537,8 @@ test.describe('ink alignment, finished rows', () => {
   // is its ink there. The time is moved onto its ink, as the text is.
   test('a finished row\'s check and time end on their ink at the right padding edge, and its margins match', async ({ page }) => {
     const [near, together] = [await onEdge(page), await apart(page)];
-    const shot = await capture(page);
     for (let i = 0; i < await rows(page); i++) {
-      const p = await rowInk(page, shot, i);
+      const p = await rowInk(page, await shotWith(page, '.select .row', i), i);
       const edge = p.row.right - 24;
       note(`row ${i + 1} check from the padding edge`, p.tick.right - edge);
       note(`row ${i + 1} time from the padding edge`, p.best.right - edge);

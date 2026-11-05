@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import { LEVEL1 } from '../../src/level1.js';
 import { LEVEL2 } from '../../src/level2.js';
 import { LEVEL3 } from '../../src/level3.js';
+import { LEVEL4 } from '../../src/level4.js';
+import { LEVEL5 } from '../../src/level5.js';
 import { LEVELS } from '../../src/levels.js';
 
 test('Level 2 answers are one digit, 0 to 9, with 3 lives a problem', () => {
@@ -20,12 +22,21 @@ test('the operators are "+" and the minus sign U+2212, heard as "plus" and "minu
   assert.equal(LEVEL3.word, 'minus');
 });
 
-test('the built levels are Levels 1, 2 and 3, each with its topic, name and sample', () => {
-  assert.deepEqual(LEVELS, [LEVEL1, LEVEL2, LEVEL3]);
+test('the operators are the times sign U+00D7 and the division sign U+00F7, heard as "times" and "divided by"', () => {
+  assert.equal(LEVEL4.op, '×');
+  assert.equal(LEVEL4.word, 'times');
+  assert.equal(LEVEL5.op, '÷');
+  assert.equal(LEVEL5.word, 'divided by');
+});
+
+test('the built levels are Levels 1 to 5, each with its topic, name and sample', () => {
+  assert.deepEqual(LEVELS, [LEVEL1, LEVEL2, LEVEL3, LEVEL4, LEVEL5]);
   assert.deepEqual(LEVELS.map(l => [l.n, l.topic, l.name, l.sample]), [
     [1, 'Addition', 'Single-digit addition', [3, 4]],
     [2, 'Subtraction', 'Subtraction within 10', [7, 3]],
     [3, 'Subtraction', 'Subtraction past 10', [13, 5]],
+    [4, 'Multiplication', 'Times tables', [6, 7]],
+    [5, 'Division', 'Division facts', [56, 8]],
   ]);
 });
 
@@ -104,4 +115,64 @@ test('Level 3 answers are one digit, 1 to 9, with 3 lives a problem and runs of 
   assert.equal(LEVEL3.maxAnswerLength, 1);
   assert.equal(LEVEL3.livesPerProblem, 3);
   assert.equal(LEVEL3.problemsPerRun, 20);
+});
+
+test('Level 4\'s facts are a × b for every a and b from 0 to 9, each once: 100, by a, then b', () => {
+  const { facts } = LEVEL4;
+  assert.equal(facts.length, 100);
+  for (const { a, b, answer } of facts) {
+    assert.ok(Number.isInteger(a) && Number.isInteger(b), `${a} × ${b}`);
+    assert.ok(0 <= a && a <= 9 && 0 <= b && b <= 9, `${a} × ${b}`);
+    assert.equal(answer, a * b);
+  }
+  assert.equal(new Set(facts.map(f => `${f.a} ${f.b}`)).size, 100);
+  // The whole order: the run tests pick facts by their place in it.
+  const inOrder = [];
+  for (let a = 0; a <= 9; a++) for (let b = 0; b <= 9; b++) inOrder.push({ a, b, answer: a * b });
+  assert.deepEqual(facts, inOrder);
+  assert.deepEqual(facts.at(-1), { a: 9, b: 9, answer: 81 });
+});
+
+test('Level 4 answers are every product, 0 to 81, in a two-digit box, with 3 lives a problem and runs of 20', () => {
+  const products = [...new Set(LEVEL4.facts.map(f => f.answer))].sort((x, y) => x - y).map(String);
+  assert.deepEqual(LEVEL4.possibleAnswers, products);
+  assert.equal(LEVEL4.possibleAnswers.length, 37);
+  assert.deepEqual(LEVEL4.possibleAnswers.slice(0, 12), ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '12']);
+  assert.equal(LEVEL4.possibleAnswers.at(-1), '81');
+  for (const s of LEVEL4.possibleAnswers) assert.ok(s.length <= LEVEL4.maxAnswerLength, s);
+  assert.equal(LEVEL4.maxAnswerLength, 2);
+  assert.equal(LEVEL4.livesPerProblem, 3);
+  assert.equal(LEVEL4.problemsPerRun, 20);
+});
+
+test('Level 5\'s facts are (q × b) ÷ b for b from 1 to 9 and q from 0 to 9, each once: 90, by b, then q', () => {
+  const { facts } = LEVEL5;
+  assert.equal(facts.length, 90);
+  for (const { a, b, answer } of facts) {
+    assert.ok(Number.isInteger(a) && Number.isInteger(b), `${a} ÷ ${b}`);
+    assert.ok(1 <= b && b <= 9 && 0 <= a && a <= 81, `${a} ÷ ${b}`);
+    // A whole number: the division comes out exactly.
+    assert.ok(Number.isInteger(a / b), `${a} ÷ ${b}`);
+    assert.equal(answer, a / b);
+    assert.ok(0 <= answer && answer <= 9, `${a} ÷ ${b}`);
+  }
+  assert.equal(new Set(facts.map(f => `${f.a} ${f.b}`)).size, 90);
+  const inOrder = [];
+  for (let b = 1; b <= 9; b++) for (let q = 0; q <= 9; q++) inOrder.push({ a: q * b, b, answer: q });
+  assert.deepEqual(facts, inOrder);
+  assert.deepEqual(facts.slice(0, 3), [{ a: 0, b: 1, answer: 0 }, { a: 1, b: 1, answer: 1 }, { a: 2, b: 1, answer: 2 }]);
+  assert.deepEqual(facts.at(-1), { a: 81, b: 9, answer: 9 });
+});
+
+test('Level 5\'s facts are Level 4\'s multiplications undone, with no division by 0', () => {
+  // Level 4's a × b = p with b of 1 or more is Level 5's p ÷ b = a.
+  const undone = LEVEL4.facts.filter(f => f.b >= 1).map(f => `${f.answer} ÷ ${f.b} = ${f.a}`);
+  assert.deepEqual(new Set(LEVEL5.facts.map(f => `${f.a} ÷ ${f.b} = ${f.answer}`)), new Set(undone));
+});
+
+test('Level 5 answers are one digit, 0 to 9, with 3 lives a problem and runs of 20', () => {
+  assert.deepEqual(LEVEL5.possibleAnswers, ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9']);
+  assert.equal(LEVEL5.maxAnswerLength, 1);
+  assert.equal(LEVEL5.livesPerProblem, 3);
+  assert.equal(LEVEL5.problemsPerRun, 20);
 });
