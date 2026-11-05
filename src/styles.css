@@ -336,6 +336,9 @@ body.at-select .crumbs .home { display: block; }
 body.at-select .stage, body.at-select .run, body.at-select .pad, body.at-select .lives { display: none; }
 body.at-select .select { display: block; }
 .select .group + .group { margin-top: 32px; }
+/* Rows in a group (Level 3 spec §3): 12px apart, the finish buttons' gap,
+   so a focused row's ring (2px, 4px out) stays 6px clear of the next. */
+.select .row + .row { margin-top: 12px; }
 .select .group-name, .select .title, .select .name { display: block; text-box: trim-both cap alphabetic; white-space: nowrap; }
 .select .group-name {
   margin: 0 0 14px;
@@ -379,6 +382,10 @@ body.at-select .select { display: block; }
 .select .sample { position: relative; left: var(--ink-dx, 0px); top: var(--ink-dy, 0px); display: flex; gap: 0.3em; font-size: 30px; font-weight: 500; line-height: 1; }
 .select .sample > span { display: block; height: 1em; line-height: 1; }
 .select .sample .op { color: var(--muted); position: relative; }
+/* Below 360px wide the samples are set at 24px, not 30px, so a name keeps a
+   clear gap to its sample ("Subtraction past 10" touched "13 − 5" at 320).
+   Every row's sample shrinks alike, so they still line up. */
+@media (max-width: 359.98px) { .select .sample { font-size: 24px; } }
 /* A finished level (finished-mark spec §1): a green check on the title's
    line and the best time on the name's, right-aligned, in place of the
    sample. The column mirrors the title and name: boxes trimmed to the

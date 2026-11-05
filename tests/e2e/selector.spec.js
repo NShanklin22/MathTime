@@ -17,18 +17,24 @@ test('the game opens on the selector: the built levels by topic, nothing marked'
   // A landmark of its own: the only <main> is the hidden problem area.
   const list = page.getByRole('region', { name: 'Levels' });
   await expect(list).toBeVisible();
-  await expect(list.getByRole('button')).toHaveCount(2);
+  await expect(list.getByRole('button')).toHaveCount(3);
   await expect(page.locator('#status')).toBeEmpty();   // no problem yet, so nothing announced
   await expect(page.locator('.select .group-name')).toHaveText(['Addition', 'Subtraction']);
   await expect(page.locator('.select .group')).toHaveCount(2);
   await expect(page.locator('.select .group').nth(0).locator('.row')).toHaveAttribute('data-level', '1');
-  await expect(page.locator('.select .group').nth(1).locator('.row')).toHaveAttribute('data-level', '2');
+  await expect(page.locator('.select .group').nth(1).locator('.row')).toHaveCount(2);
+  await expect(page.locator('.select .group').nth(1).locator('.row').nth(0)).toHaveAttribute('data-level', '2');
+  await expect(page.locator('.select .group').nth(1).locator('.row').nth(1)).toHaveAttribute('data-level', '3');
   await expect(page.getByRole('button', { name: 'Level 1: Single-digit addition' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Level 2: Subtraction within 10' })).toBeVisible();
   await expect(levelRow(page, 1).locator('.title')).toHaveText('Level 1');
   await expect(levelRow(page, 1).locator('.name')).toHaveText('Single-digit addition');
   await expect(levelRow(page, 1).locator('.sample')).toHaveText('3+4');
   await expect(levelRow(page, 2).locator('.sample')).toHaveText('7−3');
+  await expect(page.getByRole('button', { name: 'Level 3: Subtraction past 10' })).toBeVisible();
+  await expect(levelRow(page, 3).locator('.title')).toHaveText('Level 3');
+  await expect(levelRow(page, 3).locator('.name')).toHaveText('Subtraction past 10');
+  await expect(levelRow(page, 3).locator('.sample')).toHaveText('13−5');
   await expect(levelRow(page, 1).locator('.sample')).toHaveAttribute('aria-hidden', 'true');
   await expect(page.locator('.select .row.current')).toHaveCount(0);
   await expect(page.locator('.select .row[aria-current]')).toHaveCount(0);
@@ -41,7 +47,7 @@ test('on the selector the breadcrumb is "Levels" alone', async ({ page }) => {
   for (const crumb of ['.back', '.topic', '.here', '.sep']) await expect(page.locator(`.crumbs ${crumb}`).first()).toBeHidden();
 });
 
-for (const n of [1, 2]) test(`choosing Level ${n} starts it at question 1 with 3 lives, focus on the answer`, async ({ page }) => {
+for (const n of [1, 2, 3]) test(`choosing Level ${n} starts it at question 1 with 3 lives, focus on the answer`, async ({ page }) => {
   await home(page);
   await levelRow(page, n).click();
   await expect(page.locator('.select')).toBeHidden();
@@ -50,7 +56,7 @@ for (const n of [1, 2]) test(`choosing Level ${n} starts it at question 1 with 3
   await expect(page.locator('#ans')).toBeFocused();
   await expect(page.locator('.crumbs .here')).toHaveText(`Level ${n}`);
   await expect(page.locator('.crumbs .home')).toBeHidden();
-  await expect(page.locator('#status')).toHaveText(new RegExp(`^Question 1 of 20: \\d ${n === 1 ? 'plus' : 'minus'} \\d$`));
+  await expect(page.locator('#status')).toHaveText(new RegExp(`^Question 1 of 20: \\d+ ${n === 1 ? 'plus' : 'minus'} \\d$`));
 });
 
 test('the rows are buttons in the tab order', async ({ page }) => {
@@ -265,10 +271,12 @@ async function rowInk(page, shot, i) {
   return found;
 }
 
-test.describe('ink alignment', () => {
+// Each also at 320×640, where the samples are set at 24px (the narrow rule).
+for (const size of [null, [320, 640]]) test.describe(size ? `ink alignment, ${size.join('×')}` : 'ink alignment', () => {
   test.beforeEach(async ({ page }) => {
     await home(page);
     await freeze(page);
+    if (size) await resize(page, ...size);
   });
 
   test('row text starts on its ink at the left padding edge, headings at the column\'s', async ({ page }) => {
@@ -412,6 +420,45 @@ test.describe('ink alignment', () => {
   });
 });
 
+// Below 360px wide the samples are set at 24px, not 30px (the Levels 3–5
+// mockup), so a name keeps a clear gap to its sample: at 30px "Subtraction
+// past 10" touched "13 − 5" at 320. Each is measured with the other hidden
+// (hidden text keeps its place), so a touching name and sample cannot pass
+// for one: the sample with the text block hidden, the name with the sample.
+test('below 360px the samples are 24px, and each row\'s name keeps 12px clear of its sample at 320×640', async ({ page }) => {
+  await home(page);
+  await freeze(page);
+  const n = await rows(page);
+  await resize(page, 360, 640);
+  for (let i = 1; i <= n; i++) await expect(levelRow(page, i).locator('.sample')).toHaveCSS('font-size', '30px');
+  await resize(page, 320, 640);
+  for (let i = 1; i <= n; i++) await expect(levelRow(page, i).locator('.sample')).toHaveCSS('font-size', '24px');
+  const hide = sel => page.addStyleTag({ content: `${sel} { visibility: hidden !important; }` });
+  const areas = [];
+  for (let i = 0; i < n; i++) {
+    const row = await rect(page, '.select .row', i);
+    const [title, name] = [await rect(page, '.select .title', i), await rect(page, '.select .name', i)];
+    // Clear of the key ring; the name's half below the text block's gap.
+    areas.push({
+      whole: { left: row.left + 8, right: row.right - 8, top: row.top + 4, bottom: row.bottom - 4 },
+      lower: { left: row.left + 8, right: row.right - 8, top: (title.bottom + name.top) / 2, bottom: row.bottom - 4 },
+    });
+  }
+  const texts = await hide('.select .title, .select .name');
+  const samplesOnly = await capture(page);
+  const samples = areas.map(a => ink(samplesOnly, a.whole));
+  await texts.evaluate(tag => tag.remove());
+  await hide('.select .sample');
+  const namesOnly = await capture(page);
+  areas.forEach((a, i) => {
+    const name = ink(namesOnly, a.lower, MUTED);
+    note(`row ${i + 1} name → sample`, samples[i].left - name.right);
+    // 12px: the gap between rows in a group, the least the selector leaves
+    // between two things that must read apart.
+    expect(samples[i].left - name.right, `row ${i + 1} name → sample`).toBeGreaterThanOrEqual(12);
+  });
+});
+
 test.describe('ink alignment, finished rows', () => {
   test.beforeEach(async ({ page }) => {
     await keptBefore(page, LEVELS.map(level => earlier(level.n, 72_400 + 11_100 * level.n)));
@@ -435,4 +482,25 @@ test.describe('ink alignment, finished rows', () => {
       expect(Math.abs(right - left), `row ${i + 1}: left ${left.toFixed(3)}, right ${right.toFixed(3)}`).toBeLessThanOrEqual(together);
     }
   });
+});
+
+// Two rows in one group (Level 3 spec §3): 12px apart, the finish buttons'
+// gap, so a focused row's ring (2px, 4px out) stays 6px clear of the next.
+test('rows in a group are 12px apart, and a focused row\'s ring stays 6px clear of the next', async ({ page }) => {
+  await home(page);
+  await freeze(page);
+  await page.keyboard.press('Tab');
+  await page.keyboard.press('Tab');
+  await expect(levelRow(page, 2)).toBeFocused();
+  const [upper, lower] = [await rect(page, '.select .row[data-level="2"]'), await rect(page, '.select .row[data-level="3"]')];
+  note('row to row', lower.top - upper.bottom);
+  expect(lower.top - upper.bottom, 'row to row').toBeCloseTo(12, 1);
+  // From pixels: the focus ring below Level 2, then Level 3's key ring.
+  const shot = await capture(page);
+  const across = { left: upper.left + 40, right: upper.right - 40 };
+  const ring = ink(shot, { ...across, top: upper.bottom + 1, bottom: upper.bottom + 9 });
+  const next = ink(shot, { ...across, top: upper.bottom + 9, bottom: lower.top + 4 });
+  note('focus ring to the next row', next.top - ring.bottom);
+  expect(Math.abs(ring.bottom - (upper.bottom + 6)), 'the ring ends 6px out').toBeLessThanOrEqual(TOL);
+  expect(Math.abs(next.top - ring.bottom - 6), 'then 6px clear').toBeLessThanOrEqual(TOL);
 });
