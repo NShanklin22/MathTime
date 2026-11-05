@@ -76,7 +76,12 @@ The route therefore runs through all of school math and on through linear algebr
   - Stage 1, Level 1, single-digit addition (0–9 + 0–9).
   - Stage 1, Level 2, subtraction within 10, with the level selector the game opens on and the breadcrumb's way back.
   - Runs of 20 problems, the finish screen, each finished run kept in the browser, and the finished-level mark.
-- **Next:** Level 3, subtraction past 10 (2026-11-04-level3-design.md). Then the rest of the whole-number facts, multiplication and division. After them come the written methods, where the first multi-box filling-out mechanic appears. Each is designed as its own level.
+  - Stage 1, Levels 3–5, built as one batch (plans/2026-11-05-levels-3-5-batch.md, with its mockup):
+    - Level 3, subtraction past 10 (2026-11-04-level3-design.md);
+    - Level 4, times tables (0–9 × 0–9, a two-digit box);
+    - Level 5, division facts (dividends to 81, divisors 1–9).
+  - The whole-number facts are complete.
+- **Next:** the written methods (carrying, borrowing, long multiplication, long division), where the first multi-box filling-out mechanic appears. Each is designed as its own level.
 
 ## 5. Open, to decide when it comes up
 - **The header's roadmap strip** was removed on 2026-11-03: it showed 7 placeholder stages where the route has 21. Whether the route shows on screen again, and how, is a UI question for a later level.
