@@ -36,7 +36,12 @@
 //            after a right one
 // A wrong check costs a life, and the last column right is the problem
 // right: lives, misses, timing, `solved` and the result are a fact level's.
-// `typed` stays empty.
+// `typed` stays empty. What a wrong check says (the first bad cell's name,
+// or method.afterWrong's `what`) is the board's to work out: afterWrong is
+// pure, so it can ask again.
+const COLUMN_STATE = ['x', 'cells', 'step', 'focus', 'done', 'bad'];   // what a column level's state adds
+const ARROWS = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight']);
+
 export function createGame(level, rng = Math.random, now = () => performance.now()) {
   let current = level;
   let left = [];            // the level's facts not yet asked in this run, in order
@@ -95,7 +100,8 @@ export function createGame(level, rng = Math.random, now = () => performance.now
   // and on a column level the arrows too (pressColumn).
   // Returns 'typed' | 'ignored' | 'correct' | 'finished' | 'wrong' | 'out',
   // and on a column level 'moved' or 'step' too.
-  // 'typed' means the answer changed: a digit was added or removed.
+  // 'typed' means the answer changed: a digit was added or removed, or, on
+  // Level 7, a borrow was taken back.
   function press(key) {
     if (state.phase !== 'playing') return 'ignored';
     if (current.kind === 'column') return pressColumn(key);
@@ -265,7 +271,3 @@ export function createGame(level, rng = Math.random, now = () => performance.now
   start(level);
   return { state, press, tap, next, start, restart, leave, get level() { return current; }, get result() { return result; } };
 }
-
-// What a column level's state adds to a fact level's.
-const COLUMN_STATE = ['x', 'cells', 'step', 'focus', 'done', 'bad'];
-const ARROWS = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight']);

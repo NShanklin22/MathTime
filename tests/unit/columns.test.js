@@ -370,6 +370,15 @@ test('Level 7: a missing borrow is wrong; the ones digit stays and the cursor go
   assert.equal(game.press('Enter'), 'step');
 });
 
+test('Level 7: a missing borrow and a wrong ones digit clear both; the cursor goes into the borrow cell', () => {
+  const game = playing(LEVEL7, [52, 27]);
+  keys(game, '6');
+  assert.equal(game.press('Enter'), 'wrong');
+  assert.deepEqual(game.state.bad, ['B', 'O']);
+  assert.deepEqual(game.state.cells, { T: '', O: '', B: '' });
+  assert.equal(game.state.focus, 'B');
+});
+
 test('Level 7: a wrong new tens digit clears it; the ones digit, if right, stays', () => {
   const game = playing(LEVEL7, [52, 27]);
   keys(game, 'ArrowUp', '3', '5');

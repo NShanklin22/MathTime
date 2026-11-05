@@ -4,8 +4,9 @@
 // method; the board draws it.
 //
 // cells: the cells you write in. A big cell is an answer digit, a small one
-//   a carry or borrow digit; `col` is its column, 0 to 2 from the left (the
-//   third holds the operator beside the second number). `name` is what
+//   a carry or borrow digit; `col` is its column, 0 to 2 from the left
+//   (column 0 holds the operator beside the second number, and Level 6's
+//   hundreds). `name` is what
 //   screen readers hear. A cell holds '' or one digit.
 // steps: the columns, worked right to left, one at a time. `cells` are the
 //   column's cells, its answer digit first (Enter does nothing while that is
