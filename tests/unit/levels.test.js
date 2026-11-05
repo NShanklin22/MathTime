@@ -32,14 +32,16 @@ test('the operators are the times sign U+00D7 and the division sign U+00F7, hear
   assert.equal(LEVEL5.word, 'divided by');
 });
 
-test('the built levels are Levels 1 to 5, each with its topic, name and sample', () => {
-  assert.deepEqual(LEVELS, [LEVEL1, LEVEL2, LEVEL3, LEVEL4, LEVEL5]);
+test('the built levels are Levels 1 to 7 in route order, each with its topic, name and sample', () => {
+  assert.deepEqual(LEVELS, [LEVEL1, LEVEL2, LEVEL3, LEVEL4, LEVEL5, LEVEL6, LEVEL7]);
   assert.deepEqual(LEVELS.map(l => [l.n, l.topic, l.name, l.sample]), [
     [1, 'Addition', 'Single-digit addition', [3, 4]],
     [2, 'Subtraction', 'Subtraction within 10', [7, 3]],
     [3, 'Subtraction', 'Subtraction past 10', [13, 5]],
     [4, 'Multiplication', 'Times tables', [6, 7]],
     [5, 'Division', 'Division facts', [56, 8]],
+    [6, 'Addition', 'Column addition', [47, 38]],
+    [7, 'Subtraction', 'Column subtraction', [52, 27]],
   ]);
 });
 
@@ -75,8 +77,9 @@ test('a run is 20 problems on every level, and no level has fewer facts than tha
   }
 });
 
-test('every fact\'s answer is one the answer box was sized for', () => {
-  for (const level of LEVELS) {
+// A column level has no answer box: its answer is written a digit a cell.
+test('every fact level\'s answer is one the answer box was sized for', () => {
+  for (const level of LEVELS.filter(l => l.kind !== 'column')) {
     for (const { a, b, answer } of level.facts) {
       assert.ok(level.possibleAnswers.includes(String(answer)), `Level ${level.n}: ${a}, ${b}`);
     }
@@ -187,8 +190,10 @@ test('Levels 6 and 7 are column addition and column subtraction, played on the c
   ]);
   assert.equal(LEVEL6.method, COLUMN_ADD);
   assert.equal(LEVEL7.method, COLUMN_SUB);
-  // Not in the selector yet: the board that plays them comes next.
-  assert.ok(!LEVELS.includes(LEVEL6) && !LEVELS.includes(LEVEL7));
+  // Listed: the column board plays them.
+  assert.ok(LEVELS.includes(LEVEL6) && LEVELS.includes(LEVEL7));
+  // The fact levels are the only ones without a kind.
+  assert.deepEqual(LEVELS.filter(l => l.kind !== 'column').map(l => l.n), [1, 2, 3, 4, 5]);
 });
 
 test('Level 6\'s facts are a + b for every a and b from 10 to 99, each once: 8100, by a, then b', () => {

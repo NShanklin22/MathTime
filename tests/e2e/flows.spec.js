@@ -480,6 +480,25 @@ test('accepted physical keys flash their key; ignored ones do not', async ({ pag
   expect(await flash('5')).toBe(false);         // third digit: ignored
 });
 
+// The arrows go to the game too (a column level moves its cursor with
+// them), but a fact level has nowhere to move: they change nothing and,
+// with no key on the keypad, flash nothing.
+test('the arrows do nothing on a fact level, and flash nothing', async ({ page }) => {
+  const errors = [];
+  page.on('pageerror', err => errors.push(err.message));
+  await typeKeys(page, ['5']);
+  await expect(page.locator('.pad button.pressed')).toHaveCount(0);   // its own flash over
+  const results = await page.evaluate(() => ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].map(key => {
+    const e = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true });
+    document.querySelector('#ans').dispatchEvent(e);
+    return { key, pressed: document.querySelectorAll('.pad button.pressed').length };
+  }));
+  expect(results.map(r => r.pressed)).toEqual([0, 0, 0, 0]);
+  expect(await answerText(page)).toBe('5');
+  await expect(page.locator('#ans')).toHaveValue('5');
+  expect(errors).toEqual([]);
+});
+
 test('nothing in the equation moves while typing or after a wrong answer', async ({ page }) => {
   const positions = async () => Promise.all(['#a', '#b', '#slot', '#qnum'].map(s => rect(page, s))
     .concat([rect(page, '#eq .op', 0), rect(page, '#eq .op', 1)]));

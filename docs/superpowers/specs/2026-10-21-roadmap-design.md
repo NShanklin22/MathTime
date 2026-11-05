@@ -81,7 +81,11 @@ The route therefore runs through all of school math and on through linear algebr
     - Level 4, times tables (0–9 × 0–9, a two-digit box);
     - Level 5, division facts (dividends to 81, divisors 1–9).
   - The whole-number facts are complete.
-- **Next:** the written methods (carrying, borrowing, long multiplication, long division), where the first multi-box filling-out mechanic appears. Each is designed as its own level.
+  - Stage 1, Levels 6–7, the first written methods, built as one batch (plans/2026-11-05-column-methods-batch.md, with its mockup) on the column board (src/board.js), the first multi-box filling-out mechanic:
+    - Level 6, column addition with carrying (two-digit + two-digit);
+    - Level 7, column subtraction with borrowing (two-digit − two-digit).
+  - The level selector groups levels by topic, so Level 6 sits under Addition and Level 7 under Subtraction.
+- **Next:** long multiplication and long division, on the column board. They are designed together, as the next batch.
 
 ## 5. Open, to decide when it comes up
 - **The header's roadmap strip** was removed on 2026-11-03: it showed 7 placeholder stages where the route has 21. Whether the route shows on screen again, and how, is a UI question for a later level.

@@ -10,8 +10,9 @@
 //   screen readers hear. A cell holds '' or one digit.
 // steps: the columns, worked right to left, one at a time. `cells` are the
 //   column's cells, its answer digit first (Enter does nothing while that is
-//   empty); `name` is the column's; `nav` says where each arrow key goes
-//   from each cell.
+//   empty, unless the column is `blankIsZero`: then Enter checks the empty
+//   digit as 0); `name` is the column's; `nav` says where each arrow key
+//   goes from each cell.
 // solve(a, b): the working, x, every digit of it.
 // order(k, v, f): the cells of step k in working order, from the values v
 //   and the cell f the cursor is on.
@@ -73,9 +74,11 @@ export const COLUMN_SUB = {
   // cell over it, where you write what it becomes. A small 1 then goes
   // before the ones digit and the cursor comes back down to the ones
   // answer. Leave the borrow cell empty and the strike is taken back.
+  // A 0 in the tens may be left out, as on paper (52 − 47 = 5), or
+  // written: an empty tens cell checks as 0.
   steps: [
     { cells: ['O', 'B'], name: 'Ones', nav: { O: { ArrowUp: 'B' }, B: { ArrowDown: 'O', ArrowRight: 'O' } } },
-    { cells: ['T'], name: 'Tens', nav: {} },
+    { cells: ['T'], name: 'Tens', nav: {}, blankIsZero: true },
   ],
   // A borrow is made while the new tens digit is written, or the cursor is
   // in its cell: the tens digit is struck through.
@@ -89,19 +92,23 @@ export const COLUMN_SUB = {
     return { focus: v.O === '' ? 'O' : null };
   },
   // A borrow made where none is needed is taken back for you: the strike
-  // goes, and the ones digit, if right, stays. Called after a wrong check
-  // of step k, whose wrong cells `bad` are cleared; returns where the
-  // cursor goes and what was wrong, or null to leave it on the first wrong cell.
+  // goes, and the ones digit, if right, stays. The cursor goes to the ones
+  // digit either way: on a right one it shows the digit written, which
+  // typing replaces, so a wrong check never leaves the cursor hidden.
+  // Called after a wrong check of step k, whose wrong cells `bad` are
+  // cleared; returns where the cursor goes and what was wrong, or null to
+  // leave it on the first wrong cell.
   afterWrong(k, bad, x) {
     if (k !== 0 || x.need || bad[0] !== 'B') return null;
-    return { focus: bad.includes('O') ? 'O' : null, what: 'no borrow needed' };
+    return { focus: 'O', what: 'no borrow needed' };
   },
   // The ones column is right only if it is worked: the borrow made when,
   // and only when, it is needed, the new tens digit right, and the ones
   // digit. A right digit with no borrow is wrong (the level is the method):
-  // the borrow cell is the wrong one, and the digit stays.
+  // the borrow cell is the wrong one, and the digit stays. The tens are
+  // right written, or left empty for a 0.
   wrong(k, v, x) {
-    if (k === 1) return v.T !== x.T + '' ? ['T'] : [];
+    if (k === 1) return num(v.T) !== x.T ? ['T'] : [];
     const borrowWrong = x.need ? v.B !== x.B + '' : v.B !== '';
     return [borrowWrong && 'B', v.O !== x.O + '' && 'O'].filter(Boolean);
   },

@@ -4,6 +4,7 @@ import { fontsReady } from './fonts.js';
 import { createScanner } from './scanner.js';
 import { createLayout } from './layout.js';
 import { createView } from './view.js';
+import { createBoard } from './board.js';
 import { bindInput } from './input.js';
 import { createSelector } from './selector.js';
 import { buildRecord } from './record.js';
@@ -14,7 +15,7 @@ const $ = sel => document.querySelector(sel);
 const dom = {
   eq: $('#eq'), slot: $('#slot'), shown: $('#shown'), caret: $('.caret'), qnum: $('#qnum'),
   a: $('#a'), b: $('#b'), op: $('#eq .op'), ans: $('#ans'), pad: $('.pad'), stage: $('.stage'), topBar: $('.top'),
-  run: $('.run'), select: $('.select'), finish: $('.finish'),
+  run: $('.run'), select: $('.select'), finish: $('.finish'), board: $('#board'), check: $('.pad .go'),
   topic: $('.crumbs .topic'), here: $('.crumbs .here'), back: $('.crumbs .back'),
   livesBox: $('.lives'), hearts: [...document.querySelectorAll('.lives svg')], status: $('#status'),
 };
@@ -24,6 +25,10 @@ const scan = createScanner();
 const layout = createLayout(dom, scan, game.level.possibleAnswers);
 const view = createView(dom, layout, game.level);
 layout.afterMeasure = () => view.render(game.state);
+// A column level (Levels 6–7) is played on the column board, which stands
+// in for the view and the layout behind the view's interface.
+const board = createBoard(dom, scan);
+let screen = view;                   // the one for the level being played
 const selector = createSelector(dom.select, LEVELS, play, scan);
 const queue = createQueue();
 // Each finished level's best, from the runs kept (finished-mark spec §2).
@@ -31,19 +36,39 @@ selector.showBests(queue.best);
 const finish = createFinish(dom.finish, scan, { again: () => play(game.level), levels: toSelector });
 
 // Start a run of `level` at question 1 with full lives, focus on the answer.
-// Feedback still playing out for the run before stops first (view.reset()):
-// its next() would otherwise move this run on. The screen is measured
-// again: the operator and the answer box are the level's.
+// Feedback still playing out for the run before stops first (reset()): its
+// next() would otherwise move this run on. The screen is measured again:
+// the operator and the answer box are the level's, or the board its method's.
 function play(level) {
   view.reset();
+  board.reset();
   game.start(level);
-  layout.possibleAnswers = level.possibleAnswers;
-  view.setLevel(level);
+  screen = showScreenFor(level);
+  if (screen === view) layout.possibleAnswers = level.possibleAnswers;
+  screen.setLevel(level);
   document.body.classList.remove('at-select', 'at-finish');
   safeLayout();
-  view.render(game.state);           // drawn even if the layout failed
-  view.announceProblem(game.state);
+  // The equation is drawn even if the layout failed; the board, which
+  // places everything it draws, only once it has been measured.
+  screen.render(game.state);
+  screen.announceProblem(game.state);
   dom.ans.focus({ preventScroll: true });
+}
+
+// The play screen for `level`: the equation for a fact level, the column
+// board for a column level (body[data-kind] shows the one). One answer
+// field serves both, so it is moved: into the equation's box, or beside the
+// board, where it is never in the way of a tap, and screen readers hear the
+// cell it is on (the board names it). Moved only when it must be: a move
+// takes the focus away. The check key says what it checks.
+function showScreenFor(level) {
+  const column = level.kind === 'column';
+  document.body.dataset.kind = column ? 'column' : 'fact';
+  const home = column ? dom.stage : dom.slot;
+  if (dom.ans.parentElement !== home) home.append(dom.ans);
+  if (!column) dom.ans.setAttribute('aria-label', 'Answer');
+  dom.check.setAttribute('aria-label', column ? 'Check the column' : 'Check answer');
+  return column ? board : view;
 }
 
 // Back to the level selector, with the level you came from marked and
@@ -55,6 +80,7 @@ function play(level) {
 function toSelector(press) {
   game.leave();
   view.reset();
+  board.reset();
   dom.status.textContent = '';
   selector.mark(game.level);
   selector.showBests(queue.best);    // with the run just finished, if any
@@ -111,22 +137,38 @@ addEventListener('keydown', e => {
 
 // Handle for the browser tests (tests/e2e) to put a known problem, level or
 // finish screen on screen.
-window.mathtime = { game, view, layout, selector, finish, levels: LEVELS, play };
+window.mathtime = { game, view, layout, board, selector, finish, levels: LEVELS, play };
 
 // The game locks input itself during the correct, out-of-lives and finished
-// transitions (spec §2), so every key just goes to game.press().
+// transitions (spec §2), so every key just goes to game.press(). On the
+// board, a key that writes, moves the cursor or checks a column right just
+// redraws it ('typed', 'moved', 'step'); the rest is feedback, as on a
+// fact level.
 bindInput(dom, key => {
   const result = game.press(key);
-  if (result === 'typed') view.renderAnswer(game.state.typed);
-  if (result === 'wrong') view.showWrong(game.state);
-  if (result === 'correct') view.showCorrect(game.state, () => game.next());
-  if (result === 'out') view.showOut(game.state).then(shown => { if (shown) toSelector(); });
+  if (result === 'typed') {
+    if (screen === board) board.render(game.state);
+    else view.renderAnswer(game.state.typed);
+  }
+  if (result === 'moved') board.render(game.state);
+  if (result === 'step') board.showStep(game.state);
+  if (result === 'wrong') screen.showWrong(game.state);
+  if (result === 'correct') screen.showCorrect(game.state, () => game.next());
+  if (result === 'out') screen.showOut(game.state).then(shown => { if (shown) toSelector(); });
   if (result === 'finished') {
     const text = keepRun();
-    view.showFinished(game.state).then(shown => { if (shown) toFinish(text); });
+    screen.showFinished(game.state).then(shown => { if (shown) toFinish(text); });
   }
   return result;
 }, () => game.state.typed);
+
+// A tap on a cell of the board, or on Level 7's tens digit (which borrows),
+// moves the cursor there if it is in the column being worked (game.tap).
+// The focus stays in the answer field all the same (input.js).
+dom.board.addEventListener('pointerdown', e => {
+  const target = e.target.closest('[data-tap]');
+  if (target && game.tap(target.dataset.tap) === 'moved') board.render(game.state);
+});
 
 // Fonts already measured: those loaded at the first successful layout, plus
 // every one loaded since. Their load events need no second measure.
@@ -137,7 +179,8 @@ let measuredOnce = false;
 // The selector is laid out apart, so a failure in one leaves the other.
 function safeLayout() {
   try {
-    layout.layout();
+    if (screen === board) board.layout(game.state);
+    else layout.layout();
     if (document.body.classList.contains('at-finish')) finish.place();
     if (!measuredOnce) {
       measuredOnce = true;

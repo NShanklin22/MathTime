@@ -302,6 +302,51 @@ test('Enter with the column\'s answer digit empty does nothing and costs no life
   assert.equal(sub.state.focus, 'B');
   assert.equal(sub.press('Enter'), 'ignored');
   assert.equal(sub.state.lives, 3);
+  // Level 6's tens too, even where they are 0: 47 + 53 = 100.
+  const hundred = playing(LEVEL6, [47, 53]);
+  assert.equal(keys(hundred, '0', '1', 'Enter').at(-1), 'step');
+  assert.equal(hundred.press('Enter'), 'ignored');
+  assert.equal(hundred.state.lives, 3);
+});
+
+// Level 7's tens, as on paper: a 0 there may be left out (52 − 47 = 5) or
+// written. Enter with the tens cell empty checks it as 0.
+test('Level 7: the tens may be left empty where they are 0, or hold a 0; Enter checks an empty tens cell as 0', () => {
+  const five = playing(LEVEL7, [52, 47]);
+  assert.deepEqual(five.state.x, { need: true, B: 4, O: 5, T: 0 });
+  assert.equal(keys(five, 'ArrowUp', '4', '5', 'Enter').at(-1), 'step');
+  assert.equal(five.state.focus, 'T');
+  assert.equal(five.press('Enter'), 'correct');
+  assert.equal(five.state.cells.T, '');
+  assert.equal(five.state.lives, 3);
+  assert.deepEqual(five.state.done, [true, true]);
+  // 34 − 34: the ones' 0 is written (an empty ones cell checks nothing), the tens' left out.
+  const nought = playing(LEVEL7, [34, 34]);
+  assert.equal(nought.press('Enter'), 'ignored');
+  assert.equal(keys(nought, '0', 'Enter').at(-1), 'step');
+  assert.equal(nought.press('Enter'), 'correct');
+  // Written as 0, it is right too.
+  const written = playing(LEVEL7, [52, 47]);
+  assert.equal(keys(written, 'ArrowUp', '4', '5', 'Enter', '0', 'Enter').at(-1), 'correct');
+  assert.deepEqual(COLUMN_SUB.wrong(1, { T: '', O: '5', B: '4' }, five.state.x), []);
+  assert.deepEqual(COLUMN_SUB.wrong(1, { T: '0', O: '5', B: '4' }, five.state.x), []);
+});
+
+test('Level 7: an empty tens cell where the tens are not 0 is a wrong check: a life, the cursor in the tens', () => {
+  const game = playing(LEVEL7, [52, 27]);
+  keys(game, 'ArrowUp', '4', '5', 'Enter');
+  assert.equal(game.press('Enter'), 'wrong');
+  assert.equal(game.state.lives, 2);
+  assert.deepEqual(game.state.bad, ['T']);
+  assert.deepEqual(game.state.cells, { T: '', O: '5', B: '4' });
+  assert.equal(game.state.focus, 'T');
+  assert.equal(game.state.step, 1);
+  assert.deepEqual(COLUMN_SUB.wrong(1, { T: '', O: '5', B: '4' }, game.state.x), ['T']);
+  assert.equal(keys(game, '2', 'Enter').at(-1), 'correct');
+  // Two more of them are out of lives.
+  const out = playing(LEVEL7, [52, 27]);
+  keys(out, 'ArrowUp', '4', '5', 'Enter');
+  assert.deepEqual(keys(out, 'Enter', 'Enter', 'Enter'), ['wrong', 'wrong', 'out']);
 });
 
 test('a skipped carry is wrong: the right ones digit stays, and the cursor goes to the carry', () => {
@@ -394,17 +439,23 @@ test('Level 7: a wrong new tens digit clears it; the ones digit, if right, stays
   assert.equal(both.state.focus, 'B');
 });
 
-test('Level 7: a borrow not needed is wrong and taken back; the cursor on the ones digit if it is wrong, else hidden', () => {
+// The cursor is never left hidden after a wrong check: with the ones
+// digit right it goes onto it, written (typing replaces it).
+test('Level 7: a borrow not needed is wrong and taken back; the cursor goes to the ones digit, right or wrong', () => {
   const right = playing(LEVEL7, [86, 34]);
   keys(right, 'ArrowUp', '7', '2');
   assert.equal(right.press('Enter'), 'wrong');
   assert.equal(right.state.lives, 2);
   assert.deepEqual(right.state.bad, ['B']);
   assert.deepEqual(right.state.cells, { T: '', O: '2', B: '' });
-  assert.equal(right.state.focus, null);
+  assert.equal(right.state.focus, 'O');
   assert.equal(COLUMN_SUB.borrowed(right.state.cells, right.state.focus), false);
-  assert.deepEqual(COLUMN_SUB.afterWrong(0, ['B'], right.state.x), { focus: null, what: 'no borrow needed' });
+  assert.deepEqual(COLUMN_SUB.afterWrong(0, ['B'], right.state.x), { focus: 'O', what: 'no borrow needed' });
   assert.equal(right.press('Enter'), 'step');
+  // Typed over, the digit is replaced and the column is written.
+  const again = playing(LEVEL7, [86, 34]);
+  keys(again, 'ArrowUp', '7', '2', 'Enter', '2');
+  assert.deepEqual([again.state.cells.O, again.state.focus], ['2', null]);
 
   const wrong = playing(LEVEL7, [86, 34]);
   keys(wrong, 'ArrowUp', '7', '3');

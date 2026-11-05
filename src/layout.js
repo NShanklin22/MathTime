@@ -7,6 +7,29 @@ const DIGITS = [...'0123456789'];
 // A length in px, written exactly on the layout grid (see ink.js).
 const px = v => onLayoutGrid(v, devicePixelRatio) + 'px';
 
+// The run bar (runs spec §2) on whole device pixels, across and down, so
+// its segments' rects are where they are painted. Centred as laid out, the
+// bar can start at a fraction of a device pixel (half a pixel at 1x). The
+// page paints a plain box at its layout position rounded to whole device
+// pixels, so it is sharp either way, but its rect would then be up to half
+// a device pixel from its paint. Each segment is moved by a relative
+// offset, which is part of its layout position, onto the nearest device
+// pixel, where it is painted exactly. Its segments are whole pixels wide.
+// Not by a transform: the page adds that after rounding, a fraction of a
+// pixel off, and the edges blur. Not the bar's own box either: it is as
+// wide as the window, and moving it would push its edge past the window's.
+// The column board (board.js) places it the same way.
+export function placeRun(run) {
+  const first = run?.firstElementChild;
+  if (!first) return;
+  const dpr = devicePixelRatio;
+  run.style.removeProperty('--run-dx');
+  run.style.removeProperty('--run-dy');
+  const r = first.getBoundingClientRect();
+  run.style.setProperty('--run-dx', px(snap(r.left, dpr) - r.left));
+  run.style.setProperty('--run-dy', px(snap(r.top, dpr) - r.top));
+}
+
 // Measures the real ink of the equation's font and lays the screen out around
 // it (spec §6.1): box, caret and operators from measured ink; equation fitted
 // and snapped to device pixels; header fitted (header.js); keypad labels
@@ -271,29 +294,7 @@ export function createLayout(dom, scan, possibleAnswers) {
     api.afterMeasure?.();
     place();
     centreKeys(pad, scan);
-    placeRun();
-  }
-
-  // The run bar (runs spec §2) on whole device pixels, across and down, so
-  // its segments' rects are where they are painted. Centred as laid out, the
-  // bar can start at a fraction of a device pixel (half a pixel at 1x). The
-  // page paints a plain box at its layout position rounded to whole device
-  // pixels, so it is sharp either way, but its rect would then be up to half
-  // a device pixel from its paint. Each segment is moved by a relative
-  // offset, which is part of its layout position, onto the nearest device
-  // pixel, where it is painted exactly. Its segments are whole pixels wide.
-  // Not by a transform: the page adds that after rounding, a fraction of a
-  // pixel off, and the edges blur. Not the bar's own box either: it is as
-  // wide as the window, and moving it would push its edge past the window's.
-  function placeRun() {
-    const first = run?.firstElementChild;
-    if (!first) return;
-    const dpr = devicePixelRatio;
-    run.style.removeProperty('--run-dx');
-    run.style.removeProperty('--run-dy');
-    const r = first.getBoundingClientRect();
-    run.style.setProperty('--run-dx', px(snap(r.left, dpr) - r.left));
-    run.style.setProperty('--run-dy', px(snap(r.top, dpr) - r.top));
+    placeRun(run);
   }
 
   // Place the equation for the problem on screen: what you see centred in

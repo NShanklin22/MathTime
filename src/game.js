@@ -189,15 +189,17 @@ export function createGame(level, rng = Math.random, now = () => performance.now
   }
 
   // Enter checks the column being worked; with its answer cell empty
-  // nothing happens. Right: it locks and the cursor moves on to the next
-  // column ('step'); the last column right is the problem right. Wrong: a
-  // life is lost and only the wrong cells clear; what was right stays, and
-  // the cursor goes to the first wrong one. A missing borrow starts the
-  // borrow; one not needed is taken back (method.afterWrong).
+  // nothing happens, unless the column takes an empty answer cell for 0
+  // (step.blankIsZero: Level 7's tens). Right: it locks and the cursor
+  // moves on to the next column ('step'); the last column right is the
+  // problem right. Wrong: a life is lost and only the wrong cells clear;
+  // what was right stays, and the cursor goes to the first wrong one. A
+  // missing borrow starts the borrow; one not needed is taken back
+  // (method.afterWrong).
   function check() {
     const { method } = current;
     const step = method.steps[state.step];
-    if (state.cells[step.cells[0]] === '') return 'ignored';
+    if (state.cells[step.cells[0]] === '' && !step.blankIsZero) return 'ignored';
     const bad = method.wrong(state.step, state.cells, state.x);
     state.bad = bad;
     if (!bad.length) {

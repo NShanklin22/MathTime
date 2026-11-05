@@ -264,6 +264,78 @@ body.at-select .crumbs .home { display: block; }
 @keyframes out { to { transform: translateX(-40vw); opacity: 0; } }
 @keyframes in { from { transform: translateX(40vw); opacity: 0; } }
 
+/* ---------- The column board (Levels 6–7 batch plan) ---------- */
+/* A column level's play screen, from the approved mockup
+   (docs/superpowers/specs/2026-11-05-column-methods-mockup.html), whose
+   board rules these are, scoped to the board. The page shows the equation
+   for a fact level and the board for a column level (main.js sets
+   body[data-kind]). */
+body[data-kind="column"] .eq, body[data-kind="fact"] .board { display: none; }
+body[data-kind="column"] .stage { position: relative; }
+
+/* Everything on the board is placed by board.js, in px from the board's
+   top left corner, which sits on a whole device pixel. Columns are a strict
+   grid: every answer cell is Level 1's box for one digit (sized from the
+   measured digit ink, equal padding, the border outside it), and the digits
+   above are centred on their ink in the same columns. */
+.board { position: absolute; left: 0; top: 0; font-weight: 500; --sk: 12px; }
+.board .t { position: absolute; left: 0; top: 0; display: block; height: 1em; line-height: 1; white-space: pre; }
+.board .dg { color: var(--ink); transition: color .15s; }
+.board .op, .board .qlabel { color: var(--muted); }
+.board .qlabel { letter-spacing: 0.04em; }
+.board .rule { position: absolute; background: var(--ink); }
+
+/* A cell: its frame, its digit and its caret. A solid frame is a cell you
+   always write in. A dashed one is written in only if the working needs
+   it: the carry or borrow cell, and the hundreds of a sum. A dashed answer
+   cell is inked solid once you write in it; a dashed cell left empty is
+   rubbed out once its column checks right, as are the frames round carries
+   and borrows, so the finished working reads as it would on paper. So is
+   a solid cell left empty for a 0 (Level 7's tens, the UI review): 52 − 47
+   reads "5", not "_5". */
+.board .cell { position: absolute; display: block; --line: var(--ink); --dash: rgba(238, 245, 255, 0.55); z-index: 1; }
+.board .cell.ok { --line: var(--good); --dash: rgba(143, 240, 192, 0.55); z-index: 0; }
+.board .cell.focus { z-index: 2; }
+.board .cell .frame { position: absolute; inset: 0; border: var(--bw) solid var(--line); transition: border-color .15s, opacity .2s; }
+.board .cell.opt .frame, .board .cell.small .frame { border: 1px dashed var(--dash); }
+.board .cell.opt.filled .frame { border: var(--bw) solid var(--line); }
+.board .cell .v { color: var(--ink); }
+.board .cell.focus .v { color: var(--amber); }        /* a written cell you moved back to: typing replaces it */
+.board .cell.ok .v { color: var(--good); transition: color .15s; }
+.board .cell.ok.small .frame, .board .cell.ok:not(.filled) .frame { opacity: 0; }
+.board .caret { position: absolute; background: var(--amber); visibility: hidden; min-width: 0; animation: blink 1.06s steps(1) infinite; }
+body.typing .board .cell.focus:not(.filled) .caret { visibility: visible; }
+
+/* Borrowing: the struck digit, the stroke through it, the small 1. */
+.board .dg.struck { color: var(--muted); }
+.board .strike { position: absolute; overflow: visible; pointer-events: none; opacity: 0; transition: opacity .15s; }
+.board .strike line { stroke: var(--ink); stroke-linecap: round; stroke-dasharray: 1 2; stroke-dashoffset: 1; transition: stroke-dashoffset .18s ease-out, stroke .15s; }
+.board .strike.on { opacity: 1; transition: none; }
+.board .strike.on line { stroke-dashoffset: 0; }
+.board .strike.ok line { stroke: var(--good); }
+.board .small1 { opacity: 0; transition: opacity .15s, color .15s; }
+.board .small1.on { opacity: 1; }
+.board .small1.ok { color: var(--good); }
+.board .hit { position: absolute; cursor: pointer; }
+.board .cue path { fill: none; stroke: var(--muted); stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+
+/* Feedback: the column's cells shake as Level 1's equation does. */
+.board .shake { animation: colshake .32s ease; }
+@keyframes colshake {
+  0%, 100% { translate: 0; }
+  20% { translate: calc(-1 * var(--sk)); }
+  40% { translate: calc(0.833 * var(--sk)); }
+  60% { translate: calc(-0.5 * var(--sk)); }
+  80% { translate: calc(0.333 * var(--sk)); }
+}
+.board.out { animation: out .22s ease-in forwards; }
+.board.in { animation: in .22s ease-out; }
+
+/* The answer field on a column level, beside the board (main.js moves it
+   there): it holds focus and takes the keys (the phone's own keyboard is
+   suppressed); screen readers hear the cell it is on. */
+.stage > #ans { position: absolute; left: 0; top: 0; width: 1px; height: 1px; margin: 0; padding: 0; border: 0; opacity: 0; font-size: 16px; caret-color: transparent; pointer-events: none; }
+
 /* ---------- Run bar (runs spec §2) ---------- */
 /* A segment per problem, filled green on each correct answer: the only
    progress mark. Centred over the keypad, 16px above its keys (held
@@ -386,6 +458,10 @@ body.at-select .select { display: block; }
    clear gap to its sample ("Subtraction past 10" touched "13 − 5" at 320).
    Every row's sample shrinks alike, so they still line up. */
 @media (max-width: 359.98px) { .select .sample { font-size: 24px; } }
+/* Below 340px, one step smaller again, 22px (the Levels 6–7 UI review): at
+   24px "Column subtraction" came within about 11px of "52 − 27" at 320,
+   where the other rows kept 15px or more. At 22px every row keeps 15px. */
+@media (max-width: 339.98px) { .select .sample { font-size: 22px; } }
 /* A finished level (finished-mark spec §1): a green check on the title's
    line and the best time on the name's, right-aligned, in place of the
    sample. The column mirrors the title and name: boxes trimmed to the
