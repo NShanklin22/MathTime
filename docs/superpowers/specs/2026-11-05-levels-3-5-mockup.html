@@ -14,6 +14,8 @@
          &done=1,2,3,4,5     those levels finished, each with a best time
          &current=N          that level marked as the one you came from,
                              and focused
+       ?view=finish&level=N  Level N's finish screen
+         &new=1              with a new best (else "Best" an earlier time)
        ?view=play&level=N    Level N's play screen (3, 4 or 5; 3 unless
          &a=..&b=..          given) with that problem (its sample unless
                              given). The keypad and the keyboard answer;
@@ -24,6 +26,11 @@
   /* 12px apart, the finish buttons' gap, so a focused row's ring (2px, 4px
      out) stays 6px clear of the next row. */
   .select .row + .row { margin-top: 12px; }
+  /* ---------- Narrow screens ---------- */
+  /* Below 360px wide the samples are set at 24px, not 30px, so "Subtraction
+     past 10" keeps a clear gap to "13 − 5" (it touched at 320). Every row's
+     sample shrinks alike, so they still line up. */
+  @media (max-width: 359.98px) { .select .sample { font-size: 24px; } }
 </style>
 </head>
 <body class="at-select">
@@ -65,6 +72,17 @@
 
   <div class="select" role="region" aria-label="Levels"></div>
 
+  <div class="finish" role="region" aria-labelledby="done-title">
+    <h1 class="line done-title" id="done-title"></h1>
+    <p class="line done-time"></p>
+    <p class="line done-best"></p>
+    <p class="line done-misses"></p>
+    <div class="done-buttons">
+      <button class="again"><span class="line">Again</span></button>
+      <button class="levels"><span class="line">Levels</span></button>
+    </div>
+  </div>
+
   <div class="pad" role="group" aria-label="Keypad">
     <button tabindex="-1" data-k="1"><span class="kl">1</span></button>
     <button tabindex="-1" data-k="2"><span class="kl">2</span></button>
@@ -89,6 +107,7 @@
   import { createView } from '/src/view.js';
   import { bindInput } from '/src/input.js';
   import { createSelector } from '/src/selector.js';
+  import { createFinish, finishText } from '/src/finish.js';
 
   const range = (from, to) => Array.from({ length: to - from + 1 }, (_, i) => from + i);
   // The levels as the batch plan has them. Once a level is built and listed
@@ -123,6 +142,7 @@
 
   const params = new URLSearchParams(location.search);
   const playing = params.get('view') === 'play';
+  const finishing = params.get('view') === 'finish';
   const LEVEL = levels.find(level => level.n === Number(params.get('level') ?? 3)) ?? levels.find(level => level.n === 3);
   const toSelector = () => { location.search = `?view=select&current=${LEVEL.n}`; };
 
@@ -155,8 +175,23 @@
   selector.showBests(n => done.has(n) ? BEST[n] : null);
   selector.mark(levels.find(level => level.n === Number(params.get('current'))));
 
-  window.mathtime = { game, view, layout, selector, levels };
+  // The finish screen: a run of Level N just done, with its best.
+  const finish = createFinish($('.finish'), scan, {
+    again: () => { location.search = `?view=play&level=${LEVEL.n}`; },
+    levels: toSelector,
+  });
+  const ran = BEST[LEVEL.n] + (params.get('new') ? -4_200 : 6_800);
+  const text = finishText(LEVEL.n, ran, 2, BEST[LEVEL.n]);
 
+  window.mathtime = { game, view, layout, selector, finish, levels };
+
+  if (finishing) {
+    document.body.classList.remove('at-select');
+    document.body.classList.add('at-finish');
+    finish.show(text);
+    dom.status.textContent = text.said;
+    addEventListener('keydown', e => { if (e.key === 'Escape' && !e.isComposing) toSelector(); });
+  }
   if (playing) {
     document.body.classList.remove('at-select');
     bindInput(dom, key => {
@@ -175,6 +210,7 @@
   function safeLayout() {
     try {
       layout.layout();
+      if (finishing) finish.place();
     } catch (err) {
       console.error(err);
     }
@@ -202,6 +238,8 @@
     if (playing) {
       view.announceProblem(game.state);
       dom.ans.focus({ preventScroll: true });
+    } else if (finishing) {
+      finish.focus();
     } else {
       selector.focus();
     }
