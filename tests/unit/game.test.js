@@ -553,3 +553,14 @@ test('leave() after the last answer keeps the finished run\'s result, but not it
   assert.equal(game.result.level, 1);
   assert.equal(game.result.problems.length, 20);
 });
+
+test('a fact level\'s state holds only its own play, and tap() does nothing on it', () => {
+  for (const level of [LEVEL1, LEVEL2, LEVEL3, LEVEL4, LEVEL5]) {
+    const game = createGame(level, () => 0.25);
+    assert.deepEqual(Object.keys(game.state).sort(), ['lives', 'phase', 'problem', 'question', 'solved', 'typed']);
+    const before = structuredClone(game.state);
+    for (const id of ['O', 'C', 'T', 'H', 'B']) assert.equal(game.tap(id), 'ignored');
+    for (const key of ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight']) assert.equal(game.press(key), 'ignored');
+    assert.deepEqual(game.state, before);
+  }
+});
