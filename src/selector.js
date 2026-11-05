@@ -110,6 +110,13 @@ export function createSelector(root, levels, choose, scan) {
     }
   }
 
+  // A row reached by the keyboard shows with its whole ring too: the
+  // browser's own focus scroll leaves no room for it.
+  root.addEventListener('focusin', e => {
+    const row = e.target.closest?.('.row');
+    if (row && row.matches(':focus-visible')) reveal(root, row);
+  });
+
   // Focus the marked row, so the keyboard carries on from there, and show
   // it and its focus ring, scrolling the list alone (reveal.js).
   function focus() {

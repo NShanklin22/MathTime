@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import { chromium } from 'playwright-core';
 import {
   open, freeze, showOutline, resize, setProblem, rect, capture, ink, digitInk, digitBand, boxEdges, outlineEdges,
-  boxInside, borderInner, showAnswer, fontSize, cssFontSize, TOL,
+  boxInside, borderInner, showAnswer, layOut, fontSize, cssFontSize, TOL,
 } from './helpers.js';
 
 // Space between the stage edges and what you see of the equation, from
@@ -259,6 +259,25 @@ test('a repeat layout after a full shrink needs no new scans', async ({ page }) 
     return count;
   });
   expect(reads).toBe(0);
+});
+
+// A layout fits the equation for the problem it is about to draw, not for
+// the one drawn before it: Level 3's first number has two digits, the
+// others' one, and a level starts with the last level's problem still
+// drawn. At 280px wide Level 1 shrinks either way, more for two digits.
+test('a layout fits the problem it shows, one digit or two, whatever was drawn before', async ({ page }) => {
+  await resize(page, 280, 700);
+  const fit = () => page.evaluate(() => {
+    const eq = document.querySelector('#eq');
+    return { size: eq.style.fontSize, left: eq.style.left };
+  });
+  for (const [a, b] of [[18, 9], [3, 4]]) {               // to two digits, then back to one
+    await layOut(page, a, b);
+    const first = await fit();
+    await page.evaluate(() => window.mathtime.layout.layout());   // again, with it drawn
+    expect(first.size, `${a} + ${b}: shrunk at 280px`).not.toBe('');
+    expect(await fit(), `${a} + ${b}`).toEqual(first);
+  }
 });
 
 // The shake and slide animations move #eq with a transform. Lay out while it

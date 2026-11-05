@@ -2,6 +2,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { LEVEL1 } from '../../src/level1.js';
 import { LEVEL2 } from '../../src/level2.js';
+import { LEVEL3 } from '../../src/level3.js';
+import { LEVEL4 } from '../../src/level4.js';
+import { LEVEL5 } from '../../src/level5.js';
 import { createGame } from '../../src/game.js';
 
 // An rng that returns the given values in order, then repeats them.
@@ -367,7 +370,7 @@ const toLast = (game) => {
 };
 
 test('a run is 20 different facts of the level, and the 20th correct answer finishes it', () => {
-  for (const level of [LEVEL1, LEVEL2]) {
+  for (const level of [LEVEL1, LEVEL2, LEVEL3, LEVEL4, LEVEL5]) {
     const game = createGame(level);
     const asked = [];
     for (let q = 1; q <= 20; q++) {
@@ -385,7 +388,7 @@ test('a run is 20 different facts of the level, and the 20th correct answer fini
 });
 
 test('the first problem is any of the level\'s facts, each equally likely', () => {
-  for (const level of [LEVEL1, LEVEL2]) {
+  for (const level of [LEVEL1, LEVEL2, LEVEL3, LEVEL4, LEVEL5]) {
     const n = level.facts.length;
     const firsts = Array.from({ length: n }, (_, k) => createGame(level, () => nth(k, n)).state.problem);
     assert.deepEqual(firsts, level.facts);

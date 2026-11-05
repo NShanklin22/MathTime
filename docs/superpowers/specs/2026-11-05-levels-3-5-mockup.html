@@ -1,0 +1,249 @@
+<!doctype html>
+<html lang="en" class="loading">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Levels 3–5 mockup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<!-- Levels 3–5 (batch plan 2026-11-05-levels-3-5-batch.md; Level 3 spec):
+     subtraction past 10, times tables, division facts, on the game's own
+     styles and code (src/). Served by the dev server.
+       ?view=select          the level selector with all five rows (the
+                             default view)
+         &done=1,2,3,4,5     those levels finished, each with a best time
+         &current=N          that level marked as the one you came from,
+                             and focused
+       ?view=finish&level=N  Level N's finish screen
+         &new=1              with a new best (else "Best" an earlier time)
+       ?view=play&level=N    Level N's play screen (3, 4 or 5; 3 unless
+         &a=..&b=..          given) with that problem (its sample unless
+                             given). The keypad and the keyboard answer;
+                             "Levels" and Esc go to the selector. -->
+<link rel="stylesheet" href="/src/styles.css">
+<style>
+  /* ---------- Rows in a group (Level 3 spec §3) ---------- */
+  /* 12px apart, the finish buttons' gap, so a focused row's ring (2px, 4px
+     out) stays 6px clear of the next row. */
+  .select .row + .row { margin-top: 12px; }
+  /* ---------- Narrow screens ---------- */
+  /* Below 360px wide the samples are set at 24px, not 30px, so "Subtraction
+     past 10" keeps a clear gap to "13 − 5" (it touched at 320). Every row's
+     sample shrinks alike, so they still line up. */
+  @media (max-width: 359.98px) { .select .sample { font-size: 24px; } }
+</style>
+</head>
+<body class="at-select">
+  <header class="top">
+    <div class="where">
+      <nav class="crumbs" aria-label="Breadcrumb">
+        <a class="back" href="?view=select" aria-keyshortcuts="Escape" tabindex="-1">Levels</a>
+        <svg class="sep" viewBox="0 0 12 12" aria-hidden="true"><path d="M4.5 2.5L8 6l-3.5 3.5"/></svg>
+        <span class="topic">Subtraction</span>
+        <svg class="sep topic-sep" viewBox="0 0 12 12" aria-hidden="true"><path d="M4.5 2.5L8 6l-3.5 3.5"/></svg>
+        <span class="here" aria-current="step">Level 3</span>
+        <span class="home" aria-current="page">Levels</span>
+      </nav>
+    </div>
+    <div class="lives" role="img" aria-label="3 lives left">
+      <svg viewBox="2 3 20 18" aria-hidden="true"><path d="M19.5 12.572l-7.5 7.428l-7.5 -7.428a5 5 0 1 1 7.5 -6.566a5 5 0 1 1 7.5 6.572"/></svg>
+      <svg viewBox="2 3 20 18" aria-hidden="true"><path d="M19.5 12.572l-7.5 7.428l-7.5 -7.428a5 5 0 1 1 7.5 -6.566a5 5 0 1 1 7.5 6.572"/></svg>
+      <svg viewBox="2 3 20 18" aria-hidden="true"><path d="M19.5 12.572l-7.5 7.428l-7.5 -7.428a5 5 0 1 1 7.5 -6.566a5 5 0 1 1 7.5 6.572"/></svg>
+    </div>
+  </header>
+
+  <main class="stage">
+    <div class="eq" id="eq">
+      <span class="qnum" id="qnum">Question 1 of 20</span>
+      <span id="a">13</span>
+      <span class="op">−</span>
+      <span id="b">5</span>
+      <span class="op">=</span>
+      <span class="slot empty" id="slot">
+        <span class="shown" aria-hidden="true"><span id="shown"></span><span class="caret"></span></span>
+        <input id="ans" inputmode="none" maxlength="1" autocomplete="off" aria-label="Answer">
+      </span>
+    </div>
+  </main>
+
+  <div class="run" aria-hidden="true"></div>
+
+  <p class="sr-only" role="status" id="status"></p>
+
+  <div class="select" role="region" aria-label="Levels"></div>
+
+  <div class="finish" role="region" aria-labelledby="done-title">
+    <h1 class="line done-title" id="done-title"></h1>
+    <p class="line done-time"></p>
+    <p class="line done-best"></p>
+    <p class="line done-misses"></p>
+    <div class="done-buttons">
+      <button class="again"><span class="line">Again</span></button>
+      <button class="levels"><span class="line">Levels</span></button>
+    </div>
+  </div>
+
+  <div class="pad" role="group" aria-label="Keypad">
+    <button tabindex="-1" data-k="1"><span class="kl">1</span></button>
+    <button tabindex="-1" data-k="2"><span class="kl">2</span></button>
+    <button tabindex="-1" data-k="3"><span class="kl">3</span></button>
+    <button tabindex="-1" data-k="4"><span class="kl">4</span></button>
+    <button tabindex="-1" data-k="5"><span class="kl">5</span></button>
+    <button tabindex="-1" data-k="6"><span class="kl">6</span></button>
+    <button tabindex="-1" data-k="7"><span class="kl">7</span></button>
+    <button tabindex="-1" data-k="8"><span class="kl">8</span></button>
+    <button tabindex="-1" data-k="9"><span class="kl">9</span></button>
+    <button tabindex="-1" data-k="Backspace" aria-label="Delete"><svg viewBox="0 0 24 24" aria-hidden="true"><g transform="translate(-0.5 0)"><path d="M20 6H9l-5 6l5 6h11a1 1 0 0 0 1-1V7a1 1 0 0 0-1-1z"/><path d="M12.25 10.25l3.5 3.5m0-3.5l-3.5 3.5"/></g></svg></button>
+    <button tabindex="-1" data-k="0"><span class="kl">0</span></button>
+    <button tabindex="-1" data-k="Enter" class="go" aria-label="Check answer"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 12.5l5.5 5.5l11.5-11.5"/></svg></button>
+  </div>
+
+<script type="module">
+  import { LEVELS } from '/src/levels.js';
+  import { createGame } from '/src/game.js';
+  import { fontsReady } from '/src/fonts.js';
+  import { createScanner } from '/src/scanner.js';
+  import { createLayout } from '/src/layout.js';
+  import { createView } from '/src/view.js';
+  import { bindInput } from '/src/input.js';
+  import { createSelector } from '/src/selector.js';
+  import { createFinish, finishText } from '/src/finish.js';
+
+  const range = (from, to) => Array.from({ length: to - from + 1 }, (_, i) => from + i);
+  // The levels as the batch plan has them. Once a level is built and listed
+  // in src/levels.js, the game's own is used instead.
+  const PROPOSED = [
+    {
+      n: 3, topic: 'Subtraction', name: 'Subtraction past 10', op: '−', word: 'minus', sample: [13, 5],
+      livesPerProblem: 3, maxAnswerLength: 1, problemsPerRun: 20,
+      // m − b, m 10–18, b 1–9, answer ≤ 9: 45 facts, by m then b.
+      facts: range(10, 18).flatMap(a => range(1, 9).filter(b => a - b <= 9).map(b => ({ a, b, answer: a - b }))),
+      possibleAnswers: range(1, 9).map(String),
+    },
+    {
+      n: 4, topic: 'Multiplication', name: 'Times tables', op: '×', word: 'times', sample: [6, 7],
+      livesPerProblem: 3, maxAnswerLength: 2, problemsPerRun: 20,
+      // a × b, a and b 0–9: 100 facts.
+      facts: range(0, 9).flatMap(a => range(0, 9).map(b => ({ a, b, answer: a * b }))),
+      possibleAnswers: [...new Set(range(0, 9).flatMap(a => range(0, 9).map(b => a * b)))].sort((x, y) => x - y).map(String),
+    },
+    {
+      n: 5, topic: 'Division', name: 'Division facts', op: '÷', word: 'divided by', sample: [56, 8],
+      livesPerProblem: 3, maxAnswerLength: 1, problemsPerRun: 20,
+      // (q·b) ÷ b, q 0–9, b 1–9: 90 facts, by b then q.
+      facts: range(1, 9).flatMap(b => range(0, 9).map(q => ({ a: q * b, b, answer: q }))),
+      possibleAnswers: range(0, 9).map(String),
+    },
+  ];
+  const levels = [...LEVELS, ...PROPOSED.filter(p => !LEVELS.some(level => level.n === p.n))];
+  const solve = { '+': (a, b) => a + b, '−': (a, b) => a - b, '×': (a, b) => a * b, '÷': (a, b) => a / b };
+  // The best time a finished level shows (?done=).
+  const BEST = { 1: 72_400, 2: 95_000, 3: 101_300, 4: 138_600, 5: 117_900 };
+
+  const params = new URLSearchParams(location.search);
+  const playing = params.get('view') === 'play';
+  const finishing = params.get('view') === 'finish';
+  const LEVEL = levels.find(level => level.n === Number(params.get('level') ?? 3)) ?? levels.find(level => level.n === 3);
+  const toSelector = () => { location.search = `?view=select&current=${LEVEL.n}`; };
+
+  const $ = sel => document.querySelector(sel);
+  const dom = {
+    eq: $('#eq'), slot: $('#slot'), shown: $('#shown'), caret: $('.caret'), qnum: $('#qnum'),
+    a: $('#a'), b: $('#b'), op: $('#eq .op'), ans: $('#ans'), pad: $('.pad'), stage: $('.stage'), topBar: $('.top'),
+    run: $('.run'), topic: $('.crumbs .topic'), here: $('.crumbs .here'),
+    livesBox: $('.lives'), hearts: [...document.querySelectorAll('.lives svg')], status: $('#status'),
+  };
+  const scan = createScanner();
+
+  // The play screen: the game's own rules, layout and view, on that level.
+  const game = createGame(LEVEL);
+  const a = Number(params.get('a') ?? LEVEL.sample[0]), b = Number(params.get('b') ?? LEVEL.sample[1]);
+  game.state.problem = { a, b, answer: solve[LEVEL.op](a, b) };
+  const layout = createLayout(dom, scan, LEVEL.possibleAnswers);
+  const view = createView(dom, layout, LEVEL);
+  view.setLevel(LEVEL);
+  layout.afterMeasure = () => view.render(game.state);
+  // Drawn before the first layout, so the equation is fitted with its two
+  // digits (the plan's Task 6 makes the game's layout do this itself).
+  view.render(game.state);
+
+  // The selector: every level, with the new rows.
+  const done = new Set((params.get('done') ?? '').split(',').filter(Boolean).map(Number));
+  const selector = createSelector($('.select'), levels, level => {
+    if (PROPOSED.some(p => p.n === level.n)) location.search = `?view=play&level=${level.n}`;
+  }, scan);
+  selector.showBests(n => done.has(n) ? BEST[n] : null);
+  selector.mark(levels.find(level => level.n === Number(params.get('current'))));
+
+  // The finish screen: a run of Level N just done, with its best.
+  const finish = createFinish($('.finish'), scan, {
+    again: () => { location.search = `?view=play&level=${LEVEL.n}`; },
+    levels: toSelector,
+  });
+  const ran = BEST[LEVEL.n] + (params.get('new') ? -4_200 : 6_800);
+  const text = finishText(LEVEL.n, ran, 2, BEST[LEVEL.n]);
+
+  window.mathtime = { game, view, layout, selector, finish, levels };
+
+  if (finishing) {
+    document.body.classList.remove('at-select');
+    document.body.classList.add('at-finish');
+    finish.show(text);
+    dom.status.textContent = text.said;
+    addEventListener('keydown', e => { if (e.key === 'Escape' && !e.isComposing) toSelector(); });
+  }
+  if (playing) {
+    document.body.classList.remove('at-select');
+    bindInput(dom, key => {
+      const result = game.press(key);
+      if (result === 'typed') view.renderAnswer(game.state.typed);
+      if (result === 'wrong') view.showWrong(game.state);
+      if (result === 'correct') view.showCorrect(game.state, () => game.next());
+      if (result === 'out') view.showOut(game.state).then(shown => { if (shown) toSelector(); });
+      if (result === 'finished') view.showFinished(game.state);
+      return result;
+    }, () => game.state.typed);
+    addEventListener('keydown', e => { if (e.key === 'Escape' && !e.isComposing) toSelector(); });
+  }
+
+  // As the game's own (main.js): the selector is laid out apart.
+  function safeLayout() {
+    try {
+      layout.layout();
+      if (finishing) finish.place();
+    } catch (err) {
+      console.error(err);
+    }
+    try {
+      selector.layout();
+    } catch (err) {
+      console.error(err);
+    }
+  }
+  let queued = false;
+  function relayout() {
+    if (queued) return;
+    queued = true;
+    requestAnimationFrame(() => {
+      queued = false;
+      safeLayout();
+    });
+  }
+
+  fontsReady().then(() => {
+    safeLayout();
+    document.documentElement.classList.remove('loading');
+    const resized = new ResizeObserver(relayout);
+    for (const el of [dom.stage, dom.topBar, $('.select')]) resized.observe(el);
+    if (playing) {
+      view.announceProblem(game.state);
+      dom.ans.focus({ preventScroll: true });
+    } else if (finishing) {
+      finish.focus();
+    } else {
+      selector.focus();
+    }
+  });
+</script>
+</body>
+</html>

@@ -22,7 +22,8 @@ Written 2026-11-05. The three levels finish the whole-number facts (roadmap stag
 3. **Shared groundwork:**
    - two-digit first numbers fit on narrow screens (Level 3 plan, Task 6);
    - the 12px gap between rows in a group (Task 8);
-   - the "×" and "÷" glyphs centred on the ink.
+   - the "×" and "÷" glyphs centred on the ink;
+   - the selector's samples at 24px below 360px wide, so names never touch them (the mockup's rule).
 4. **Level 3:** data, play screen and selector row (Level 3 plan, Task 7).
 5. **Level 4:** the same, with the two-digit answer box.
 6. **Level 5:** the same.

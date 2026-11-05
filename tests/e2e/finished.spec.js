@@ -18,7 +18,7 @@ const rgb = c => `rgb(${c.join(', ')})`;
 
 test('with no run finished, every row keeps its sample and shows no mark', async ({ page }) => {
   await home(page);
-  for (const n of [1, 2]) {
+  for (const n of [1, 2, 3, 4, 5]) {
     await expect(levelRow(page, n)).not.toHaveClass(/\bfinished\b/);
     await expect(levelRow(page, n).locator('.sample')).toBeVisible();
     await expect(result(page, n)).toBeHidden();
@@ -98,10 +98,10 @@ test('with storage blocked, no row is marked and a level still starts', async ({
 // a long time too. (The time is moved onto its ink at the padding by the
 // selector's layout: selector.spec.js checks it there.)
 for (const [width, height] of [[375, 812], [320, 640], [1440, 900]]) test(`at ${width}×${height} the check is on the title's line, the time on the name's, right-aligned`, async ({ page }) => {
-  await keptBefore(page, [earlier(1, 729_100), earlier(2, 95_000)]);
+  await keptBefore(page, [earlier(1, 729_100), earlier(2, 95_000), earlier(3, 101_300), earlier(4, 138_600), earlier(5, 117_900)]);
   await home(page);
   await resize(page, width, height);
-  for (const n of [1, 2]) {
+  for (const n of [1, 2, 3, 4, 5]) {
     const row = `.select .row[data-level="${n}"]`;
     const [r, title, name, tick, best] = await Promise.all(['', ' .title', ' .name', ' .tick', ' .best'].map(s => rect(page, row + s)));
     expect(Math.abs(tick.top - title.top), `Level ${n}: check on the title's line`).toBeLessThanOrEqual(0.05);

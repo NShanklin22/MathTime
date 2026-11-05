@@ -65,10 +65,15 @@ export const cssFontSize = page => page.evaluate(() => {
   return size;
 });
 
+// The answer to a ○ b by the level's operator, "+", "−", "×" or "÷". It
+// runs in the page, so it is spelled out in each helper that sets a problem.
+
 // A new problem, laid out in full as when a level starts.
 export const layOut = (page, a, b) => page.evaluate(([a, b]) => {
   const { game, layout } = window.mathtime;
-  game.state.problem = { a, b, answer: game.level.op === '+' ? a + b : a - b };
+  const solve = { '+': a + b, '−': a - b, '×': a * b, '÷': a / b };
+  if (!(game.level.op in solve)) throw new Error(`no answer for the operator ${game.level.op}`);
+  game.state.problem = { a, b, answer: solve[game.level.op] };
   layout.layout();
 }, [a, b]);
 
@@ -77,7 +82,9 @@ export const layOut = (page, a, b) => page.evaluate(([a, b]) => {
 export async function setProblem(page, a, b) {
   await page.evaluate(([a, b]) => {
     const { game, view, layout } = window.mathtime;
-    game.state.problem = { a, b, answer: game.level.op === '+' ? a + b : a - b };
+    const solve = { '+': a + b, '−': a - b, '×': a * b, '÷': a / b };
+    if (!(game.level.op in solve)) throw new Error(`no answer for the operator ${game.level.op}`);
+    game.state.problem = { a, b, answer: solve[game.level.op] };
     view.render(game.state);
     layout.place();
   }, [a, b]);

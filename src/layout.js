@@ -11,8 +11,10 @@ const px = v => onLayoutGrid(v, devicePixelRatio) + 'px';
 // it (spec §6.1): box, caret and operators from measured ink; equation fitted
 // and snapped to device pixels; header fitted (header.js); keypad labels
 // centred (keypad.js); the run bar on whole device pixels. `afterMeasure`
-// runs once per layout, after the last measurement, so the view can
-// re-render digits with the new geometry.
+// draws the problem on screen. Each layout runs it after its first
+// measurement, so the fit is for that problem's width (a first number of
+// two digits is a cell wider), and again after its last, so the view
+// re-renders the digits with the final geometry.
 // `possibleAnswers` sizes the answer box; main.js sets it again for each level.
 // `place` centres the equation on its ink, which depends on the problem: the
 // view calls it again after drawing a new one.
@@ -260,6 +262,10 @@ export function createLayout(dom, scan, possibleAnswers) {
     eq.style.removeProperty('--label-scale');
     eq.style.removeProperty('--line-scale');
     measure();
+    // Draw the problem first: the fit is for its width, and what was drawn
+    // last can be another level's, with a first number of one digit where
+    // this one has two (Level 3), or two where it has one.
+    api.afterMeasure?.();
     fitSize();
     // Draw the problem and answer with the final geometry, then place them.
     api.afterMeasure?.();
