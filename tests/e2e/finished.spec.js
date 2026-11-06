@@ -96,10 +96,15 @@ test('with storage blocked, no row is marked and a level still starts', async ({
 // capitals and as tall, the time level with the name's, the check's box
 // right-aligned at the row's 24px padding, and the time clear of the name,
 // a long time too. (The time is moved onto its ink at the padding by the
-// selector's layout: selector.spec.js checks it there.)
+// selector's layout: selector.spec.js checks it there.) The phones' sizes
+// stand for phones, whose overlay scrollbars take no room, so the desktop
+// project, whose real scrollbars do, emulates a phone there: the list's
+// scrollbar is hidden, as selector.spec.js does at 340 and 320. (A desktop
+// window can be this narrow too, at 400% zoom; that is not this case.)
 for (const [width, height] of [[375, 812], [320, 640], [1440, 900]]) test(`at ${width}×${height} the check is on the title's line, the time on the name's, right-aligned`, async ({ page }) => {
   await keptBefore(page, [earlier(1, 729_100), earlier(2, 95_000), earlier(3, 101_300), earlier(4, 138_600), earlier(5, 117_900)]);
   await home(page);
+  if (width <= 480 && test.info().project.name === 'desktop') await page.addStyleTag({ content: '.select { scrollbar-width: none !important; }' });
   await resize(page, width, height);
   for (const n of [1, 2, 3, 4, 5]) {
     const row = `.select .row[data-level="${n}"]`;

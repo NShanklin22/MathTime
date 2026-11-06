@@ -20,6 +20,22 @@ const dom = {
   livesBox: $('.lives'), hearts: [...document.querySelectorAll('.lives svg')], status: $('#status'),
 };
 
+// Does the system's own scrollbar take room (a desktop's classic bar, with
+// a mouse or only a touch screen), or lie over the page (a phone's)? Where
+// it takes room, the lists that can scroll get the theme's scrollbar
+// (styles.css, html.scrollbars-take-room); where it lies over the page, the
+// system's is left alone, taking none. Measured once, at the start, on a
+// plain box outside the lists, before anything is laid out.
+function markScrollbars() {
+  const probe = document.createElement('div');
+  probe.style.cssText = 'position:absolute;top:0;left:0;width:100px;height:100px;overflow:scroll;visibility:hidden';
+  document.body.append(probe);
+  const room = probe.offsetWidth - probe.clientWidth;
+  probe.remove();
+  document.documentElement.classList.toggle('scrollbars-take-room', room > 0);
+}
+markScrollbars();
+
 const game = createGame(LEVELS[0]);
 const scan = createScanner();
 const layout = createLayout(dom, scan, game.level.possibleAnswers);
@@ -234,7 +250,10 @@ fontsReady().then(() => {
   // loop. The finish screen's column too, as in the mockup: centring its
   // lines never changes its size either. And the selector's list, whose
   // rows narrow when a scrollbar comes into it: lining them up on their ink
-  // never changes its size.
+  // never changes its size. Putting its groups in columns, or letting its
+  // padding give way, can change its size, but what it chooses depends only
+  // on the room the page gives it, which neither changes, so the next
+  // layout chooses the same and it settles (selector.spec.js counts them).
   const resized = new ResizeObserver(relayout);
   resized.observe(dom.stage);
   resized.observe(dom.topBar);
