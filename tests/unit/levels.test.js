@@ -5,6 +5,9 @@ import { LEVEL2 } from '../../src/level2.js';
 import { LEVEL3 } from '../../src/level3.js';
 import { LEVEL4 } from '../../src/level4.js';
 import { LEVEL5 } from '../../src/level5.js';
+import { LEVEL6 } from '../../src/level6.js';
+import { LEVEL7 } from '../../src/level7.js';
+import { COLUMN_ADD, COLUMN_SUB } from '../../src/columns.js';
 import { LEVELS } from '../../src/levels.js';
 
 test('Level 2 answers are one digit, 0 to 9, with 3 lives a problem', () => {
@@ -29,14 +32,16 @@ test('the operators are the times sign U+00D7 and the division sign U+00F7, hear
   assert.equal(LEVEL5.word, 'divided by');
 });
 
-test('the built levels are Levels 1 to 5, each with its topic, name and sample', () => {
-  assert.deepEqual(LEVELS, [LEVEL1, LEVEL2, LEVEL3, LEVEL4, LEVEL5]);
+test('the built levels are Levels 1 to 7 in route order, each with its topic, name and sample', () => {
+  assert.deepEqual(LEVELS, [LEVEL1, LEVEL2, LEVEL3, LEVEL4, LEVEL5, LEVEL6, LEVEL7]);
   assert.deepEqual(LEVELS.map(l => [l.n, l.topic, l.name, l.sample]), [
     [1, 'Addition', 'Single-digit addition', [3, 4]],
     [2, 'Subtraction', 'Subtraction within 10', [7, 3]],
     [3, 'Subtraction', 'Subtraction past 10', [13, 5]],
     [4, 'Multiplication', 'Times tables', [6, 7]],
     [5, 'Division', 'Division facts', [56, 8]],
+    [6, 'Addition', 'Column addition', [47, 38]],
+    [7, 'Subtraction', 'Column subtraction', [52, 27]],
   ]);
 });
 
@@ -72,8 +77,9 @@ test('a run is 20 problems on every level, and no level has fewer facts than tha
   }
 });
 
-test('every fact\'s answer is one the answer box was sized for', () => {
-  for (const level of LEVELS) {
+// A column level has no answer box: its answer is written a digit a cell.
+test('every fact level\'s answer is one the answer box was sized for', () => {
+  for (const level of LEVELS.filter(l => l.kind !== 'column')) {
     for (const { a, b, answer } of level.facts) {
       assert.ok(level.possibleAnswers.includes(String(answer)), `Level ${level.n}: ${a}, ${b}`);
     }
@@ -175,4 +181,39 @@ test('Level 5 answers are one digit, 0 to 9, with 3 lives a problem and runs of 
   assert.equal(LEVEL5.maxAnswerLength, 1);
   assert.equal(LEVEL5.livesPerProblem, 3);
   assert.equal(LEVEL5.problemsPerRun, 20);
+});
+
+test('Levels 6 and 7 are column addition and column subtraction, played on the column board by their methods', () => {
+  assert.deepEqual([LEVEL6, LEVEL7].map(l => [l.n, l.topic, l.name, l.op, l.word, l.sample, l.livesPerProblem, l.problemsPerRun, l.kind]), [
+    [6, 'Addition', 'Column addition', '+', 'plus', [47, 38], 3, 20, 'column'],
+    [7, 'Subtraction', 'Column subtraction', '−', 'minus', [52, 27], 3, 20, 'column'],
+  ]);
+  assert.equal(LEVEL6.method, COLUMN_ADD);
+  assert.equal(LEVEL7.method, COLUMN_SUB);
+  // Listed: the column board plays them.
+  assert.ok(LEVELS.includes(LEVEL6) && LEVELS.includes(LEVEL7));
+  // The fact levels are the only ones without a kind.
+  assert.deepEqual(LEVELS.filter(l => l.kind !== 'column').map(l => l.n), [1, 2, 3, 4, 5]);
+});
+
+test('Level 6\'s facts are a + b for every a and b from 10 to 99, each once: 8100, by a, then b', () => {
+  const { facts } = LEVEL6;
+  assert.equal(facts.length, 8100);
+  const inOrder = [];
+  for (let a = 10; a <= 99; a++) for (let b = 10; b <= 99; b++) inOrder.push({ a, b, answer: a + b });
+  assert.deepEqual(facts, inOrder);
+  assert.deepEqual([facts[0], facts.at(-1)], [{ a: 10, b: 10, answer: 20 }, { a: 99, b: 99, answer: 198 }]);
+  // 45 in every 100 carry in the ones.
+  assert.equal(facts.filter(f => f.a % 10 + f.b % 10 >= 10).length, 3645);
+});
+
+test('Level 7\'s facts are a − b for every a and b from 10 to 99 with b at most a, each once: 4095, by a, then b', () => {
+  const { facts } = LEVEL7;
+  assert.equal(facts.length, 4095);
+  const inOrder = [];
+  for (let a = 10; a <= 99; a++) for (let b = 10; b <= a; b++) inOrder.push({ a, b, answer: a - b });
+  assert.deepEqual(facts, inOrder);
+  for (const { a, b, answer } of facts) assert.ok(0 <= answer && answer <= 89, `${a} − ${b}`);
+  assert.deepEqual([facts[0], facts.at(-1)], [{ a: 10, b: 10, answer: 0 }, { a: 99, b: 99, answer: 0 }]);
+  assert.equal(facts.filter(f => f.a % 10 < f.b % 10).length, 1620);
 });

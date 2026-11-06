@@ -17,8 +17,18 @@ export function rowLabel(level, bestMs) {
 // The keypad's check (index.html), its viewBox cropped to its ink.
 const CHECK = '<svg class="tick" viewBox="2 5 20 14.5"><path d="M3.5 12.5l5.5 5.5l11.5-11.5"/></svg>';
 
+// The levels in the order the selector shows them (Levels 6–7 batch plan):
+// grouped by topic, the topics in the order each first comes in `levels`
+// (route order), and each topic's levels in route order. So Level 6,
+// column addition, joins Level 1 under Addition.
+export function byTopic(levels) {
+  const topics = [...new Set(levels.map(level => level.topic))];
+  return topics.flatMap(topic => levels.filter(level => level.topic === topic));
+}
+
 // The level selector (Level 2 spec §3): a row per built level, grouped by
-// topic in route order, each a button that calls choose(level). The level
+// topic (byTopic()), each a button that calls choose(level). The rows are
+// in the page in the order shown, so the keyboard follows them. The level
 // you came from is marked with an amber bar and gets the focus. layout()
 // lines the labels, samples and finished rows' times up on their ink,
 // measured with `scan` (Level 2 spec §5), as layout.js does the equation;
@@ -41,7 +51,7 @@ export function createSelector(root, levels, choose, scan) {
   root.addEventListener('pointerdown', e => { downAt = e.timeStamp; }, true);
   root.addEventListener('mousedown', e => { if (e.timeStamp < pressableAt) e.preventDefault(); });
   let group = null;
-  for (const level of levels) {
+  for (const level of byTopic(levels)) {
     if (group?.dataset.topic !== level.topic) {
       group = el('section', 'group');
       group.dataset.topic = level.topic;

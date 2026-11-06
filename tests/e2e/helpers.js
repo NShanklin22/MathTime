@@ -1,4 +1,4 @@
-import { test } from '@playwright/test';
+import { test, expect } from '@playwright/test';
 import { PNG } from 'pngjs';
 
 // Load the game, wait until fonts are in and it is laid out on the level
@@ -363,3 +363,205 @@ export async function typeKeys(page, keys) {
 
 // Spec target 0.5px; ink() itself measures to ~0.01px (tests/e2e/measure.spec.js), 0.05px slack.
 export const TOL = 0.55;
+
+// ---------- Column levels (Levels 6–7 batch plan) ----------
+
+// Put the column problem a ○ b on screen with its working in a known state,
+// laid out in full as a new problem is (setProblem() alone would leave the
+// working and the board stale): `cells` written, the rest empty; column
+// `step` worked, with the cursor on `focus` (its answer digit unless
+// given; null hides it); the columns flagged in `done` right; in `phase`,
+// as question `question` with `solved` answered (one fewer by default) and
+// `lives` left. By default nothing is written, question 1, full lives.
+export const setColumns = (page, a, b, s = {}) => page.evaluate(([a, b, s]) => {
+  const { game, board } = window.mathtime;
+  const { state, level } = game;
+  const { method } = level;
+  if (level.kind !== 'column') throw new Error(`Level ${level.n} is not a column level`);
+  state.problem = { a, b, answer: level.op === '+' ? a + b : a - b };
+  state.x = method.solve(a, b);
+  state.cells = { ...Object.fromEntries(method.cells.map(c => [c.id, ''])), ...s.cells };
+  state.step = s.step ?? 0;
+  state.focus = s.focus !== undefined ? s.focus : method.steps[state.step].cells[0];
+  state.done = method.steps.map((_, k) => !!s.done?.[k]);
+  state.bad = [];
+  state.phase = s.phase ?? 'playing';
+  state.question = s.question ?? 1;
+  state.solved = s.solved ?? state.question - 1;
+  state.lives = s.lives ?? level.livesPerProblem;
+  board.layout(state);
+  board.render(state);
+}, [a, b, s]);
+
+// The keys that work a column problem right, a column at a time, from its
+// working x: in each column the digit, then the carry where there is one
+// (Level 6); the borrow first where one is needed, Up and the new tens
+// digit (Level 7). playColumnsTo() spells the same out in the page.
+export const workKeys = (n, x) => n === 6
+  ? [String(x.O), ...(x.C ? ['1'] : []), 'Enter', String(x.T), ...(x.H ? ['1'] : []), 'Enter']
+  : [...(x.need ? ['ArrowUp', String(x.B)] : []), String(x.O), 'Enter', String(x.T), 'Enter'];
+
+// Type the working of the column problem on screen, right, as the player does.
+export async function work(page) {
+  const { n, x } = await page.evaluate(() => ({ n: window.mathtime.game.level.n, x: window.mathtime.game.state.x }));
+  await typeKeys(page, workKeys(n, x));
+}
+
+// A column level's playTo(): problems worked right through the game itself,
+// with no feedback in between, until question `n` is on screen, drawn,
+// placed and announced as after a slide-in.
+export const playColumnsTo = (page, n) => page.evaluate(n => {
+  const { game, board } = window.mathtime;
+  const keys = x => game.level.n === 6
+    ? [String(x.O), ...(x.C ? ['1'] : []), 'Enter', String(x.T), ...(x.H ? ['1'] : []), 'Enter']
+    : [...(x.need ? ['ArrowUp', String(x.B)] : []), String(x.O), 'Enter', String(x.T), 'Enter'];
+  while (game.state.question < n) {
+    for (const key of keys(game.state.x)) game.press(key);
+    game.next();
+  }
+  board.layout(game.state);
+  board.render(game.state);
+  board.announceProblem(game.state);
+}, n);
+
+// Play a column level's run to its end: problems worked at once through the
+// handle, the last one typed. Returns once the finish screen shows.
+export async function finishColumnRun(page) {
+  await playColumnsTo(page, 20);
+  await work(page);
+  await page.waitForFunction(() => document.body.classList.contains('at-finish'));
+}
+
+// The board's cell `id`, and what the cell holds as drawn.
+export const boardCell = (page, id) => page.locator(`.board .cell[data-tap="${id}"]`);
+export const written = (page, id) => boardCell(page, id).locator('.v');
+
+// The approved mockup (a record), whose play screen is the board's design.
+export const MOCKUP = '/docs/superpowers/specs/2026-11-05-column-methods-mockup.html';
+
+// Hold the board's caret still, the same way on both pages: no blink, so it shows.
+export const holdCaret = page => page.addStyleTag({ content: '.board .caret{animation:none!important}' });
+
+// The problem area as drawn, every device pixel of it.
+export const stageShot = async page => PNG.sync.read(await page.locator('.stage').screenshot({ animations: 'disabled' }));
+
+// How two screenshots differ: the device pixels whose colour differs at all,
+// the largest difference in any channel (0 to 255), and the box (device
+// pixels) they lie in. Screenshots of different sizes differ everywhere.
+export function pixelDiff(a, b) {
+  if (a.width !== b.width || a.height !== b.height) {
+    return { count: Infinity, max: 255, box: null, size: `${a.width}×${a.height} against ${b.width}×${b.height}` };
+  }
+  let count = 0, max = 0, box = null;
+  for (let y = 0; y < a.height; y++) {
+    for (let x = 0; x < a.width; x++) {
+      const i = (y * a.width + x) * 4;
+      let d = 0;
+      for (let c = 0; c < 4; c++) d = Math.max(d, Math.abs(a.data[i + c] - b.data[i + c]));
+      if (!d) continue;
+      count++;
+      max = Math.max(max, d);
+      box = box ? { left: Math.min(box.left, x), top: Math.min(box.top, y), right: Math.max(box.right, x), bottom: Math.max(box.bottom, y) }
+        : { left: x, top: y, right: x, bottom: y };
+    }
+  }
+  return { count, max, box };
+}
+
+// The mockup links the live /src/styles.css, whose board rules (scoped
+// under .board) outrank its own inline ones: left in, they would draw the
+// mockup with the build's CSS, and a change to it would show on both pages
+// alike. So every rule of its copy that is the build's board's (one whose
+// selector names .board, data-kind or #ans) is taken out, and the mockup
+// draws with its own approved rules alone.
+const ownRulesOnly = mock => mock.evaluate(() => new Promise(resolve => {
+  const sheet = [...document.styleSheets].find(s => s.href && new URL(s.href).pathname === '/src/styles.css');
+  if (!sheet) throw new Error('the mockup links no /src/styles.css');
+  let taken = 0;
+  const strip = list => {
+    for (let i = list.cssRules.length - 1; i >= 0; i--) {
+      const rule = list.cssRules[i];
+      if (rule.selectorText === undefined && rule.cssRules) strip(rule);   // @media, @supports
+      else if (/\.board|data-kind|#ans/.test(rule.selectorText ?? '')) {
+        list.deleteRule(i);
+        taken++;
+      }
+    }
+  };
+  strip(sheet);
+  if (!taken) throw new Error('no board rules found in the mockup\'s styles.css');
+  requestAnimationFrame(() => requestAnimationFrame(resolve));
+}));
+
+// Compare the build's problem area, as `page` shows it now, with the
+// mockup's play screen for Level `n` in its fixed `state` (empty, partial,
+// wrong or done), pixel for pixel: at the project's own size, then at
+// 320×640 and 844×390 through resize(). `ready` waits on either page until
+// its state is settled; `tweak` changes the build's page before each
+// screenshot (the controls use it). Returns each size's difference
+// (pixelDiff()).
+export async function againstMockup(page, n, state, { ready = async () => {}, tweak = async () => {} } = {}) {
+  const mock = await page.context().newPage();
+  await mock.goto(`${MOCKUP}?view=play&level=${n}&state=${state}`);
+  await mock.waitForFunction(() => !document.documentElement.classList.contains('loading'));
+  await ownRulesOnly(mock);
+  await ready(mock);
+  for (const p of [mock, page]) {
+    await holdCaret(p);
+    await settle(p);
+  }
+  const found = [];
+  for (const size of [null, [320, 640], [844, 390]]) {
+    if (size) for (const p of [mock, page]) await resize(p, ...size);
+    const sizes = await Promise.all([mock, page].map(p => p.evaluate(() => `${innerWidth}×${innerHeight}@${devicePixelRatio}`)));
+    if (sizes[0] !== sizes[1]) throw new Error(`the pages differ in size: mockup ${sizes[0]}, build ${sizes[1]}`);
+    await tweak(page);
+    found.push({ at: sizes[1], ...pixelDiff(await stageShot(page), await stageShot(mock)) });
+  }
+  await mock.close();
+  return found;
+}
+
+// Every size the same as the mockup, to the device pixel.
+export function expectSame(found) {
+  for (const { at, count, max, box } of found) {
+    note(`${at}: device pixels that differ from the mockup`, count, '');
+    expect(count, `${at}: ${count} device pixels differ, by up to ${max}, in ${JSON.stringify(box)}`).toBe(0);
+  }
+}
+
+// A wrong check settled: said, and its shake over.
+export const shaken = page => page.waitForFunction(() => document.querySelector('#status').textContent.startsWith('Wrong')
+  && !document.querySelector('.board .shake'));
+
+// From now on, which of the board's cells shake (their ids, as each shake
+// starts). The function returned waits for the shake to end, then says.
+export async function shakes(page) {
+  await page.evaluate(() => {
+    window.shook = [];
+    document.querySelector('.board').addEventListener('animationstart', e => {
+      if (e.animationName === 'colshake') window.shook.push(e.target.dataset.tap);
+    });
+  });
+  return async () => {
+    await page.waitForFunction(() => window.shook.length && !document.querySelector('.board .shake'));
+    return page.evaluate(() => window.shook.sort());
+  };
+}
+
+// From now on, every status text in turn: the returned function says them.
+export async function listen(page) {
+  await page.evaluate(() => {
+    window.said = [];
+    const status = document.querySelector('#status');
+    new MutationObserver(() => window.said.push(status.textContent)).observe(status, { childList: true, characterData: true, subtree: true });
+  });
+  return () => page.evaluate(() => window.said);
+}
+
+// Dispatch `key` on the answer field, as the keyboard does; returns the
+// keypad keys then flashing.
+export const flashFor = (page, key) => page.evaluate(k => {
+  document.querySelector('#ans').dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true }));
+  return [...document.querySelectorAll('.pad button.pressed')].map(b => b.dataset.k);
+}, key);

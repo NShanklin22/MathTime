@@ -10,7 +10,9 @@
 <link rel="stylesheet" href="src/styles.css">
 <script type="module" src="src/main.js"></script>
 </head>
-<body class="at-select">
+<!-- data-kind: the kind of level being played, which shows its play screen
+     (main.js): "fact", the equation; "column", the column board. -->
+<body class="at-select" data-kind="fact">
   <header class="top">
     <div class="where">
       <nav class="crumbs" aria-label="Breadcrumb">
@@ -41,6 +43,9 @@
         <input id="ans" inputmode="none" maxlength="2" autocomplete="off" aria-label="Answer">
       </span>
     </div>
+    <!-- A column level's play screen (Levels 6–7), drawn by board.js. On a
+         column level the answer field above is moved in after it (main.js). -->
+    <div class="board" id="board" aria-hidden="true"></div>
   </main>
 
   <!-- How far through the run you are (runs spec §2): a segment per

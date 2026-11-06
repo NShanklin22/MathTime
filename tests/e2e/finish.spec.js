@@ -169,23 +169,35 @@ test('"Levels" goes to the selector, with this level marked and focused', async 
   await expect(levelRow(page, 2)).toBeFocused();
 });
 
-// "Levels" pressed twice at its centre by `twice(x, y)`, from a Level 1
-// run: the second press, on the Level 2 row that takes its place, must not
-// start Level 2 or take the focus from Level 1's. A tap there once the
-// double tap is over chooses Level 2.
+// "Levels" pressed twice by `twice(x, y)`, from a Level 1 run, where a row
+// of the selector will take its place: the second press, on that row, must
+// not start its level or take the focus from Level 1's. A tap there once
+// the double tap is over chooses it. The row is the one most under
+// "Levels" (Level 6's, the second in Addition, since the rows are grouped
+// by topic), from where the rows are on opening: the selector comes back
+// as it opens, unscrolled, Level 1's row at the top.
 async function pressLevelsTwice(page, twice, tap) {
-  await open(page);
+  await page.goto('/');
+  await page.waitForFunction(() => !document.documentElement.classList.contains('loading'));
+  const rows = await page.locator('.select .row').evaluateAll(rows => rows.map(r => {
+    const b = r.getBoundingClientRect();
+    return { n: r.dataset.level, top: b.top, bottom: b.bottom };
+  }));
+  await levelRow(page, 1).click();
   await finishRun(page);
   const box = await page.locator('.finish .levels').boundingBox();
-  const [x, y] = [box.x + box.width / 2, box.y + box.height / 2];
+  const [under] = rows.map(r => ({ n: r.n, top: Math.max(r.top, box.y), bottom: Math.min(r.bottom, box.y + box.height) }))
+    .sort((p, q) => (q.bottom - q.top) - (p.bottom - p.top));
+  expect(under.bottom - under.top, 'a row will lie under "Levels"').toBeGreaterThanOrEqual(8);
+  const [x, y] = [box.x + box.width / 2, (under.top + under.bottom) / 2];
   await twice(x, y);
   await expect(page.locator('.select')).toBeVisible();
-  expect(await page.evaluate(([x, y]) => document.elementFromPoint(x, y).closest('.row')?.dataset.level, [x, y])).toBe('2');
+  expect(await page.evaluate(([x, y]) => document.elementFromPoint(x, y).closest('.row')?.dataset.level, [x, y])).toBe(under.n);
   await expect(levelRow(page, 1)).toBeFocused();
   await page.waitForTimeout(450);
   await tap(x, y);
   await expect(page.locator('.select')).toBeHidden();
-  await expect(page.locator('.crumbs .here')).toHaveText('Level 2');
+  await expect(page.locator('.crumbs .here')).toHaveText(`Level ${under.n}`);
 }
 
 test('a double click on "Levels" stops at the selector', async ({ page }) => {
