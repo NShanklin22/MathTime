@@ -5,6 +5,7 @@ import { COLUMN_SUB, pickHalf } from './columns.js';
 // the method's rules are in columns.js.
 export const LEVEL7 = {
   n: 7,
+  k: 3,                   // its number within its topic, as shown: "Subtraction 3"
   topic: 'Subtraction',
   name: 'Column subtraction',
   op: '−',                // the minus sign, not a hyphen

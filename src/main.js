@@ -16,7 +16,7 @@ const dom = {
   eq: $('#eq'), slot: $('#slot'), shown: $('#shown'), caret: $('.caret'), qnum: $('#qnum'),
   a: $('#a'), b: $('#b'), op: $('#eq .op'), ans: $('#ans'), pad: $('.pad'), stage: $('.stage'), topBar: $('.top'),
   run: $('.run'), select: $('.select'), finish: $('.finish'), board: $('#board'), check: $('.pad .go'),
-  topic: $('.crumbs .topic'), here: $('.crumbs .here'), back: $('.crumbs .back'),
+  here: $('.crumbs .here'), back: $('.crumbs .back'),
   livesBox: $('.lives'), hearts: [...document.querySelectorAll('.lives svg')], status: $('#status'),
 };
 
@@ -110,6 +110,8 @@ function toSelector(press) {
 // The run is finished: its record goes into the queue at once (runs spec
 // §6), and the finish screen's words are settled against the best of the
 // runs kept before it. The time is in whole ms, as the record has it.
+// Runs are kept and found by the level's build order (the result's level,
+// its n); the screen names it as the breadcrumb does.
 // Keeping it must never stop the finish screen: a record that can't be made
 // (no crypto.randomUUID() on an origin that isn't secure) is not kept, and
 // the screen still shows the time.
@@ -122,7 +124,7 @@ function keepRun() {
   } catch (err) {
     console.error(err);
   }
-  return finishText(level, Math.round(totalMs), misses, best);
+  return finishText(game.level, Math.round(totalMs), misses, best);
 }
 
 // The finish screen, with "Again" focused (runs spec §3).

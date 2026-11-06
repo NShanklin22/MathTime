@@ -4,6 +4,7 @@ import {
   open, freeze, showOutline, resize, setProblem, rect, capture, ink, digitInk, digitBand, boxEdges, outlineEdges,
   boxInside, borderInner, showAnswer, layOut, fontSize, cssFontSize, TOL,
 } from './helpers.js';
+import { LEVELS, levelName } from '../../src/levels.js';
 
 // Space between the stage edges and what you see of the equation, from
 // pixels: the first digit's ink on the left, the box's dashed outline on the
@@ -342,22 +343,38 @@ const crumbsFit = page => page.evaluate(() => {
   return crumbs.scrollWidth <= crumbs.clientWidth;
 });
 
-test('the header stays on one line at 320px wide', async ({ page }) => {
+// Level `n` (its build order) on screen, through the game's handle.
+const playLevel = (page, n) => page.evaluate(n => window.mathtime.play(window.mathtime.levels.find(l => l.n === n)), n);
+
+// Which parts of the breadcrumb show, in order.
+const shownCrumbs = page => page.locator('.crumbs').evaluate(crumbs => [...crumbs.querySelectorAll('.back .word, .back .chevron, .sep, .here')]
+  .filter(el => el.getClientRects().length).map(el => el.classList[0]));
+
+test('the header stays on one line at 320px wide, for every level', async ({ page }) => {
   // Note: setViewportSize drops the phone project to 1x; this test measures no pixels.
   await page.setViewportSize({ width: 320, height: 640 });
-  await expect.poll(() => crumbsFit(page)).toBe(true);
-  await expect(page.locator('.crumbs .here')).toBeVisible();
+  for (const level of LEVELS) {
+    await playLevel(page, level.n);
+    await expect(page.locator('.crumbs .here')).toHaveText(levelName(level));
+    await expect.poll(() => crumbsFit(page), levelName(level)).toBe(true);
+    await expect(page.locator('.crumbs .here')).toBeVisible();
+  }
 });
 
-test('a tight header drops the topic crumb; "Levels" and the level stay', async ({ page }) => {
+// Where the whole breadcrumb, "Levels › Multiplication 1", doesn't fit
+// beside the hearts, the way back shrinks to a back chevron: "‹
+// Multiplication 1". Where it fits again, it is whole again.
+test('a tight header shrinks "Levels" to a back chevron; the level stays whole', async ({ page }) => {
   // Note: setViewportSize drops the phone project to 1x; this test measures no pixels.
   await page.setViewportSize({ width: 1440, height: 900 });
-  for (const crumb of ['.back', '.topic', '.topic-sep', '.here']) await expect(page.locator(`.crumbs ${crumb}`)).toBeVisible();
+  await playLevel(page, 4);                             // Multiplication 1, the longest
+  expect(await shownCrumbs(page)).toEqual(['word', 'sep', 'here']);
   await page.setViewportSize({ width: 320, height: 640 });
-  await expect(page.locator('.crumbs .topic')).toBeHidden();
-  await expect(page.locator('.crumbs .topic-sep')).toBeHidden();
-  for (const crumb of ['.back', '.here']) await expect(page.locator(`.crumbs ${crumb}`)).toBeVisible();
+  await expect.poll(() => shownCrumbs(page)).toEqual(['chevron', 'here']);
+  await expect(page.locator('.crumbs .here')).toHaveText('Multiplication 1');
   expect(await crumbsFit(page)).toBe(true);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await expect.poll(() => shownCrumbs(page), 'whole again where it fits').toEqual(['word', 'sep', 'here']);
 });
 
 test('fonts that arrive after the load timeout are measured again', async ({ page, browser, viewport, deviceScaleFactor, baseURL }) => {

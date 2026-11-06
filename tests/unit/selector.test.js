@@ -3,6 +3,9 @@ import assert from 'node:assert/strict';
 import { rowLabel, byTopic, columnsFor } from '../../src/selector.js';
 import { LEVEL1 } from '../../src/level1.js';
 import { LEVEL2 } from '../../src/level2.js';
+import { LEVEL4 } from '../../src/level4.js';
+import { LEVEL6 } from '../../src/level6.js';
+import { LEVEL7 } from '../../src/level7.js';
 import { LEVELS } from '../../src/levels.js';
 
 // The rows as shown (Levels 6–7 batch plan): by topic, the topics in the
@@ -24,18 +27,22 @@ test('a topic that first comes late is placed where it first comes, its levels i
 
 // A level row's accessible name (finished-mark spec §4).
 
-test('an unfinished level is named by its number and name alone', () => {
-  assert.equal(rowLabel(LEVEL1, null), 'Level 1: Single-digit addition');
-  assert.equal(rowLabel(LEVEL2, null), 'Level 2: Subtraction within 10');
+test('an unfinished level is named by its topic, its number in it and its name alone', () => {
+  assert.equal(rowLabel(LEVEL1, null), 'Addition, Level 1: Single-digit addition');
+  assert.equal(rowLabel(LEVEL2, null), 'Subtraction, Level 1: Subtraction within 10');
+  assert.equal(rowLabel(LEVEL4, null), 'Multiplication, Level 1: Times tables');
+  assert.equal(rowLabel(LEVEL6, null), 'Addition, Level 2: Column addition');
+  assert.equal(rowLabel(LEVEL7, null), 'Subtraction, Level 3: Column subtraction');
 });
 
 test('a finished level\'s name adds its best time, written as the finish screen writes it', () => {
-  assert.equal(rowLabel(LEVEL1, 72_400), 'Level 1: Single-digit addition. Finished, best 1:12.4.');
-  assert.equal(rowLabel(LEVEL2, 729_100), 'Level 2: Subtraction within 10. Finished, best 12:09.1.');
+  assert.equal(rowLabel(LEVEL1, 72_400), 'Addition, Level 1: Single-digit addition. Finished, best 1:12.4.');
+  assert.equal(rowLabel(LEVEL2, 729_100), 'Subtraction, Level 1: Subtraction within 10. Finished, best 12:09.1.');
+  assert.equal(rowLabel(LEVEL7, 72_400), 'Subtraction, Level 3: Column subtraction. Finished, best 1:12.4.');
 });
 
 test('a best of 0 ms is still a finished level', () => {
-  assert.equal(rowLabel(LEVEL1, 0), 'Level 1: Single-digit addition. Finished, best 0:00.0.');
+  assert.equal(rowLabel(LEVEL1, 0), 'Addition, Level 1: Single-digit addition. Finished, best 0:00.0.');
 });
 
 // The topic groups in columns (incident 2026-11-05, corrective action A):

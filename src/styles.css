@@ -98,8 +98,8 @@ body {
 /* On the level selector the breadcrumb is "Levels" alone. */
 .crumbs .home, body.at-select .crumbs > :not(.home) { display: none; }
 body.at-select .crumbs .home { display: block; }
-.crumbs .sep { width: 12px; height: 12px; flex: none; }
-.crumbs .sep path { fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.crumbs .sep, .crumbs .chevron { width: 12px; height: 12px; flex: none; }
+.crumbs .sep path, .crumbs .chevron path { fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
 /* The way back (Level 2 spec §4): "Levels", a link to the level selector,
    muted, with a faint underline from its first ink to its last, 4px below
    the baseline (header.js sets --ul-left, --ul-right and --ul-top). Its
@@ -125,9 +125,20 @@ body.at-select .crumbs .home { display: block; }
   right: -8px;
 }
 @media (hover: hover) { .crumbs .back:hover::before { background: currentColor; } }
-/* When the header gets tight, the topic crumb drops (set by header.js);
-   "Levels" and the level never do (Level 2 spec §4). */
-.top.tight .topic, .top.tight .topic-sep { display: none; }
+/* When the whole breadcrumb with the widest of all levels' names doesn't
+   fit beside the hearts (header.js sets .tight, for every level alike),
+   the way back shrinks to a back chevron, the separator's own shape
+   pointing left, and the separator after it goes: "‹ Multiplication 1".
+   The level never shrinks or drops. It is still the link "Levels" (its
+   aria-label), with its hit area as above: its box is still the crumbs'
+   20px line, the chevron centred in it as the separator is. It has no
+   underline, which under the chevron read as a stray dash (the UI review):
+   the chevron alone is the cue. Under the pointer it brightens to the
+   text's colour, as the word's underline strengthens to the link's. */
+.crumbs .back .chevron { display: none; }
+.top.tight .crumbs .back .word, .top.tight .crumbs .sep, .top.tight .crumbs .back::before { display: none; }
+.top.tight .crumbs .back .chevron { display: block; margin: calc((var(--crumb-line) - 12px) / 2) 0; }
+@media (hover: hover) { .crumbs .back:hover .chevron { color: var(--ink); } }
 
 /* Each heart's viewBox is cropped to its ink, stroke included (index.html),
    so the right ink edge is the padding edge, like the crumbs' left ink edge.
@@ -527,7 +538,10 @@ body.at-select .select { display: block; }
   overflow-y: auto;
   padding: 40px 16px max(32px, env(safe-area-inset-bottom));
 }
-body.at-finish .stage, body.at-finish .run, body.at-finish .pad, body.at-finish .lives { display: none; }
+body.at-finish .stage, body.at-finish .run, body.at-finish .pad { display: none; }
+/* The hearts keep their room, unseen, so the header is laid out as on the
+   play screen and the breadcrumb takes the same form (the UI review). */
+body.at-finish .lives { visibility: hidden; }
 body.at-finish .finish { display: block; }
 .finish .line { display: block; width: fit-content; margin: 0 auto; text-box: trim-both cap alphabetic; white-space: nowrap; }
 .finish .done-title { font-size: 17px; font-weight: 600; letter-spacing: 0.02em; }

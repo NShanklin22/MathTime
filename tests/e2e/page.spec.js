@@ -14,7 +14,7 @@ test('the page loads in IBM Plex Mono with the Blueprint background', async ({ p
   expect(info.plex).toBe(true);
   expect(info.family.startsWith('"IBM Plex Mono"')).toBe(true);
   expect(info.bg).toBe('rgb(18, 64, 126)');
-  await expect(page.locator('.crumbs .here')).toHaveText('Level 1');
+  await expect(page.locator('.crumbs .here')).toHaveText('Addition 1');
   await expect(page.locator('.pad button')).toHaveCount(12);
   await expect(page.getByRole('img', { name: '3 lives left' })).toBeVisible();
 });

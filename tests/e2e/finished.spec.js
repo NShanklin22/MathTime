@@ -23,7 +23,7 @@ test('with no run finished, every row keeps its sample and shows no mark', async
     await expect(levelRow(page, n).locator('.sample')).toBeVisible();
     await expect(result(page, n)).toBeHidden();
   }
-  await expect(levelRow(page, 1)).toHaveAttribute('aria-label', 'Level 1: Single-digit addition');
+  await expect(levelRow(page, 1)).toHaveAttribute('aria-label', 'Addition, Level 1: Single-digit addition');
 });
 
 test('a finished level shows a green check and its best time in place of its sample; the others don\'t', async ({ page }) => {
@@ -38,11 +38,32 @@ test('a finished level shows a green check and its best time in place of its sam
   await expect(result(page, 1).locator('.tick')).toHaveCSS('color', rgb(GOOD));
   await expect(result(page, 1).locator('.best')).toHaveCSS('font-size', '13px');
   await expect(result(page, 1).locator('.best')).toHaveCSS('color', rgb(INK));
-  await expect(row).toHaveAttribute('aria-label', 'Level 1: Single-digit addition. Finished, best 1:12.4.');
-  await expect(page.getByRole('button', { name: 'Level 1: Single-digit addition. Finished, best 1:12.4.' })).toBeVisible();
+  await expect(row).toHaveAttribute('aria-label', 'Addition, Level 1: Single-digit addition. Finished, best 1:12.4.');
+  await expect(page.getByRole('button', { name: 'Addition, Level 1: Single-digit addition. Finished, best 1:12.4.', exact: true })).toBeVisible();
   await expect(levelRow(page, 2)).not.toHaveClass(/\bfinished\b/);
   await expect(levelRow(page, 2).locator('.sample')).toBeVisible();
   await expect(result(page, 2)).toBeHidden();
+});
+
+// Runs are kept by the level's build order (level: n), which the numbering
+// within topics leaves alone: a run kept for Level 6 is Addition's second
+// level's, its "Level 2" row, not Subtraction's "Level 2" (Level 3) nor
+// any row numbered 6.
+test('a run kept for Level 6 shows as the best time of Addition\'s "Level 2" row', async ({ page }) => {
+  await keptBefore(page, [earlier(6, 199_900)]);
+  await home(page);
+  const addition = page.locator('.select .group[data-topic="Addition"]');
+  const row = addition.locator('.row').filter({ has: page.locator('.title', { hasText: /^Level 2$/ }) });
+  await expect(row).toHaveCount(1);
+  await expect(row).toHaveClass(/\bfinished\b/);
+  await expect(row.locator('.name')).toHaveText('Column addition');
+  await expect(row.locator('.best')).toHaveText('3:19.9');
+  await expect(row).toHaveAttribute('aria-label', 'Addition, Level 2: Column addition. Finished, best 3:19.9.');
+  await expect(page.getByRole('button', { name: 'Addition, Level 2: Column addition. Finished, best 3:19.9.', exact: true })).toBeVisible();
+  // Every other row is unfinished: no row takes the run by its number.
+  await expect(page.locator('.select .row.finished')).toHaveCount(1);
+  await expect(page.locator('.select .group[data-topic="Subtraction"] .row').nth(1)).not.toHaveClass(/\bfinished\b/);
+  await expect(page.locator('.select .row .title', { hasText: '6' })).toHaveCount(0);
 });
 
 test('a run just finished shows on its row when you come back by "Levels"', async ({ page }) => {
@@ -52,7 +73,7 @@ test('a run just finished shows on its row when you come back by "Levels"', asyn
   await page.locator('.finish .levels').click();
   await expect(page.locator('.select')).toBeVisible();
   await expect(result(page, 2).locator('.best')).toHaveText(time);
-  await expect(levelRow(page, 2)).toHaveAttribute('aria-label', `Level 2: Subtraction within 10. Finished, best ${time}.`);
+  await expect(levelRow(page, 2)).toHaveAttribute('aria-label', `Subtraction, Level 1: Subtraction within 10. Finished, best ${time}.`);
   await expect(levelRow(page, 1)).not.toHaveClass(/\bfinished\b/);
 });
 

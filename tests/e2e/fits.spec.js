@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { levelRow, finishRun, finishColumnRun, settle, capture, rect } from './helpers.js';
-import { LEVELS } from '../../src/levels.js';
+import { LEVELS, levelName } from '../../src/levels.js';
 
 // Every screen fits its window (incident 2026-11-05, corrective action B.3):
 // the level selector, each level's play screen and the finish screen, at
@@ -102,7 +102,7 @@ for (const size of SIZES) test.describe(`${size[0]}×${size[1]}@${size[2]}`, () 
       for (const level of LEVELS) {
         await levelRow(page, level.n).click();
         await page.waitForFunction(() => !document.body.classList.contains('at-select'));
-        await expect(page.locator('.crumbs .here')).toHaveText(`Level ${level.n}`);
+        await expect(page.locator('.crumbs .here')).toHaveText(levelName(level));
         await nothingOverflows(page, `Level ${level.n}`);
         await page.keyboard.press('Escape');
         await expect(page.locator('.select')).toBeVisible();
@@ -120,7 +120,7 @@ for (const size of SIZES) test.describe(`${size[0]}×${size[1]}@${size[2]}`, () 
         await levelRow(page, n).click();
         await page.waitForFunction(() => !document.body.classList.contains('at-select'));
         await finish(page);
-        await expect(page.locator('.finish .done-title')).toHaveText(`Level ${n} complete`);
+        await expect(page.locator('.finish .done-title')).toHaveText(`${levelName(LEVELS.find(level => level.n === n))} complete`);
         await nothingOverflows(page, `the finish screen, Level ${n}`);
         // By the keyboard: a tap would hold off the next row's tap for its double tap.
         await page.locator('.finish .levels').press('Enter');
@@ -130,6 +130,80 @@ for (const size of SIZES) test.describe(`${size[0]}×${size[1]}@${size[2]}`, () 
       await context.close();
     }
   });
+});
+
+// ---------- The header (the levels numbered within their topics) ----------
+
+// Each level's breadcrumb, at every size we check: on one line, beside the
+// hearts, the header's gap clear of them. Its form is the window's, not the
+// level's (the UI review): the whole breadcrumb wherever the whole one with
+// the longest of all levels' names, "Levels › Multiplication 1", fits
+// beside the hearts, measured as the header measures it: laid out whole, in
+// the room the header gives it. Where it doesn't (only at 320px wide here),
+// every level's way back shrinks to its chevron, "‹ Addition 1", which must
+// fit. The finish screen keeps the play screen's form.
+const HEADER_SIZES = [...SIZES, [375, 812, 2], [320, 640, 2], [844, 390, 3]];
+const TIGHT_AT = [320];
+
+const header = page => page.evaluate(() => {
+  const top = document.querySelector('.top'), where = top.querySelector('.where'), crumbs = top.querySelector('.crumbs');
+  const here = crumbs.querySelector('.here');
+  const shown = [...crumbs.querySelectorAll('.back .word, .back .chevron, .sep, .here')].filter(el => el.getClientRects().length);
+  const boxes = shown.map(el => el.getBoundingClientRect());
+  const lives = top.querySelector('.lives').getBoundingClientRect(), gap = parseFloat(getComputedStyle(top).columnGap);
+  const found = {
+    shown: shown.map(el => el.classList[0]),
+    oneLine: crumbs.scrollWidth <= crumbs.clientWidth && boxes.every(b => Math.abs(b.top + b.height / 2 - (boxes[0].top + boxes[0].height / 2)) < 0.5),
+    clear: lives.left - boxes.at(-1).right, gap,
+    width: boxes.at(-1).right - boxes[0].left,
+    room: lives.left - gap - where.getBoundingClientRect().left,
+  };
+  // The whole breadcrumb laid out with each level's name in turn, then put
+  // back as it was: whether it fits with every one of them.
+  const [tight, margin, text] = [top.classList.contains('tight'), crumbs.style.marginLeft, here.textContent];
+  top.classList.remove('tight');
+  crumbs.style.marginLeft = '';
+  found.whole = window.mathtime.levels.every(level => {
+    here.textContent = `${level.topic} ${level.k}`;
+    return here.getBoundingClientRect().right <= where.getBoundingClientRect().right + 0.001;
+  });
+  here.textContent = text;
+  top.classList.toggle('tight', tight);
+  crumbs.style.marginLeft = margin;
+  return found;
+});
+
+for (const size of HEADER_SIZES) test(`at ${size[0]}×${size[1]}@${size[2]} every level's breadcrumb fits beside the hearts, in one form for all, whole wherever it can be`, async ({ browser, baseURL }) => {
+  const { context, page } = await at(browser, baseURL, size);
+  const tight = TIGHT_AT.includes(size[0]);
+  const form = tight ? ['chevron', 'here'] : ['word', 'sep', 'here'];
+  try {
+    for (const level of LEVELS) {
+      await levelRow(page, level.n).click();
+      await page.waitForFunction(() => !document.body.classList.contains('at-select'));
+      await expect(page.locator('.crumbs .here')).toHaveText(levelName(level));
+      await settle(page);
+      const h = await header(page);
+      const name = `${levelName(level)}: ${h.shown.join(' ')}, ${h.width.toFixed(2)}px in ${h.room.toFixed(2)}px`;
+      test.info().annotations.push({ type: levelName(level), description: name });
+      expect(h.whole, `${name}: the whole breadcrumb fits with every level's name`).toBe(!tight);
+      expect(h.shown, name).toEqual(form);
+      expect(h.oneLine, `${name}: one line`).toBe(true);
+      expect(h.clear, `${name}: clear of the hearts`).toBeGreaterThanOrEqual(h.gap - 0.01);
+      // The finish screen, after Level 1 (the shortest name), in the same form.
+      if (level.n === 1) {
+        await finishRun(page);
+        await settle(page);
+        expect((await header(page)).shown, `${levelName(level)}, finished`).toEqual(form);
+        await page.locator('.finish .levels').press('Enter');
+      } else {
+        await page.keyboard.press('Escape');
+      }
+      await expect(page.locator('.select')).toBeVisible();
+    }
+  } finally {
+    await context.close();
+  }
 });
 
 for (const size of PADDING_ONLY) test(`at ${size[0]}×${size[1]}@${size[2]} the selector's rows fit, so it doesn't scroll for its padding`, async ({ browser, baseURL }) => {

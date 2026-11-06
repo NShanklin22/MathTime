@@ -32,8 +32,7 @@ test('chosen from the selector, Level 4 asks a times-table fact, and screen read
   await expect(page.locator('#a')).toHaveText(String(a));
   await expect(page.locator('#b')).toHaveText(String(b));
   await expect(page.locator('#status')).toHaveText(`Question 1 of 20: ${a} times ${b}`);
-  await expect(page.locator('.crumbs .topic')).toHaveText('Multiplication');
-  await expect(page.locator('.crumbs .here')).toHaveText('Level 4');
+  await expect(page.locator('.crumbs .here')).toHaveText('Multiplication 1');
   await expect(page.locator('#qnum')).toHaveText('Question 1 of 20');
   await expect(page.locator('.lives')).toHaveAttribute('aria-label', '3 lives left');
   await setProblem(page, 6, 7);
@@ -83,8 +82,8 @@ test('a wrong answer costs a life, and a right two-digit one moves on to another
 
 test('a run of 20 finishes on the finish screen, and Level 4\'s row is marked finished', async ({ page }) => {
   await finishRun(page);
-  await expect(page.getByRole('region', { name: 'Level 4 complete' })).toBeVisible();
-  await expect(page.locator('.finish .done-title')).toHaveText('Level 4 complete');
+  await expect(page.getByRole('region', { name: 'Multiplication 1 complete', exact: true })).toBeVisible();
+  await expect(page.locator('.finish .done-title')).toHaveText('Multiplication 1 complete');
   const time = await page.locator('.finish .done-time').textContent();
   const kept = await page.evaluate(() => JSON.parse(localStorage.getItem('mathtime.runs')));
   expect(kept.map(r => r.level)).toEqual([4]);
@@ -93,7 +92,7 @@ test('a run of 20 finishes on the finish screen, and Level 4\'s row is marked fi
   await expect(page.locator('.select')).toBeVisible();
   await expect(levelRow(page, 4)).toHaveClass(/\bfinished\b/);
   await expect(levelRow(page, 4).locator('.best')).toHaveText(time);
-  await expect(levelRow(page, 4)).toHaveAttribute('aria-label', `Level 4: Times tables. Finished, best ${time}.`);
+  await expect(levelRow(page, 4)).toHaveAttribute('aria-label', `Multiplication, Level 1: Times tables. Finished, best ${time}.`);
 });
 
 test.describe('alignment', () => {

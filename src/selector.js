@@ -7,10 +7,12 @@ const DIGITS = [...'0123456789'];
 // How long after a tap its double tap can still come.
 const DOUBLE_TAP_MS = 400;
 
-// A level row's accessible name: the level, and once it is finished, its
-// best time `bestMs` (finished-mark spec §4). null is unfinished; 0 is a time.
+// A level row's accessible name: its topic, as its heading shows it, its
+// number within that topic and its name, "Subtraction, Level 3: Column
+// subtraction", and once it is finished, its best time `bestMs`
+// (finished-mark spec §4). null is unfinished; 0 is a time.
 export function rowLabel(level, bestMs) {
-  const label = `Level ${level.n}: ${level.name}`;
+  const label = `${level.topic}, Level ${level.k}: ${level.name}`;
   return bestMs == null ? label : `${label}. Finished, best ${formatTime(bestMs)}.`;
 }
 
@@ -20,7 +22,7 @@ const CHECK = '<svg class="tick" viewBox="2 5 20 14.5"><path d="M3.5 12.5l5.5 5.
 // The levels in the order the selector shows them (Levels 6–7 batch plan):
 // grouped by topic, the topics in the order each first comes in `levels`
 // (route order), and each topic's levels in route order. So Level 6,
-// column addition, joins Level 1 under Addition.
+// column addition, joins Level 1 under Addition, as its "Level 2".
 export function byTopic(levels) {
   const topics = [...new Set(levels.map(level => level.topic))];
   return topics.flatMap(topic => levels.filter(level => level.topic === topic));
@@ -111,7 +113,8 @@ export function createSelector(root, levels, choose, scan) {
     row.dataset.level = level.n;
     row.setAttribute('aria-label', rowLabel(level, null));
     const txt = el('span', 'txt');
-    txt.append(el('span', 'title', `Level ${level.n}`), el('span', 'name', level.name));
+    // Numbered within its topic, under the topic's heading (levels.js).
+    txt.append(el('span', 'title', `Level ${level.k}`), el('span', 'name', level.name));
     // A sample problem, set like the equation: digits, then the operator.
     const sample = el('span', 'sample');
     sample.setAttribute('aria-hidden', 'true');

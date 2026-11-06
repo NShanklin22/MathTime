@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { open, levelRow, setProblem, rect, resize, settle, capture, ink, freeze, note, typeKeys, TOL, MUTED, GOOD } from './helpers.js';
-import { LEVELS } from '../../src/levels.js';
+import { LEVELS, levelName } from '../../src/levels.js';
 
 // The level selector (Level 2 spec §3).
 
@@ -13,6 +13,9 @@ async function home(page) {
 // The rows as shown (Levels 6–7 batch plan): by topic, each topic where it
 // first comes in route order, and in route order within it.
 const SHOWN = [1, 6, 2, 3, 7, 4, 5];
+
+// Level `n` (its build order) as the play screen names it: "Subtraction 3".
+const named = n => levelName(LEVELS.find(level => level.n === n));
 
 test('the game opens on the selector: the built levels by topic, nothing marked', async ({ page }) => {
   await home(page);
@@ -36,36 +39,63 @@ test('the game opens on the selector: the built levels by topic, nothing marked'
   await expect(page.locator('.select .group').nth(2).locator('.row')).toHaveAttribute('data-level', '4');
   await expect(page.locator('.select .group').nth(3).locator('.row')).toHaveCount(1);
   await expect(page.locator('.select .group').nth(3).locator('.row')).toHaveAttribute('data-level', '5');
-  await expect(page.getByRole('button', { name: 'Level 1: Single-digit addition' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Level 2: Subtraction within 10' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Addition, Level 1: Single-digit addition', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Subtraction, Level 1: Subtraction within 10', exact: true })).toBeVisible();
   await expect(levelRow(page, 1).locator('.title')).toHaveText('Level 1');
   await expect(levelRow(page, 1).locator('.name')).toHaveText('Single-digit addition');
   await expect(levelRow(page, 1).locator('.sample')).toHaveText('3+4');
   await expect(levelRow(page, 2).locator('.sample')).toHaveText('7−3');
-  await expect(page.getByRole('button', { name: 'Level 3: Subtraction past 10' })).toBeVisible();
-  await expect(levelRow(page, 3).locator('.title')).toHaveText('Level 3');
+  await expect(page.getByRole('button', { name: 'Subtraction, Level 2: Subtraction past 10', exact: true })).toBeVisible();
+  await expect(levelRow(page, 3).locator('.title')).toHaveText('Level 2');
   await expect(levelRow(page, 3).locator('.name')).toHaveText('Subtraction past 10');
   await expect(levelRow(page, 3).locator('.sample')).toHaveText('13−5');
-  await expect(page.getByRole('button', { name: 'Level 4: Times tables' })).toBeVisible();
-  await expect(levelRow(page, 4).locator('.title')).toHaveText('Level 4');
+  await expect(page.getByRole('button', { name: 'Multiplication, Level 1: Times tables', exact: true })).toBeVisible();
+  await expect(levelRow(page, 4).locator('.title')).toHaveText('Level 1');
   await expect(levelRow(page, 4).locator('.name')).toHaveText('Times tables');
   await expect(levelRow(page, 4).locator('.sample')).toHaveText('6×7');
-  await expect(page.getByRole('button', { name: 'Level 5: Division facts' })).toBeVisible();
-  await expect(levelRow(page, 5).locator('.title')).toHaveText('Level 5');
+  await expect(page.getByRole('button', { name: 'Division, Level 1: Division facts', exact: true })).toBeVisible();
+  await expect(levelRow(page, 5).locator('.title')).toHaveText('Level 1');
   await expect(levelRow(page, 5).locator('.name')).toHaveText('Division facts');
   await expect(levelRow(page, 5).locator('.sample')).toHaveText('56÷8');
-  await expect(page.getByRole('button', { name: 'Level 6: Column addition' })).toBeVisible();
-  await expect(levelRow(page, 6).locator('.title')).toHaveText('Level 6');
+  await expect(page.getByRole('button', { name: 'Addition, Level 2: Column addition', exact: true })).toBeVisible();
+  await expect(levelRow(page, 6).locator('.title')).toHaveText('Level 2');
   await expect(levelRow(page, 6).locator('.name')).toHaveText('Column addition');
   await expect(levelRow(page, 6).locator('.sample')).toHaveText('47+38');
-  await expect(page.getByRole('button', { name: 'Level 7: Column subtraction' })).toBeVisible();
-  await expect(levelRow(page, 7).locator('.title')).toHaveText('Level 7');
+  await expect(page.getByRole('button', { name: 'Subtraction, Level 3: Column subtraction', exact: true })).toBeVisible();
+  await expect(levelRow(page, 7).locator('.title')).toHaveText('Level 3');
   await expect(levelRow(page, 7).locator('.name')).toHaveText('Column subtraction');
   await expect(levelRow(page, 7).locator('.sample')).toHaveText('52−27');
   expect(await page.locator('.select .row').evaluateAll(rows => rows.map(r => Number(r.dataset.level)))).toEqual(SHOWN);
   await expect(levelRow(page, 1).locator('.sample')).toHaveAttribute('aria-hidden', 'true');
   await expect(page.locator('.select .row.current')).toHaveCount(0);
   await expect(page.locator('.select .row[aria-current]')).toHaveCount(0);
+});
+
+// Each level is shown by its number within its topic (k), not its build
+// order (n, which only data-level and the runs kept use): under each
+// heading the rows read Level 1, Level 2, …, and each row's name says its
+// topic, as the heading does for the eye.
+test('under each topic the rows are numbered from Level 1, and each is named with its topic', async ({ page }) => {
+  await home(page);
+  const groups = await page.locator('.select .group').evaluateAll(groups => groups.map(g => ({
+    topic: g.querySelector('.group-name').textContent,
+    titles: [...g.querySelectorAll('.row .title')].map(t => t.textContent),
+    names: [...g.querySelectorAll('.row')].map(r => r.getAttribute('aria-label')),
+  })));
+  expect(groups).toEqual([
+    { topic: 'Addition', titles: ['Level 1', 'Level 2'], names: ['Addition, Level 1: Single-digit addition', 'Addition, Level 2: Column addition'] },
+    {
+      topic: 'Subtraction', titles: ['Level 1', 'Level 2', 'Level 3'],
+      names: ['Subtraction, Level 1: Subtraction within 10', 'Subtraction, Level 2: Subtraction past 10', 'Subtraction, Level 3: Column subtraction'],
+    },
+    { topic: 'Multiplication', titles: ['Level 1'], names: ['Multiplication, Level 1: Times tables'] },
+    { topic: 'Division', titles: ['Level 1'], names: ['Division, Level 1: Division facts'] },
+  ]);
+  // The build order stays the rows' handle.
+  expect(await page.locator('.select .row').evaluateAll(rows => rows.map(r => Number(r.dataset.level)))).toEqual(SHOWN);
+  await page.getByRole('button', { name: 'Subtraction, Level 3: Column subtraction', exact: true }).click();
+  await expect(page.locator('.crumbs .here')).toHaveText('Subtraction 3');
+  expect(await page.evaluate(() => window.mathtime.game.level.n)).toBe(7);
 });
 
 // Each row's sample is written on one line, as the others are: its parts
@@ -97,7 +127,7 @@ for (const [n, word] of [[6, 'plus'], [7, 'minus']]) test(`choosing Level ${n} s
   await expect(page.locator('.lives')).toHaveAttribute('aria-label', '3 lives left');
   await expect(page.locator('#ans')).toBeFocused();
   await expect(page.locator('#ans')).toHaveAttribute('aria-label', 'Ones, answer');
-  await expect(page.locator('.crumbs .here')).toHaveText(`Level ${n}`);
+  await expect(page.locator('.crumbs .here')).toHaveText(named(n));
   await expect(page.locator('#status')).toHaveText(new RegExp(`^Question 1 of 20: \\d\\d ${word} \\d\\d$`));
 });
 
@@ -127,7 +157,7 @@ test('on the selector the breadcrumb is "Levels" alone', async ({ page }) => {
   await home(page);
   await expect(page.locator('.crumbs .home')).toHaveText('Levels');
   await expect(page.locator('.crumbs .home')).toHaveAttribute('aria-current', 'page');
-  for (const crumb of ['.back', '.topic', '.here', '.sep']) await expect(page.locator(`.crumbs ${crumb}`).first()).toBeHidden();
+  for (const crumb of ['.back', '.chevron', '.sep', '.here']) await expect(page.locator(`.crumbs ${crumb}`).first()).toBeHidden();
 });
 
 const WORD = { 1: 'plus', 2: 'minus', 3: 'minus', 4: 'times', 5: 'divided by' };
@@ -138,7 +168,7 @@ for (const n of [1, 2, 3, 4, 5]) test(`choosing Level ${n} starts it at question
   await expect(page.locator('#qnum')).toHaveText('Question 1 of 20');
   await expect(page.locator('.lives')).toHaveAttribute('aria-label', '3 lives left');
   await expect(page.locator('#ans')).toBeFocused();
-  await expect(page.locator('.crumbs .here')).toHaveText(`Level ${n}`);
+  await expect(page.locator('.crumbs .here')).toHaveText(named(n));
   await expect(page.locator('.crumbs .home')).toBeHidden();
   await expect(page.locator('#status')).toHaveText(new RegExp(`^Question 1 of 20: \\d+ ${WORD[n]} \\d$`));
 });
@@ -152,7 +182,7 @@ test('the rows are buttons in the tab order', async ({ page }) => {
   await page.keyboard.press('Tab');
   await expect(levelRow(page, 2)).toBeFocused();
   await page.keyboard.press('Enter');
-  await expect(page.locator('.crumbs .here')).toHaveText('Level 2');
+  await expect(page.locator('.crumbs .here')).toHaveText('Subtraction 1');
 });
 
 // The keyboard follows the rows as shown, down the groups and back up.
@@ -235,7 +265,7 @@ test('running out of lives comes back with that level marked and focused, in whi
   await expect(levelRow(page, 2)).toHaveCSS('outline-offset', '4px');
   await expect(levelRow(page, 1)).toHaveCSS('outline-style', 'none');
   await levelRow(page, 1).click();
-  await expect(page.locator('.crumbs .here')).toHaveText('Level 1');
+  await expect(page.locator('.crumbs .here')).toHaveText('Addition 1');
   await expect(page.locator('#qnum')).toHaveText('Question 1 of 20');
 });
 
@@ -615,7 +645,7 @@ test('back from Level 5, at the foot of the second column, the list scrolls just
   await home(page);
   await resize(page, 900, 320);
   await page.evaluate(() => window.mathtime.play(window.mathtime.levels.find(level => level.n === 5)));
-  await expect(page.locator('.crumbs .here')).toHaveText('Level 5');
+  await expect(page.locator('.crumbs .here')).toHaveText('Division 1');
   await page.keyboard.press('Escape');
   await expect(levelRow(page, 5)).toBeFocused();
   await expect(levelRow(page, 5)).toHaveClass(/\bcurrent\b/);
@@ -1041,12 +1071,12 @@ test('below 360px the samples are 24px, below 340px 22px, and every row\'s name 
 test('Levels 6 and 7, finished, show their check and best time, and are named with it', async ({ page }) => {
   await keptBefore(page, [earlier(6, 214_500), earlier(6, 199_900), earlier(7, 238_200)]);
   await home(page);
-  for (const [n, name, time] of [[6, 'Column addition', '3:19.9'], [7, 'Column subtraction', '3:58.2']]) {
+  for (const [n, name, time] of [[6, 'Addition, Level 2: Column addition', '3:19.9'], [7, 'Subtraction, Level 3: Column subtraction', '3:58.2']]) {
     await expect(levelRow(page, n)).toHaveClass(/\bfinished\b/);
     await expect(levelRow(page, n).locator('.tick')).toBeVisible();
     await expect(levelRow(page, n).locator('.sample')).toBeHidden();
     await expect(levelRow(page, n).locator('.best')).toHaveText(time);
-    await expect(levelRow(page, n)).toHaveAttribute('aria-label', `Level ${n}: ${name}. Finished, best ${time}.`);
+    await expect(levelRow(page, n)).toHaveAttribute('aria-label', `${name}. Finished, best ${time}.`);
   }
   for (const n of [1, 2, 3, 4, 5]) await expect(levelRow(page, n)).not.toHaveClass(/\bfinished\b/);
 });

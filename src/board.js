@@ -2,6 +2,7 @@ import { snap, onLayoutGrid } from './ink.js';
 import { fitHeader } from './header.js';
 import { centreKeys } from './keypad.js';
 import { placeRun } from './layout.js';
+import { levelName } from './levels.js';
 
 // The column board (Levels 6–7 batch plan): a column level's play screen,
 // drawn from the game's state (game.js) by the level's method (columns.js).
@@ -34,7 +35,7 @@ const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 const colour = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 
 export function createBoard(dom, scan) {
-  const { board, stage, ans, pad, topBar, run, status, livesBox, hearts, topic, here } = dom;
+  const { board, stage, ans, pad, topBar, run, status, livesBox, hearts, here } = dom;
   let level = null, method = null, stepOf = {}, marks = null;
   let S = null;               // the game's state, as last drawn
 
@@ -386,8 +387,7 @@ export function createBoard(dom, scan) {
     method = level.method;
     stepOf = Object.fromEntries(method.steps.flatMap((s, k) => s.cells.map(id => [id, k])));
     marks = method.borrowed ? borrowMarks() : null;
-    topic.textContent = level.topic;
-    here.textContent = `Level ${level.n}`;
+    here.textContent = levelName(level);
     run.replaceChildren(...Array.from({ length: level.problemsPerRun }, () => document.createElement('span')));
     ans.value = '';                      // the field holds no answer here: it names the cell
     build();

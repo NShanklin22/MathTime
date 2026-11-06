@@ -2,6 +2,7 @@
 // level different from the others lives here.
 export const LEVEL4 = {
   n: 4,
+  k: 1,                   // its number within its topic, as shown: "Multiplication 1"
   topic: 'Multiplication',
   name: 'Times tables',
   op: '×',                // the multiplication sign U+00D7, not the letter x

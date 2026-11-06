@@ -1,5 +1,6 @@
 import { snap, onLayoutGrid } from './ink.js';
 import { reveal } from './reveal.js';
+import { levelName } from './levels.js';
 
 // The finish screen (runs spec §3).
 
@@ -11,22 +12,23 @@ export function formatTime(ms) {
   return `${Math.floor(tenths / 600)}:${seconds.toFixed(1).padStart(4, '0')}`;
 }
 
-// What the finish screen says for a run of Level `n` that took `totalMs`
+// What the finish screen says for a run of `level` that took `totalMs`
 // with `misses` misses, against `best`: the fastest earlier run's time, or
-// null if there is none. Only a faster run is a new best, not a tie; the
-// first run has nothing to beat, so it is one. `said` is what screen
-// readers hear.
-export function finishText(n, totalMs, misses, best) {
+// null if there is none. The level is named as the breadcrumb names it,
+// "Subtraction 3". Only a faster run is a new best, not a tie; the first
+// run has nothing to beat, so it is one. `said` is what screen readers hear.
+export function finishText(level, totalMs, misses, best) {
   const time = formatTime(totalMs);
   const isNew = best === null || totalMs < best;
   const was = isNew ? '' : formatTime(best);
+  const title = `${levelName(level)} complete`;
   return {
-    title: `Level ${n} complete`,
+    title,
     time,
     best: isNew ? 'New best' : `Best ${was}`,
     isNew,
     misses: misses === 0 ? 'No misses' : misses === 1 ? '1 miss' : `${misses} misses`,
-    said: `Level ${n} complete. ${time}, ${isNew ? 'new best' : `best ${was}`}.`,
+    said: `${title}. ${time}, ${isNew ? 'new best' : `best ${was}`}.`,
   };
 }
 

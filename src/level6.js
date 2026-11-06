@@ -5,6 +5,7 @@ import { COLUMN_ADD, pickHalf } from './columns.js';
 // the method's rules are in columns.js.
 export const LEVEL6 = {
   n: 6,
+  k: 2,                        // its number within its topic, as shown: "Addition 2"
   topic: 'Addition',
   name: 'Column addition',
   op: '+',

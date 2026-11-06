@@ -1,8 +1,9 @@
 import { test, expect } from '@playwright/test';
 import {
-  open, levelRow, freeze, playTo, answer, finishRun, rect, capture, ink, note, typeKeys, resize, TOL, BG, INK, MUTED, GOOD,
+  open, levelRow, freeze, playTo, answer, finishRun, finishColumnRun, rect, capture, ink, note, typeKeys, resize, TOL, BG, INK, MUTED, GOOD,
 } from './helpers.js';
 import { finishText } from '../../src/finish.js';
+import { LEVELS, levelName } from '../../src/levels.js';
 
 // The end of a run (runs spec §3, §5): the finish screen, and the run's
 // record kept in the browser.
@@ -12,8 +13,8 @@ import { finishText } from '../../src/finish.js';
 // "0:00.0", "New best", "No misses" are nearly symmetric in their advance:
 // their ink is centred to within the tolerance even unplaced. These are
 // not ("2:09.1" is 0.66px off at 2x, 0.80px at 1x), so centring is tested.
-const SLOWER = finishText(1, 129_100, 2, 68_900);        // 2:09.1, Best 1:08.9, 2 misses
-const NEW_BEST = finishText(1, 72_400, 1, null);         // 1:12.4, New best, 1 miss
+const SLOWER = finishText(LEVELS[0], 129_100, 2, 68_900);        // 2:09.1, Best 1:08.9, 2 misses
+const NEW_BEST = finishText(LEVELS[0], 72_400, 1, null);         // 1:12.4, New best, 1 miss
 const showRun = (page, text) => page.evaluate(t => {
   const { finish } = window.mathtime;
   finish.show(t);
@@ -62,15 +63,14 @@ test('the finish screen: the level, the time, "New best" on a first run, the mis
   await open(page);
   await finishRun(page);
   for (const hidden of ['.stage', '.run', '.pad', '.lives', '.select']) await expect(page.locator(hidden)).toBeHidden();
-  const screen = page.getByRole('region', { name: 'Level 1 complete' });
+  const screen = page.getByRole('region', { name: 'Addition 1 complete', exact: true });
   await expect(screen).toBeVisible();
-  await expect(page.locator('.finish .done-title')).toHaveText('Level 1 complete');
+  await expect(page.locator('.finish .done-title')).toHaveText('Addition 1 complete');
   await expect(page.locator('.finish .done-time')).toHaveText(TIME);
   await expect(page.locator('.finish .done-best')).toHaveText('New best');
   await expect(page.locator('.finish .done-best')).toHaveCSS('color', 'rgb(143, 240, 192)');
   await expect(page.locator('.finish .done-misses')).toHaveText('No misses');
-  await expect(page.locator('.crumbs .here')).toHaveText('Level 1');
-  await expect(page.locator('.crumbs .topic')).toHaveText('Addition');
+  await expect(page.locator('.crumbs .here')).toHaveText('Addition 1');
   const again = page.locator('.finish .again');
   await expect(again).toBeFocused();
   await expect(again).toHaveCSS('outline-style', 'solid');
@@ -78,7 +78,47 @@ test('the finish screen: the level, the time, "New best" on a first run, the mis
   await expect(again).toHaveCSS('outline-width', '2px');
   await expect(again).toHaveCSS('outline-offset', '4px');
   const time = await page.locator('.finish .done-time').textContent();
-  await expect(page.locator('#status')).toHaveText(`Level 1 complete. ${time}, new best.`);
+  await expect(page.locator('#status')).toHaveText(`Addition 1 complete. ${time}, new best.`);
+});
+
+// The level is named as the breadcrumb names it, by its topic and its
+// number within it, not its build order: Level 7 is Subtraction's third.
+test('the finish screen names the level by its topic and number in it: "Subtraction 3 complete", heard so too', async ({ page }) => {
+  await open(page, 7);
+  await finishColumnRun(page);
+  await expect(page.getByRole('region', { name: 'Subtraction 3 complete', exact: true })).toBeVisible();
+  await expect(page.locator('.finish .done-title')).toHaveText('Subtraction 3 complete');
+  const time = await page.locator('.finish .done-time').textContent();
+  await expect(page.locator('#status')).toHaveText(`Subtraction 3 complete. ${time}, new best.`);
+  await expect(page.locator('.crumbs .here')).toHaveText('Subtraction 3');
+});
+
+// The longest title, on the narrowest screen: one line, inside the
+// column's padding (and any scrollbar), and the column doesn't scroll
+// sideways for it.
+test('at 320px wide the longest title, "Multiplication 1 complete", fits on one line, unclipped', async ({ page }) => {
+  await open(page, 4);
+  await resize(page, 320, 640);
+  await finishRun(page);
+  await expect(page.locator('.finish .done-title')).toHaveText('Multiplication 1 complete');
+  const fit = await page.evaluate(() => {
+    const finish = document.querySelector('.finish'), title = finish.querySelector('.done-title');
+    const cs = getComputedStyle(finish), box = finish.getBoundingClientRect(), r = title.getBoundingClientRect();
+    const words = document.createRange();
+    words.selectNodeContents(title);
+    return {
+      lines: new Set([...words.getClientRects()].map(q => Math.round(q.top))).size,
+      left: r.left - (box.left + finish.clientLeft + parseFloat(cs.paddingLeft)),
+      right: box.left + finish.clientLeft + finish.clientWidth - parseFloat(cs.paddingRight) - r.right,
+      over: [title.scrollWidth - title.clientWidth, finish.scrollWidth - finish.clientWidth],
+    };
+  });
+  note('title to the column\'s left padding', fit.left);
+  note('title to its right padding', fit.right);
+  expect(fit.lines, 'one line').toBe(1);
+  expect(fit.left, 'inside the left padding').toBeGreaterThanOrEqual(0);
+  expect(fit.right, 'inside the right padding').toBeGreaterThanOrEqual(0);
+  expect(fit.over, 'nothing cut off or scrolled').toEqual([0, 0]);
 });
 
 test('a run slower than the best shows the best, and screen readers hear it', async ({ page }) => {
@@ -89,7 +129,7 @@ test('a run slower than the best shows the best, and screen readers hear it', as
   await expect(page.locator('.finish .done-best')).not.toHaveClass(/\bnew\b/);
   await expect(page.locator('.finish .done-best')).toHaveCSS('color', 'rgb(182, 205, 238)');
   const time = await page.locator('.finish .done-time').textContent();
-  await expect(page.locator('#status')).toHaveText(`Level 1 complete. ${time}, best 0:00.0.`);
+  await expect(page.locator('#status')).toHaveText(`Addition 1 complete. ${time}, best 0:00.0.`);
   expect(await runs(page)).toHaveLength(2);
 });
 
@@ -106,7 +146,7 @@ test('the run is kept in the browser as its record: id, level, finish time, tota
   const last = await page.evaluate(() => window.mathtime.game.state.problem);
   const before = Date.now();
   await answer(page);
-  await expect(page.locator('.finish .done-title')).toHaveText('Level 2 complete');
+  await expect(page.locator('.finish .done-title')).toHaveText('Subtraction 1 complete');
   const kept = await runs(page);
   expect(kept).toHaveLength(1);
   const [record] = kept;
@@ -153,7 +193,7 @@ test('"Again" starts a new run of the same level, also on Enter', async ({ page 
   await expect(page.locator('.finish')).toBeHidden();
   await expect(page.locator('#qnum')).toHaveText('Question 1 of 20');
   await expect(page.locator('.run span.done')).toHaveCount(0);
-  await expect(page.locator('.crumbs .here')).toHaveText('Level 2');
+  await expect(page.locator('.crumbs .here')).toHaveText('Subtraction 1');
   await expect(page.locator('#eq')).not.toHaveClass(/\bcorrect\b/);
   await expect(page.locator('.lives')).toHaveAttribute('aria-label', '3 lives left');
   await expect(page.locator('#ans')).toBeFocused();
@@ -197,7 +237,7 @@ async function pressLevelsTwice(page, twice, tap) {
   await page.waitForTimeout(450);
   await tap(x, y);
   await expect(page.locator('.select')).toBeHidden();
-  await expect(page.locator('.crumbs .here')).toHaveText(`Level ${under.n}`);
+  await expect(page.locator('.crumbs .here')).toHaveText(levelName(LEVELS.find(level => level.n === Number(under.n))));
 }
 
 test('a double click on "Levels" stops at the selector', async ({ page }) => {
@@ -235,7 +275,7 @@ test('"Levels" by keyboard: the selector takes a press at once', async ({ page }
   await page.keyboard.press('Enter');
   await expect(levelRow(page, 1)).toBeFocused();
   await levelRow(page, 2).click();
-  await expect(page.locator('.crumbs .here')).toHaveText('Level 2');
+  await expect(page.locator('.crumbs .here')).toHaveText('Subtraction 1');
 });
 
 test('Tab moves between "Again" and "Levels"', async ({ page }) => {
