@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import {
-  open, levelRow, freeze, showOutline, resize, setProblem, layOut, rect, capture, ink, digitInk, digitBand,
-  boxEdges, boxInside, borderInner, outlineEdges, showAnswer, groupOffset, equalsGap, labelInk, note, fontSize,
+  open, levelRow, freeze, resize, setProblem, layOut, rect, capture, ink, digitInk, digitBand,
+  boxEdges, boxInside, borderInner, showAnswer, groupOffset, equalsGap, labelInk, note, fontSize,
   cssFontSize, typeKeys, finishRun, TOL, MUTED,
 } from './helpers.js';
 
@@ -171,7 +171,8 @@ test.describe('alignment', () => {
   });
 
   test('what you see of the equation is centred, one-digit first number or two: 56 ÷ 8, 81 ÷ 9, 0 ÷ 1', async ({ page }) => {
-    await showOutline(page);
+    // From the first digit's ink to the box's border (to its dashed outline
+    // until that was removed, 2026-11-06).
     for (const [a, b] of PROBLEMS) {
       await layOut(page, a, b);
       const off = (await groupOffset(page)).offset;
@@ -181,12 +182,13 @@ test.describe('alignment', () => {
   });
 
   test('"Question N" has its ink centred over what you see', async ({ page }) => {
-    await showOutline(page);
+    // Over the first digit's ink to the box's border (to its dashed outline
+    // until that was removed, 2026-11-06).
     for (const [question, [a, b]] of [[1, PROBLEMS[0]], [10, PROBLEMS[1]], [18, PROBLEMS[2]]]) {
       await page.evaluate(n => { window.mathtime.game.state.question = n; }, question);
       await setProblem(page, a, b);
-      const { first, outline, shot } = await groupOffset(page);
-      const off = (await labelInk(page, shot)).midX - (first.left + outline.right) / 2;
+      const { first, box, shot } = await groupOffset(page);
+      const off = (await labelInk(page, shot)).midX - (first.left + box.right) / 2;
       expect(Math.abs(off), `Question ${question}, ${a} ÷ ${b}: ${off.toFixed(3)}px`).toBeLessThanOrEqual(TOL);
     }
   });
@@ -204,14 +206,15 @@ test('a narrow screen shrinks 81 ÷ 9 to fit between 16px gutters', async ({ pag
   await resize(page, 280, 700);
   await layOut(page, 81, 9);
   expect(await fontSize(page), 'shrunk to fit').toBeLessThan(await cssFontSize(page));
-  await showOutline(page);
+  // The right gutter is to the box's border (to its dashed outline until
+  // that was removed, 2026-11-06).
   const shot = await capture(page);
   const first = await digitInk(page, shot, '#a');
-  const outline = await outlineEdges(page, shot);
+  const box = await boxEdges(page, shot);
   const stage = await rect(page, '.stage');
   note('left gutter', first.left - stage.left);
-  note('right gutter', stage.right - outline.right);
+  note('right gutter', stage.right - box.right);
   expect(first.left - stage.left, 'left gutter').toBeGreaterThanOrEqual(16 - 0.01);
-  expect(stage.right - outline.right, 'right gutter').toBeGreaterThanOrEqual(16 - 0.01);
+  expect(stage.right - box.right, 'right gutter').toBeGreaterThanOrEqual(16 - 0.01);
   expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth), 'no horizontal scroll').toBeLessThanOrEqual(0);
 });

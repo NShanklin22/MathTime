@@ -120,11 +120,6 @@ export function createLayout(dom, scan, possibleAnswers) {
     eq.style.setProperty('--wide', geo.wide.toFixed(4));
     eq.style.setProperty('--box-w', geo.boxW.toFixed(4));
     eq.style.setProperty('--bw', getComputedStyle(slot, '::after').borderTopWidth);
-    // The outline is drawn a whole number of device pixels out from the box,
-    // rounded down. Set exactly that, so centring knows where it is drawn.
-    eq.style.removeProperty('--outline-offset');
-    const offset = parseFloat(getComputedStyle(slot, '::after').outlineOffset) * devicePixelRatio;
-    eq.style.setProperty('--outline-offset', Math.floor(offset + 1e-3) / devicePixelRatio + 'px');
     // The box padding in whole device pixels. The box's edges are drawn on
     // whole pixels, and with the baseline on one too, the padding then comes
     // out the same on all four sides.
@@ -167,50 +162,36 @@ export function createLayout(dom, scan, possibleAnswers) {
     return { left: r.left - t.m41, top: r.top - t.m42, width: r.width / t.a };
   }
 
-  // The box's dashed construction outline sticks out round it, and the box is
-  // last in the equation, so it sticks out on the right and below. Count it
-  // when fitting and centring.
-  function overhang() {
-    const after = getComputedStyle(slot, '::after');
-    return after.outlineStyle === 'none' ? 0 : parseFloat(after.outlineOffset) + parseFloat(after.outlineWidth);
-  }
-
-  // The box's px minimums from styles.css (each has an em size too, and the
-  // larger wins), and how far they are scaled down (--line-scale).
+  // The box border's px minimum from styles.css (it has an em size too, and
+  // the larger wins); --line-scale scales it down.
   function minimums() {
     const cs = getComputedStyle(eq);
     const num = name => parseFloat(cs.getPropertyValue(name));
-    return { bwEm: num('--bw-em'), bwMin: num('--bw-min'), outEm: num('--outline-em'), outMin: num('--outline-min') };
+    return { bwEm: num('--bw-em'), bwMin: num('--bw-min') };
   }
 
   // How much the font must shrink (1 or more: not at all) for the equation to
-  // be `across` px wide at most, outline included, and for "Question N"
-  // (above) and the box's outline (below) to reach at most `room` px from the
+  // be `across` px wide at most, to the box's border, and for "Question N"
+  // (above) and the box's border (below) to reach at most `room` px from the
   // digit ink's centre, which is the problem area's; and whether the label's
   // side is the one that decides. The label's px minimums shrink with the
-  // font when it does (--label-scale). The box border and outline offset held
-  // at their px minimums (scaled by `line`) and the outline's own width don't
-  // shrink with the font: they are taken off at their design size. The page
-  // draws them up to a device pixel finer, so the result still fits and moves
-  // smoothly with the room.
+  // font when it does (--label-scale). A box border held at its px minimum
+  // (scaled by `line`) doesn't shrink with the font: it is taken off at its
+  // design size. The page draws it up to a device pixel finer, so the result
+  // still fits and moves smoothly with the room.
   function fits(across, room, line) {
     const m = minimums();
     const after = getComputedStyle(slot, '::after');
     const bw = parseFloat(after.borderTopWidth);
-    const offset = parseFloat(after.outlineOffset);
-    const hair = parseFloat(after.outlineWidth);
     const bwHeld = m.bwEm * geo.fs < m.bwMin * line;
-    const offsetHeld = m.outEm * geo.fs < m.outMin * line;
     // (A border is never drawn less than one device pixel wide.)
     const border = { now: bwHeld ? bw : 0, design: bwHeld ? Math.max(m.bwMin * line, 1 / devicePixelRatio) : 0 };
-    const out = { now: (offsetHeld ? offset : 0) + hair, design: (offsetHeld ? m.outMin * line : 0) + hair };
-    const width = eqBox().width + offset + hair;
-    const w = (across - 2 * border.design - out.design) / (width - 2 * border.now - out.now);
+    const w = (across - 2 * border.design) / (eqBox().width - 2 * border.now);
     const mid = eq.getBoundingClientRect().top + geo.mid * geo.fs;
     const above = mid - qnum.getBoundingClientRect().top;
-    const below = slot.getBoundingClientRect().top + parseFloat(after.top) + parseFloat(after.height) + offset + hair - mid;
+    const below = slot.getBoundingClientRect().top + parseFloat(after.top) + parseFloat(after.height) - mid;
     const ha = (room - border.design) / (above - border.now);
-    const hb = (room - border.design - out.design) / (below - border.now - out.now);
+    const hb = (room - border.design) / (below - border.now);
     return { w, h: Math.min(ha, hb), label: ha <= hb };
   }
 
@@ -219,8 +200,8 @@ export function createLayout(dom, scan, possibleAnswers) {
   // edges, either side of the centred digit ink. Each round takes the
   // tighter of the two; parts that keep their px size make a round fall a
   // little short, so there are up to four, each checked.
-  // A problem area too short for 8px clear (under about 49px) shares out
-  // what it has: the clearance and the box's px minimums shrink together,
+  // A problem area too short for 8px clear (under about 37px) shares out
+  // what it has: the clearance and the box border's px minimum shrink together,
   // so the whole group still fits and the font grows steadily with the area.
   // The font never goes under a device pixel; under about 3px nothing fits
   // at all, and it is left as it is.
@@ -228,9 +209,7 @@ export function createLayout(dom, scan, possibleAnswers) {
     const gutter = parseFloat(getComputedStyle(stage).getPropertyValue('--gutter'));   // 16px on phones
     const across = stage.clientWidth - 2 * gutter - 1;   // 1px slack for pixel snapping
     const half = stage.clientHeight / 2 - 0.5;           // 0.5px slack for pixel snapping
-    const m = minimums();
-    const hair = parseFloat(getComputedStyle(slot, '::after').outlineWidth);
-    const line = Math.min(1, Math.max(0, (half - hair) / (m.bwMin + m.outMin + 16)));
+    const line = Math.min(1, Math.max(0, half / (minimums().bwMin + 16)));
     if (line < 1) {
       eq.style.setProperty('--line-scale', line.toFixed(4));
       measure();
@@ -255,7 +234,7 @@ export function createLayout(dom, scan, possibleAnswers) {
   }
 
   // With the font settled, "Question N" as large as its side now allows: a
-  // later round may have shrunk the font for the outline's side and left the
+  // later round may have shrunk the font for the box's side and left the
   // label room. Its reach grows with its px minimums along a convex line
   // (they are max()es), so stepping along the straight line to full size
   // never overshoots; a few steps close in.
@@ -312,7 +291,7 @@ export function createLayout(dom, scan, possibleAnswers) {
   }
 
   // Centre what you see of the equation, from the first digit's ink to the
-  // box's dashed outline, in the problem area (spec §3.2), with the left edge
+  // box's border, in the problem area (spec §3.2), with the left edge
   // on a whole device pixel. `r` is the equation's unplaced box. Returns the
   // middle of what you see, from the equation's left edge.
   function centreGroup(r) {
@@ -320,11 +299,10 @@ export function createLayout(dom, scan, possibleAnswers) {
     const s = stage.getBoundingClientRect();
     // Both ends from the equation's left edge, which lands on a device
     // pixel: the first digit's ink starts at the indent render() gave it, less
-    // the ink's left bearing; the box is drawn on whole device pixels, the
-    // outline round it.
+    // the ink's left bearing; the box is drawn on whole device pixels.
     const cell = a.firstElementChild;
     const start = cell ? parseFloat(getComputedStyle(cell).textIndent) - scan(cell.textContent, geo.style, geo.fs * dpr).abl * geo.fs : 0;
-    const end = snap(slot.getBoundingClientRect().right - eq.getBoundingClientRect().left, dpr) + overhang();
+    const end = snap(slot.getBoundingClientRect().right - eq.getBoundingClientRect().left, dpr);
     const mid = (start + end) / 2;
     eq.style.left = px(snap(s.left + s.width / 2 - mid, dpr) - r.left);
     return mid;

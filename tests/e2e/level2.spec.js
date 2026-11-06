@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import {
-  open, freeze, showOutline, setProblem, layOut, rect, capture, ink, digitBand, boxEdges, boxInside, borderInner,
+  open, freeze, setProblem, layOut, rect, capture, ink, digitBand, boxEdges, boxInside, borderInner,
   showAnswer, groupOffset, equalsGap, note, fontSize, typeKeys, resize, TOL, MUTED,
 } from './helpers.js';
 
@@ -154,7 +154,8 @@ test.describe('alignment', () => {
   });
 
   test('what you see of the equation is centred, for every first digit', async ({ page }) => {
-    await showOutline(page);
+    // From the first digit's ink to the box's border (to its dashed outline
+    // until that was removed, 2026-11-06).
     for (let a = 0; a <= 9; a++) {
       await layOut(page, a, 0);
       const off = (await groupOffset(page)).offset;

@@ -52,7 +52,7 @@ The screen has three stacked bands that fill the viewport. The page never scroll
 - The header must stay on one line. When space runs out, crumbs drop from the left: first "Arithmetic ›", then "Addition ›". The roadmap strip still shows the stage.
 
 ### 3.2 Problem area
-- The equation `a + b = [box]` is big and centred, both horizontally and vertically, between the header and the keypad. Horizontal centring is of what you see: from the first digit's ink to the box's dashed outline.
+- The equation `a + b = [box]` is big and centred, both horizontally and vertically, between the header and the keypad. Horizontal centring is of what you see: from the first digit's ink to the box's border. (It was to the box's dashed construction outline until the outline was removed on 2026-11-06, at the user's request.)
 - The space between neighbours is even: the ink gap from "=" to the box's outer edge matches the ink gaps between the other symbols.
 - If the problem area is still short (§3.4 covers phones held sideways), the equation shrinks until "Question N" and the box both fit inside it with at least 8px to spare above and below. When the area is too short even for that (under about 49px), the 8px shrinks first, together with the font (§6.2).
 - "Question N" sits centred above the equation, in a smaller muted style.
@@ -97,7 +97,7 @@ An engineering-drawing look: white line work on blueprint-blue grid paper. It po
 | Ink (digits, current crumb) | `#eef5ff` |
 | Muted (operators, other crumbs, question label) | `#b6cdee` |
 | Answer box line | `#eef5ff`, 2px or 0.025em (whichever is larger), square corners |
-| Construction outline | 1px dashed, ink colour (`#eef5ff`) at 55% opacity, offset 5px or 0.06em (whichever is larger) outside the box |
+| Construction outline | None. Removed on 2026-11-06 at the user's request: it looked like a visual bug. The box is its solid border alone. (It was 1px dashed, ink colour `#eef5ff` at 55% opacity, offset 5px or 0.06em, whichever was larger, outside the box.) |
 | Caret, current roadmap segment | amber `#ffd66b` |
 | Upcoming roadmap segments | `#6f95cc` (3:1 against the background) |
 | Correct | `#8ff0c0` (answer digits and box line) |
@@ -114,7 +114,7 @@ The amber caret matters. In this font, a white "1" next to a white caret reads a
 - Fonts load from Google Fonts before the problem is first drawn, so text never jumps after it appears.
 
 ### 5.3 Sizing
-- Equation font size is `clamp(40px, min(17vw, 15dvh), 128px)`. It shrinks further when the full equation, including the box's construction outline, does not fit between the side gutters.
+- Equation font size is `clamp(40px, min(17vw, 15dvh), 128px)`. It shrinks further when the full equation, to the box's border, does not fit between the side gutters. (Until 2026-11-06 this included the box's construction outline, removed then at the user's request.)
 - Side gutters are at least 16px on phones, upright (≤480px wide) or sideways (§3.4), and 24px elsewhere.
 - Keys are 48–64px tall in the stacked layout, depending on screen height; 40–64px beside the problem (§3.4).
 
@@ -132,8 +132,8 @@ Every point below was measured in real rendered pixels at 375×812 (pixel ratio 
 | Box padding, widest answer | Equal on all four sides, within about 0.5px. Left and right are measured from the answer's ink; top and bottom from the ink band of all ten digits, since the box must fit every digit. Flat-topped answers like "14" therefore sit about 1 device pixel inside that band. |
 | Keypad digit labels vs key centre (ink) | ≤ 0.5px both ways |
 | Equation position while typing or after a wrong answer | 0px movement |
-| Gutters | ≥ 16px phone, ≥ 24px desktop, overhangs included; no horizontal scroll |
-| Visible group (first digit ink to box outline) horizontal centre vs problem-area centre | ≤ 0.5px, for every problem |
+| Gutters | ≥ 16px phone, ≥ 24px desktop, to the first digit's ink and the box's border; no horizontal scroll |
+| Visible group (first digit ink to box border) horizontal centre vs problem-area centre | ≤ 0.5px, for every problem. (Measured to the box's dashed outline until it was removed, 2026-11-06.) |
 | Ink gap "=" → box vs mean of the other ink gaps | ≤ 0.5px |
 | Hearts centre vs breadcrumb text centre | ≤ 0.5px |
 | Header ink margins, left vs right | ≤ 0.5px apart |
@@ -154,7 +154,7 @@ Browsers position text by its character box, not by its ink, and fonts differ a 
 - A half-pixel at 1× screens is the floor for some measurements. Where the browser places text on whole pixels (small text at 1×), 0.5px is the best a centred position can do. The caret's gap after a digit varies by up to one device pixel (it sits on whole ones, the ink ends anywhere).
 - Windows adds faint colour fringes to small text (ClearType). A web page cannot turn this off.
 - Not yet checked on a real 3× pixel-ratio phone. Layout positions are checked in real desktop windows at 3×, 2.625× and 1.5×; an emulated ratio lays out on a coarser grid (1/64 CSS px), where those device pixels don't exist.
-- A problem area under about 49px tall can't keep 8px clear with a readable equation, because the box's border (2px) and outline (5px out, 1px wide) don't shrink with the font. There the clearance and those px minimums shrink with the font instead, all together, so the whole group still fits and the font grows steadily with the area. Under about 3px nothing fits, and the layout is left as it is.
+- A problem area under about 37px tall can't keep 8px clear with a readable equation, because the box's border (2px) doesn't shrink with the font. There the clearance and that px minimum shrink with the font instead, all together, so the whole group still fits and the font grows steadily with the area. Under about 3px nothing fits, and the layout is left as it is. (Until 2026-11-06 the box's dashed outline, 5px out and 1px wide, didn't shrink either, and the threshold was about 49px; the outline was removed then at the user's request.)
 
 ## 7. Accessibility
 - Lives are announced as "3 lives left", "2 lives left", "1 life left".

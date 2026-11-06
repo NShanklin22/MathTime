@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import {
-  open, levelRow, freeze, showOutline, settle, resize, setProblem, layOut, rect, capture, ink, digitInk, digitBand,
-  boxEdges, boxInside, borderInner, outlineEdges, showAnswer, groupOffset, equalsGap, labelInk, note, fontSize,
+  open, levelRow, freeze, settle, resize, setProblem, layOut, rect, capture, ink, digitInk, digitBand,
+  boxEdges, boxInside, borderInner, showAnswer, groupOffset, equalsGap, labelInk, note, fontSize,
   cssFontSize, typeKeys, TOL, MUTED,
 } from './helpers.js';
 
@@ -167,7 +167,8 @@ test.describe('alignment', () => {
   });
 
   test('what you see of the equation is centred, for every first number from 10 to 18', async ({ page }) => {
-    await showOutline(page);
+    // From the first digit's ink to the box's border (to its dashed outline
+    // until that was removed, 2026-11-06).
     let worst = 0;
     for (let a = 10; a <= 18; a++) {
       await layOut(page, a, 9);
@@ -179,12 +180,13 @@ test.describe('alignment', () => {
   });
 
   test('"Question N" has its ink centred over what you see', async ({ page }) => {
-    await showOutline(page);
+    // Over the first digit's ink to the box's border (to its dashed outline
+    // until that was removed, 2026-11-06).
     for (const [question, a] of [[1, 13], [10, 18], [18, 11]]) {
       await page.evaluate(n => { window.mathtime.game.state.question = n; }, question);
       await setProblem(page, a, 9);
-      const { first, outline, shot } = await groupOffset(page);
-      const off = (await labelInk(page, shot)).midX - (first.left + outline.right) / 2;
+      const { first, box, shot } = await groupOffset(page);
+      const off = (await labelInk(page, shot)).midX - (first.left + box.right) / 2;
       expect(Math.abs(off), `Question ${question}, ${a} − 9: ${off.toFixed(3)}px`).toBeLessThanOrEqual(TOL);
     }
   });
@@ -224,15 +226,16 @@ test.describe('the fit', () => {
     await resize(page, 280, 700);
     await layOut(page, 18, 9);
     expect(await fontSize(page), 'shrunk to fit').toBeLessThan(await cssFontSize(page));
-    await showOutline(page);
+    // The right gutter is to the box's border (to its dashed outline until
+    // that was removed, 2026-11-06).
     const shot = await capture(page);
     const first = await digitInk(page, shot, '#a');
-    const outline = await outlineEdges(page, shot);
+    const box = await boxEdges(page, shot);
     const stage = await rect(page, '.stage');
     note('left gutter', first.left - stage.left);
-    note('right gutter', stage.right - outline.right);
+    note('right gutter', stage.right - box.right);
     expect(first.left - stage.left, 'left gutter').toBeGreaterThanOrEqual(16 - 0.01);
-    expect(stage.right - outline.right, 'right gutter').toBeGreaterThanOrEqual(16 - 0.01);
+    expect(stage.right - box.right, 'right gutter').toBeGreaterThanOrEqual(16 - 0.01);
     expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth), 'no horizontal scroll').toBeLessThanOrEqual(0);
   });
 
@@ -249,11 +252,14 @@ test.describe('the fit', () => {
   });
 
   test('after Level 3, Level 1 is fitted for its one digit from the first frame', async ({ page }) => {
-    await resize(page, 280, 700);
+    // 270px, not 280px: without the box's dashed outline (removed 2026-11-06)
+    // one digit fits at its CSS size at 280px on the phone, and Level 1 must
+    // shrink here for the test to mean anything.
+    await resize(page, 270, 700);
     await page.keyboard.press('Escape');                    // to the selector, Level 3's two digits drawn
     await expect(page.locator('.select')).toBeVisible();
     const { atClick, settled } = await chooseAndFit(page, 1);
-    expect(settled.size, 'precondition: Level 1 shrinks at 280px too').not.toBe('');
+    expect(settled.size, 'precondition: Level 1 shrinks at 270px too').not.toBe('');
     expect(atClick).toEqual(settled);
   });
 });
