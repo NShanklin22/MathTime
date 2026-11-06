@@ -1,7 +1,9 @@
+import { levelName } from './levels.js';
+
 // Draws game state into the page and plays the feedback animations
 // (timings from spec §2).
 export function createView(dom, layout, level) {
-  const { eq, slot, shown, caret, qnum, hearts, livesBox, a, b, op, ans, status, topic, here, run } = dom;
+  const { eq, slot, shown, caret, qnum, hearts, livesBox, a, b, op, ans, status, here, run } = dom;
   const ANIMS = ['shake', 'in', 'out'];
   const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -76,8 +78,7 @@ export function createView(dom, layout, level) {
     level = next;
     op.textContent = level.op;
     ans.maxLength = level.maxAnswerLength;
-    topic.textContent = level.topic;
-    here.textContent = `Level ${level.n}`;
+    here.textContent = levelName(level);
     run?.replaceChildren(...Array.from({ length: level.problemsPerRun }, () => document.createElement('span')));
   }
 

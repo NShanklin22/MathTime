@@ -16,9 +16,25 @@ const dom = {
   eq: $('#eq'), slot: $('#slot'), shown: $('#shown'), caret: $('.caret'), qnum: $('#qnum'),
   a: $('#a'), b: $('#b'), op: $('#eq .op'), ans: $('#ans'), pad: $('.pad'), stage: $('.stage'), topBar: $('.top'),
   run: $('.run'), select: $('.select'), finish: $('.finish'), board: $('#board'), check: $('.pad .go'),
-  topic: $('.crumbs .topic'), here: $('.crumbs .here'), back: $('.crumbs .back'),
+  here: $('.crumbs .here'), back: $('.crumbs .back'),
   livesBox: $('.lives'), hearts: [...document.querySelectorAll('.lives svg')], status: $('#status'),
 };
+
+// Does the system's own scrollbar take room (a desktop's classic bar, with
+// a mouse or only a touch screen), or lie over the page (a phone's)? Where
+// it takes room, the lists that can scroll get the theme's scrollbar
+// (styles.css, html.scrollbars-take-room); where it lies over the page, the
+// system's is left alone, taking none. Measured once, at the start, on a
+// plain box outside the lists, before anything is laid out.
+function markScrollbars() {
+  const probe = document.createElement('div');
+  probe.style.cssText = 'position:absolute;top:0;left:0;width:100px;height:100px;overflow:scroll;visibility:hidden';
+  document.body.append(probe);
+  const room = probe.offsetWidth - probe.clientWidth;
+  probe.remove();
+  document.documentElement.classList.toggle('scrollbars-take-room', room > 0);
+}
+markScrollbars();
 
 const game = createGame(LEVELS[0]);
 const scan = createScanner();
@@ -94,6 +110,8 @@ function toSelector(press) {
 // The run is finished: its record goes into the queue at once (runs spec
 // §6), and the finish screen's words are settled against the best of the
 // runs kept before it. The time is in whole ms, as the record has it.
+// Runs are kept and found by the level's build order (the result's level,
+// its n); the screen names it as the breadcrumb does.
 // Keeping it must never stop the finish screen: a record that can't be made
 // (no crypto.randomUUID() on an origin that isn't secure) is not kept, and
 // the screen still shows the time.
@@ -106,7 +124,7 @@ function keepRun() {
   } catch (err) {
     console.error(err);
   }
-  return finishText(level, Math.round(totalMs), misses, best);
+  return finishText(game.level, Math.round(totalMs), misses, best);
 }
 
 // The finish screen, with "Again" focused (runs spec §3).
@@ -234,7 +252,10 @@ fontsReady().then(() => {
   // loop. The finish screen's column too, as in the mockup: centring its
   // lines never changes its size either. And the selector's list, whose
   // rows narrow when a scrollbar comes into it: lining them up on their ink
-  // never changes its size.
+  // never changes its size. Putting its groups in columns, or letting its
+  // padding give way, can change its size, but what it chooses depends only
+  // on the room the page gives it, which neither changes, so the next
+  // layout chooses the same and it settles (selector.spec.js counts them).
   const resized = new ResizeObserver(relayout);
   resized.observe(dom.stage);
   resized.observe(dom.topBar);

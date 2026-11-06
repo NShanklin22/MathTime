@@ -28,8 +28,7 @@ test('Level 3 asks a two-digit number less one digit, and screen readers hear it
   await expect(page.locator('#a')).toHaveText(String(a));
   await expect(page.locator('#b')).toHaveText(String(b));
   await expect(page.locator('#status')).toHaveText(`Question 1 of 20: ${a} minus ${b}`);
-  await expect(page.locator('.crumbs .topic')).toHaveText('Subtraction');
-  await expect(page.locator('.crumbs .here')).toHaveText('Level 3');
+  await expect(page.locator('.crumbs .here')).toHaveText('Subtraction 2');
   await setProblem(page, 13, 5);
   await page.evaluate(() => window.mathtime.view.announceProblem(window.mathtime.game.state));
   await expect(page.locator('#status')).toHaveText('Question 1 of 20: 13 minus 5');
@@ -66,7 +65,7 @@ test('back on Level 2 after Level 3, the first number and the box are its own ag
   const play = n => page.evaluate(n => window.mathtime.play(window.mathtime.levels.find(l => l.n === n)), n);
   const levelThree = await boxW();
   await play(2);
-  await expect(page.locator('.crumbs .here')).toHaveText('Level 2');
+  await expect(page.locator('.crumbs .here')).toHaveText('Subtraction 1');
   await expect(page.locator('#a .cell')).toHaveCount(1);
   await expect(page.locator('#ans')).toHaveAttribute('maxlength', '1');
   const levelTwo = await boxW();

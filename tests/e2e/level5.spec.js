@@ -31,8 +31,7 @@ test('chosen from the selector, Level 5 asks a division fact, and screen readers
   await expect(page.locator('#a')).toHaveText(String(a));
   await expect(page.locator('#b')).toHaveText(String(b));
   await expect(page.locator('#status')).toHaveText(`Question 1 of 20: ${a} divided by ${b}`);
-  await expect(page.locator('.crumbs .topic')).toHaveText('Division');
-  await expect(page.locator('.crumbs .here')).toHaveText('Level 5');
+  await expect(page.locator('.crumbs .here')).toHaveText('Division 1');
   await expect(page.locator('#qnum')).toHaveText('Question 1 of 20');
   await expect(page.locator('.lives')).toHaveAttribute('aria-label', '3 lives left');
   await setProblem(page, 56, 8);
@@ -66,8 +65,8 @@ test('a wrong answer costs a life, and a right one moves on to another division 
 
 test('a run of 20 finishes on the finish screen, and Level 5\'s row is marked finished', async ({ page }) => {
   await finishRun(page);
-  await expect(page.getByRole('region', { name: 'Level 5 complete' })).toBeVisible();
-  await expect(page.locator('.finish .done-title')).toHaveText('Level 5 complete');
+  await expect(page.getByRole('region', { name: 'Division 1 complete', exact: true })).toBeVisible();
+  await expect(page.locator('.finish .done-title')).toHaveText('Division 1 complete');
   const time = await page.locator('.finish .done-time').textContent();
   const kept = await page.evaluate(() => JSON.parse(localStorage.getItem('mathtime.runs')));
   expect(kept.map(r => r.level)).toEqual([5]);
@@ -76,7 +75,7 @@ test('a run of 20 finishes on the finish screen, and Level 5\'s row is marked fi
   await expect(page.locator('.select')).toBeVisible();
   await expect(levelRow(page, 5)).toHaveClass(/\bfinished\b/);
   await expect(levelRow(page, 5).locator('.best')).toHaveText(time);
-  await expect(levelRow(page, 5)).toHaveAttribute('aria-label', `Level 5: Division facts. Finished, best ${time}.`);
+  await expect(levelRow(page, 5)).toHaveAttribute('aria-label', `Division, Level 1: Division facts. Finished, best ${time}.`);
 });
 
 test.describe('alignment', () => {

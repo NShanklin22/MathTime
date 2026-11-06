@@ -15,12 +15,19 @@
 <body class="at-select" data-kind="fact">
   <header class="top">
     <div class="where">
+      <!-- "Levels › Addition 1": the way back, and the level by its topic and
+           its number within it (view.js, board.js). Where the whole of it,
+           with the widest level name, doesn't fit beside the hearts, every
+           level's way back is its chevron alone, the separator pointing
+           left, "‹ Addition 1" (header.js); it is still the link "Levels".
+           The chevron is the separator mirrored and moved 0.25px left, so
+           its ink (the stroke, with its round caps and join) runs from 3px
+           to 8px of its box: header.js puts the box on a whole device pixel
+           at the header's edge, and so the ink starts on one too. -->
       <nav class="crumbs" aria-label="Breadcrumb">
-        <a class="back" href="#" aria-keyshortcuts="Escape" tabindex="-1">Levels</a>
+        <a class="back" href="#" aria-label="Levels" aria-keyshortcuts="Escape" tabindex="-1"><span class="word">Levels</span><svg class="chevron" viewBox="0 0 12 12" aria-hidden="true"><path d="M7.25 2.5L3.75 6l3.5 3.5"/></svg></a>
         <svg class="sep" viewBox="0 0 12 12" aria-hidden="true"><path d="M4.5 2.5L8 6l-3.5 3.5"/></svg>
-        <span class="topic">Addition</span>
-        <svg class="sep topic-sep" viewBox="0 0 12 12" aria-hidden="true"><path d="M4.5 2.5L8 6l-3.5 3.5"/></svg>
-        <span class="here" aria-current="step">Level 1</span>
+        <span class="here" aria-current="step">Addition 1</span>
         <span class="home" aria-current="page">Levels</span>
       </nav>
     </div>

@@ -1,6 +1,6 @@
 # Incident: the system scrollbar on the level selector
 
-2026-11-05. Status: **open**. Corrective action proposed below and waiting for your approval. No code has been changed.
+2026-11-05. Status: **corrective action approved by you on 2026-11-05; the fix is built on branch `selector-fit`** (section 4 records what was built and where it departs from section 3).
 
 ## 1. The problem
 
@@ -52,3 +52,16 @@ The fault is mine: the process I ran had no way to see this, and I didn't look m
    - in your global CLAUDE.md, as one sentence under the UI-review rule ("screenshots show real scrollbars and include a 1366×768 laptop window"), since that rule covers every project.
 
 On your "approved", I do A and B, test first. Each goes through the UI reviewer at all seven sizes, then I commit and report with two screenshots. Pushing waits for you.
+
+## 4. As built
+
+- **Columns.** n columns are allowed when their rows, n×388 + (n−1)×32, fit within the window less its two sides. Each side is the larger of the page gutter and that side's safe-area inset. The columns are centred, so the larger side counts on both edges. The list's own padding may run into the sides.
+- **Padding gives way first.** Before the list scrolls, its top and bottom padding shrink by the same amount, on whole device pixels. The bottom stops at 6px (the focus ring's clearance, or the home-bar inset) and the top at 16px; then the other one takes the rest. A list whose rows all show never scrolls.
+- **When nothing fits,** the fewest columns that give the shortest scroll are used.
+- **Scrollbar.** At startup an unstyled probe checks whether the system's own scrollbar takes room. If it does (Windows, with a mouse or touch only), `html.scrollbars-take-room` is set, and Chromium draws the bar with `::-webkit-scrollbar`: 8px, square, with no arrow buttons, and stronger when hovered or dragged. Phones' overlay bars take no room, so they keep their own. Other browsers get `scrollbar-width: thin` and `scrollbar-color` from the theme.
+- **Phone tests keep `--hide-scrollbars`.** Section 3's B.1 says otherwise; this is deliberate. Real phones draw overlay scrollbars that take no room, so hidden is closer to them than Windows' classic bars. The desktop project and every review screenshot show real scrollbars.
+- **The fits test.** tests/e2e/fits.spec.js checks every screen at the laptop sizes for scrolling and clipping. Run against the code before the fix, it reports the defect exactly: 854 in 605, 678, 558 and 848.
+- **Process (B.4–B.6),** outside the code:
+  - in the project memory (feedback-real-scrollbars);
+  - in your global CLAUDE.md, one sentence under the UI-review rule;
+  - in the implementer rules and in every UI-review brief.

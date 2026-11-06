@@ -47,8 +47,7 @@ test('chosen from the selector, Level 7 sets a two-digit difference on the colum
   await expect(page.locator('.board .dg:not(.small1)')).toHaveText([...String(a), ...String(b)]);
   await expect(page.locator('.board .op')).toHaveText('−');
   await expect(page.locator('.board .cell')).toHaveCount(3);
-  await expect(page.locator('.crumbs .topic')).toHaveText('Subtraction');
-  await expect(page.locator('.crumbs .here')).toHaveText('Level 7');
+  await expect(page.locator('.crumbs .here')).toHaveText('Subtraction 3');
   await expect(page.locator('.lives')).toHaveAttribute('aria-label', '3 lives left');
   await expect(field(page)).toBeFocused();
   await expect(field(page)).toHaveAttribute('aria-label', 'Ones, answer');
@@ -303,7 +302,7 @@ test('three wrong checks are out of lives: back to the selector, Level 7 marked 
 
 test('a run of 20 finishes on the finish screen, its record kept, and Level 7\'s row is marked finished', async ({ page }) => {
   await finishColumnRun(page);
-  await expect(page.getByRole('region', { name: 'Level 7 complete' })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Subtraction 3 complete', exact: true })).toBeVisible();
   const time = await page.locator('.finish .done-time').textContent();
   const kept = await page.evaluate(() => JSON.parse(localStorage.getItem('mathtime.runs')));
   expect(kept.map(r => r.level)).toEqual([7]);
@@ -312,7 +311,7 @@ test('a run of 20 finishes on the finish screen, its record kept, and Level 7\'s
   await page.locator('.finish .levels').click();
   await expect(levelRow(page, 7)).toHaveClass(/\bfinished\b/);
   await expect(levelRow(page, 7).locator('.best')).toHaveText(time);
-  await expect(levelRow(page, 7)).toHaveAttribute('aria-label', `Level 7: Column subtraction. Finished, best ${time}.`);
+  await expect(levelRow(page, 7)).toHaveAttribute('aria-label', `Subtraction, Level 3: Column subtraction. Finished, best ${time}.`);
 });
 
 test('a run goes on to a new problem after each right one, with the board drawn afresh', async ({ page }) => {

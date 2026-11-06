@@ -8,7 +8,7 @@ import { LEVEL5 } from '../../src/level5.js';
 import { LEVEL6 } from '../../src/level6.js';
 import { LEVEL7 } from '../../src/level7.js';
 import { COLUMN_ADD, COLUMN_SUB } from '../../src/columns.js';
-import { LEVELS } from '../../src/levels.js';
+import { LEVELS, levelName } from '../../src/levels.js';
 
 test('Level 2 answers are one digit, 0 to 9, with 3 lives a problem', () => {
   assert.deepEqual(LEVEL2.possibleAnswers, ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9']);
@@ -42,6 +42,35 @@ test('the built levels are Levels 1 to 7 in route order, each with its topic, na
     [5, 'Division', 'Division facts', [56, 8]],
     [6, 'Addition', 'Column addition', [47, 38]],
     [7, 'Subtraction', 'Column subtraction', [52, 27]],
+  ]);
+});
+
+// The number a level is shown with, k: its place within its topic, in
+// route order. Set in each level's own file, so it never changes when
+// another level is added. n, the build order, is what runs are kept by.
+test('each level is numbered within its topic: Addition 1, 2; Subtraction 1, 2, 3; Multiplication 1; Division 1', () => {
+  assert.deepEqual(LEVELS.map(l => [l.n, l.topic, l.k, l.name]), [
+    [1, 'Addition', 1, 'Single-digit addition'],
+    [2, 'Subtraction', 1, 'Subtraction within 10'],
+    [3, 'Subtraction', 2, 'Subtraction past 10'],
+    [4, 'Multiplication', 1, 'Times tables'],
+    [5, 'Division', 1, 'Division facts'],
+    [6, 'Addition', 2, 'Column addition'],
+    [7, 'Subtraction', 3, 'Column subtraction'],
+  ]);
+  for (const level of LEVELS) assert.ok(Object.hasOwn(level, 'k'), `Level ${level.n} sets its own k`);
+});
+
+test('each topic\'s numbers run 1, 2, 3, … in route order', () => {
+  for (const topic of new Set(LEVELS.map(l => l.topic))) {
+    const ks = LEVELS.filter(l => l.topic === topic).map(l => l.k);
+    assert.deepEqual(ks, ks.map((_, i) => i + 1), topic);
+  }
+});
+
+test('a level is named by its topic and its number in it: "Subtraction 3"', () => {
+  assert.deepEqual(LEVELS.map(levelName), [
+    'Addition 1', 'Subtraction 1', 'Subtraction 2', 'Multiplication 1', 'Division 1', 'Addition 2', 'Subtraction 3',
   ]);
 });
 

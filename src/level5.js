@@ -2,6 +2,7 @@
 // this level different from the others lives here.
 export const LEVEL5 = {
   n: 5,
+  k: 1,                   // its number within its topic, as shown: "Division 1"
   topic: 'Division',
   name: 'Division facts',
   op: '÷',                // the division sign U+00F7

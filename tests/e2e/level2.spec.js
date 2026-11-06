@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import {
   open, freeze, showOutline, setProblem, layOut, rect, capture, ink, digitBand, boxEdges, boxInside, borderInner,
-  showAnswer, groupOffset, equalsGap, note, fontSize, typeKeys, TOL, MUTED,
+  showAnswer, groupOffset, equalsGap, note, fontSize, typeKeys, resize, TOL, MUTED,
 } from './helpers.js';
 
 // Level 2, subtraction within 10 (Level 2 spec §1, §2). Its play screen is
@@ -22,8 +22,7 @@ test('Level 2 asks a − b with the minus sign, and screen readers hear "minus"'
   await expect(page.locator('#a')).toHaveText(String(a));
   await expect(page.locator('#b')).toHaveText(String(b));
   await expect(page.locator('#status')).toHaveText(`Question 1 of 20: ${a} minus ${b}`);
-  await expect(page.locator('.crumbs .topic')).toHaveText('Subtraction');
-  await expect(page.locator('.crumbs .here')).toHaveText('Level 2');
+  await expect(page.locator('.crumbs .here')).toHaveText('Subtraction 1');
 });
 
 test('the box takes one digit: a second is ignored, and the caret hides', async ({ page }) => {
@@ -51,33 +50,32 @@ test('a wrong answer costs a life, and a right one moves on to another subtracti
 });
 
 // Level 2 then Level 1 again: everything the level sets is Level 1's again,
-// as when Level 1 is first chosen. On the phone (375px wide) the header is
-// tight for "Subtraction" and not for "Addition", so it must be fitted again
-// too.
+// as when Level 1 is first chosen. The breadcrumb's form is the window's,
+// not the level's: at 320px wide it is the back chevron for both.
 test('back on Level 1, the operator, box, answer length, breadcrumb and word are its own again', async ({ page }) => {
   const boxW = () => page.evaluate(() => parseFloat(getComputedStyle(document.querySelector('#eq')).getPropertyValue('--box-w')));
   const play = i => page.evaluate(i => window.mathtime.play(window.mathtime.levels[i]), i);
-  const phone = test.info().project.name === 'phone';
-  const topic = page.locator('.crumbs .topic');
+  const here = page.locator('.crumbs .here'), word = page.locator('.crumbs .back .word'), chevron = page.locator('.crumbs .back .chevron');
   await open(page);                                      // Level 1, chosen from the selector
+  await resize(page, 320, 640);
   const levelOne = await boxW();
-  if (phone) await expect(topic).toBeVisible();
+  await expect(chevron, '"‹ Addition 1" at 320px').toBeVisible();
   await play(1);
   await expect(page.locator('#eq .op').first()).toHaveText('−');
   await expect(page.locator('#ans')).toHaveAttribute('maxlength', '1');
-  await expect(topic).toHaveText('Subtraction');
+  await expect(here).toHaveText('Subtraction 1');
   expect(await boxW()).not.toBe(levelOne);
-  if (phone) await expect(topic, '"Subtraction" does not fit at 375px').toBeHidden();
+  await expect(chevron, '"‹ Subtraction 1"').toBeVisible();
   await play(0);
   await expect(page.locator('#eq .op').first()).toHaveText('+');
   await expect(page.locator('#ans')).toHaveAttribute('maxlength', '2');
-  await expect(topic).toHaveText('Addition');
-  await expect(page.locator('.crumbs .here')).toHaveText('Level 1');
+  await expect(here).toHaveText('Addition 1');
   const { a, b, answer } = await page.evaluate(() => window.mathtime.game.state.problem);
   expect(answer).toBe(a + b);
   await expect(page.locator('#status')).toHaveText(`Question 1 of 20: ${a} plus ${b}`);
   expect(await boxW()).toBe(levelOne);
-  if (phone) await expect(topic, '"Addition" fits again').toBeVisible();
+  await expect(chevron, '"‹ Addition 1" still').toBeVisible();
+  await expect(word).toBeHidden();
 });
 
 test.describe('alignment', () => {

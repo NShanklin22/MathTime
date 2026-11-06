@@ -32,8 +32,7 @@ test('chosen from the selector, Level 6 sets a two-digit sum on the column board
   await expect(page.locator('.board .dg')).toHaveText([...String(a), ...String(b)]);
   await expect(page.locator('.board .op')).toHaveText('+');
   await expect(page.locator('.board .cell')).toHaveCount(4);
-  await expect(page.locator('.crumbs .topic')).toHaveText('Addition');
-  await expect(page.locator('.crumbs .here')).toHaveText('Level 6');
+  await expect(page.locator('.crumbs .here')).toHaveText('Addition 2');
   await expect(page.locator('.lives')).toHaveAttribute('aria-label', '3 lives left');
   await expect(page.locator('.run span')).toHaveCount(20);
   await expect(field(page)).toBeFocused();
@@ -260,8 +259,8 @@ test('Esc and "Levels" go back to the selector, even during the green; nothing o
 
 test('a run of 20 finishes on the finish screen, its record kept, and Level 6\'s row is marked finished', async ({ page }) => {
   await finishColumnRun(page);
-  await expect(page.getByRole('region', { name: 'Level 6 complete' })).toBeVisible();
-  await expect(page.locator('.finish .done-title')).toHaveText('Level 6 complete');
+  await expect(page.getByRole('region', { name: 'Addition 2 complete', exact: true })).toBeVisible();
+  await expect(page.locator('.finish .done-title')).toHaveText('Addition 2 complete');
   const time = await page.locator('.finish .done-time').textContent();
   const kept = await page.evaluate(() => JSON.parse(localStorage.getItem('mathtime.runs')));
   expect(kept.map(r => r.level)).toEqual([6]);
@@ -271,7 +270,7 @@ test('a run of 20 finishes on the finish screen, its record kept, and Level 6\'s
   await expect(page.locator('.select')).toBeVisible();
   await expect(levelRow(page, 6)).toHaveClass(/\bfinished\b/);
   await expect(levelRow(page, 6).locator('.best')).toHaveText(time);
-  await expect(levelRow(page, 6)).toHaveAttribute('aria-label', `Level 6: Column addition. Finished, best ${time}.`);
+  await expect(levelRow(page, 6)).toHaveAttribute('aria-label', `Addition, Level 2: Column addition. Finished, best ${time}.`);
 });
 
 test('"Again" on the finish screen starts Level 6 afresh', async ({ page }) => {

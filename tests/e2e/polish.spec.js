@@ -159,10 +159,14 @@ test('the hearts are centred on the breadcrumb text, full or lost', async ({ pag
 
 // The first crumb's ink starts at the header's edge, as the hearts' ink
 // ends at the other edge: its side bearing would leave it inside. Its start
-// is on a whole device pixel, so within half of one. Wide (every crumb) and
-// narrow (the first ones dropped).
-for (const width of [1440, 360]) test(`the breadcrumb's ink starts at the header's edge, ${width}px wide`, async ({ page }) => {
+// is on a whole device pixel, so within half of one. Wide and narrow (the
+// whole breadcrumb, "Levels" first), and where the whole one doesn't fit
+// (Multiplication 1 at 320px: the back chevron first, whose ink starts
+// inside its box).
+for (const [width, n] of [[1440, 1], [360, 1], [320, 4]]) test(`the breadcrumb's ink starts at the header's edge, ${width}px wide${n === 4 ? ', the back chevron first' : ''}`, async ({ page }) => {
+  if (n !== 1) await page.evaluate(n => window.mathtime.play(window.mathtime.levels.find(l => l.n === n)), n);
   await resize(page, width, 800);
+  await expect(page.locator('.crumbs .back .chevron')).toBeVisible({ visible: n === 4 });
   const crumbs = ink(await capture(page), await rect(page, '.crumbs'), MUTED);
   const edge = await rect(page, '.where');
   const dpr = await page.evaluate(() => devicePixelRatio);
