@@ -20,7 +20,7 @@
 // `now` is the clock, in ms (runs spec §4); tests pass their own. Nothing
 // shows it. A problem is drawn exactly when the view shows it, so each is
 // timed from then to its correct answer, misses included, and the run from
-// its first problem to its last answer, feedback and slides included.
+// its first problem to its last answer, feedback and fades included.
 //
 // A column level (`kind: 'column'`, Levels 6–7 batch plan) is played by its
 // method (columns.js): a column at a time, right to left. Its state also

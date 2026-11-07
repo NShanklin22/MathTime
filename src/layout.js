@@ -151,10 +151,9 @@ export function createLayout(dom, scan, possibleAnswers) {
     caret.style.width = px(geo.caretW);
   }
 
-  // The equation's box without its live transform. The shake and slide
-  // animations move #eq with translateX, which must not leak into the
-  // snapping. They only translate; a scale would only change the width,
-  // which is divided out.
+  // The equation's box without any live transform. No feedback moves #eq
+  // (fx.js), but a translate must never leak into the snapping; a scale
+  // would only change the width, which is divided out.
   function eqBox() {
     const r = eq.getBoundingClientRect();
     const tf = getComputedStyle(eq).transform;

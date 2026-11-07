@@ -86,7 +86,7 @@ export async function setProblem(page, a, b) {
 
 // Answer questions correctly through the game itself, with no feedback in
 // between, until question `n` is on screen, drawn, placed and announced as
-// after a slide-in.
+// after the reprint.
 export const playTo = (page, n) => page.evaluate(n => {
   const { game, view, layout } = window.mathtime;
   while (game.state.question < n) {
@@ -396,7 +396,7 @@ export async function work(page) {
 
 // A column level's playTo(): problems worked right through the game itself,
 // with no feedback in between, until question `n` is on screen, drawn,
-// placed and announced as after a slide-in.
+// placed and announced as after the reprint.
 export const playColumnsTo = (page, n) => page.evaluate(n => {
   const { game, board } = window.mathtime;
   const keys = x => game.level.n === 6
@@ -517,22 +517,26 @@ export function expectSame(found) {
   }
 }
 
-// A wrong check settled: said, and its shake over.
+// A wrong check settled: said, and its red-line cleared (the build's), or
+// its shake over (the column-methods mockup's, a record of its design).
 export const shaken = page => page.waitForFunction(() => document.querySelector('#status').textContent.startsWith('Wrong')
-  && !document.querySelector('.board .shake'));
+  && !document.querySelector('.board .shake, .board .fx, .board .redframe'));
 
-// From now on, which of the board's cells shake (their ids, as each shake
-// starts). The function returned waits for the shake to end, then says.
-export async function shakes(page) {
+// From now on, which of the board's cells are marked wrong by the red-line
+// (their ids, as each is drawn): a wrong digit struck through, an empty cell
+// framed in red. The function returned waits for them to clear, then says.
+export async function strikes(page) {
   await page.evaluate(() => {
-    window.shook = [];
-    document.querySelector('.board').addEventListener('animationstart', e => {
-      if (e.animationName === 'colshake') window.shook.push(e.target.dataset.tap);
-    });
+    window.struck = [];
+    new MutationObserver(records => {
+      for (const r of records) for (const node of r.addedNodes) {
+        if (node.classList?.contains('redline') || node.classList?.contains('redframe')) window.struck.push(node.dataset.cell);
+      }
+    }).observe(document.querySelector('.board'), { childList: true, subtree: true });
   });
   return async () => {
-    await page.waitForFunction(() => window.shook.length && !document.querySelector('.board .shake'));
-    return page.evaluate(() => window.shook.sort());
+    await page.waitForFunction(() => window.struck.length && !document.querySelector('.board .fx, .board .redframe'));
+    return page.evaluate(() => window.struck.sort());
   };
 }
 

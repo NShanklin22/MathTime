@@ -11,8 +11,9 @@ const problemSaid = page => page.evaluate(() => {
 });
 
 // An in-page log, timed with performance.now(), of what these tests time or
-// must not miss: classes added to #eq (with the caret's visibility and the
-// box border's colour at that moment), #eq's own animations, the level selector appearing, every status
+// must not miss: classes added to and removed from #eq (with the caret's
+// visibility and the box border's colour as one is added), the red-line's
+// strike drawn and gone, the level selector appearing, every status
 // text, and every key and native edit with whether it was default-prevented.
 // Install it before the action under test, once per test.
 const record = page => page.evaluate(() => {
@@ -26,16 +27,20 @@ const record = page => page.evaluate(() => {
     for (const name of has) {
       if (!had.has(name)) at('add', { name, caret: getComputedStyle($('.caret')).visibility, border: getComputedStyle($('#slot'), '::after').borderTopColor });
     }
+    for (const name of had) if (!has.has(name)) at('remove', { name });
     had = has;
   }).observe(eq, { attributes: true, attributeFilter: ['class'] });
+  let struck = false;
+  new MutationObserver(() => {
+    const now = !!$('#slot svg.fx.redline');
+    if (now !== struck) at(now ? 'struck' : 'unstruck', {});
+    struck = now;
+  }).observe($('#slot'), { childList: true, subtree: true });
   new MutationObserver(() => {
     if (document.body.classList.contains('at-select')) at('selector', {});
   }).observe(document.body, { attributes: true, attributeFilter: ['class'] });
   new MutationObserver(() => at('status', { text: $('#status').textContent }))
     .observe($('#status'), { childList: true, characterData: true, subtree: true });
-  for (const type of ['animationstart', 'animationend']) {
-    eq.addEventListener(type, e => { if (e.target === eq) at(type, { name: e.animationName }); });
-  }
   // On window, bubbling: these run after the answer field's own handlers.
   addEventListener('keydown', e => at('key', {
     key: e.key,
@@ -58,10 +63,10 @@ async function seen(page, match, count = 1) {
   await expect.poll(async () => (await entries(page, match)).length).toBeGreaterThanOrEqual(count);
   return (await entries(page, match))[count - 1];
 }
-// From one animation's start to its end on #eq.
+// How long #eq had the class `name`, the first time.
 async function lasted(page, name) {
-  const end = await seen(page, { type: 'animationend', name });
-  const start = await seen(page, { type: 'animationstart', name });
+  const end = await seen(page, { type: 'remove', name });
+  const start = await seen(page, { type: 'add', name });
   return end.t - start.t;
 }
 // Timers and CSS durations (spec §2) alike, in ms.
@@ -97,7 +102,7 @@ test('typing shows the answer in the box; a third digit is ignored', async ({ pa
   await expect(page.locator('#slot')).toHaveClass(/full/);
 });
 
-test('a correct answer turns green, then the next question slides in', async ({ page }) => {
+test('a correct answer is inked green, then the next question fades in', async ({ page }) => {
   await record(page);
   await typeKeys(page, ['7', 'Enter']);
   const green = await seen(page, { type: 'add', name: 'correct' });
@@ -113,65 +118,69 @@ test('a correct answer turns green, then the next question slides in', async ({ 
   expect((await entries(page, { type: 'status' })).map(e => e.text)).toEqual(['Correct', said]);
 });
 
-test('the next problem slides in with its box already white, not fading from green', async ({ page }) => {
+test('the next problem fades in with its box already white, not fading from green', async ({ page }) => {
   await record(page);
   await typeKeys(page, ['7', 'Enter']);
-  const slideIn = await seen(page, { type: 'add', name: 'in' });
-  expect(slideIn.border).toBe('rgb(238, 245, 255)');      // --ink
+  const fadeIn = await seen(page, { type: 'add', name: 'in' });
+  expect(fadeIn.border).toBe('rgb(238, 245, 255)');      // --ink
 });
 
-test('the answer shows green for 0.35s before sliding out', async ({ page }) => {
+test('the answer is inked in 0.15s, the closed frame holds, and it fades out 0.24s after Enter', async ({ page }) => {
   await record(page);
   await typeKeys(page, ['7', 'Enter']);
   const enter = await seen(page, { type: 'key', key: 'Enter' });
+  const inked = await seen(page, { type: 'add', name: 'inked' });
+  near(inked.t - enter.t, 150);
+  expect(inked.border).toBe('rgb(143, 240, 192)');      // --good, the moment the pen goes
   const out = await seen(page, { type: 'add', name: 'out' });
-  near(out.t - enter.t, 350);
+  near(out.t - enter.t, 240);
 });
 
-test('the slide-out and the slide-in each take 0.22s', async ({ page }) => {
+test('the fade-out takes 0.08s and the fade-in 0.12s', async ({ page }) => {
   await record(page);
   await typeKeys(page, ['7', 'Enter']);
-  near(await lasted(page, 'out'), 220);
-  near(await lasted(page, 'in'), 220);
+  near(await lasted(page, 'out'), 80);
+  near(await lasted(page, 'in'), 120);
 });
 
-test('the next problem waits for the slide-out to finish', async ({ page }) => {
+test('the next problem waits for the fade-out to finish', async ({ page }) => {
   // An animation's first frame comes a frame or two after it is asked for, so
   // a timer of its nominal length can end before it does, but only sometimes.
-  // Slowing animations a little (0.22s becomes about 0.26s) makes that gap
-  // certain: the swap must follow the animation itself, not a timer.
+  // Slowing animations (0.08s becomes 0.16s) makes that gap certain: the
+  // swap must follow the animation itself, not a timer.
   const cdp = await page.context().newCDPSession(page);
   await cdp.send('Animation.enable');
-  await cdp.send('Animation.setPlaybackRate', { playbackRate: 0.85 });
-  // Record the slide-out's state at the moment the next problem is swapped in.
+  await cdp.send('Animation.setPlaybackRate', { playbackRate: 0.5 });
+  // Record the fade-out's state at the moment the next problem is swapped in.
   await page.evaluate(() => {
     const { game } = window.mathtime;
     const eq = document.querySelector('#eq');
     const next = game.next;
     game.next = () => {
-      const out = eq.getAnimations().find(a => a.animationName === 'out');
-      window.atSwap = { slide: out?.playState, opacity: getComputedStyle(eq).opacity };
+      const out = eq.getAnimations().find(a => a.id === 'out');
+      window.atSwap = { fade: out?.playState, opacity: getComputedStyle(eq).opacity };
       next();
     };
   });
   await typeKeys(page, ['7', 'Enter']);
   await expect(page.locator('#qnum')).toHaveText('Question 2 of 20');
-  expect(await page.evaluate(() => window.atSwap)).toEqual({ slide: 'finished', opacity: '0' });
+  expect(await page.evaluate(() => window.atSwap)).toEqual({ fade: 'finished', opacity: '0' });
 });
 
-test('with the slide animation off, the next problem arrives at once', async ({ page }) => {
-  await page.addStyleTag({ content: '.eq.out { animation: none !important; }' });
+test('under reduced motion, the next problem arrives 0.32s after Enter, with no fade', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
   await record(page);
   await typeKeys(page, ['7', 'Enter']);
-  // Straight after the green: 'out' comes and goes within one task here,
-  // so time the swap from the Enter.
   const enter = await seen(page, { type: 'key', key: 'Enter' });
-  const swap = await seen(page, { type: 'add', name: 'in' });   // the next problem slides in
-  near(swap.t - enter.t, 350);
+  const inked = await seen(page, { type: 'add', name: 'inked' });
+  expect(inked.t - enter.t, 'inked at once').toBeLessThan(TIME_TOL);
   await expect(page.locator('#qnum')).toHaveText('Question 2 of 20');
+  const swap = await seen(page, { type: 'status', text: await problemSaid(page) });
+  near(swap.t - enter.t, 320);
+  expect(await entries(page, { type: 'add', name: 'in' })).toEqual([]);
 });
 
-test('a slide-out that never finishes gives way after 1s', async ({ page }) => {
+test('a fade-out that never finishes gives way after 1s', async ({ page }) => {
   const cdp = await page.context().newCDPSession(page);
   await cdp.send('Animation.enable');
   await cdp.send('Animation.setPlaybackRate', { playbackRate: 0 });   // animations frozen
@@ -183,9 +192,9 @@ test('a slide-out that never finishes gives way after 1s', async ({ page }) => {
   await expect(page.locator('#qnum')).toHaveText('Question 2 of 20');
 });
 
-test('you can type as the next problem slides in', async ({ page }) => {
+test('you can type as the next problem fades in: the key ends the fade at once', async ({ page }) => {
   await record(page);
-  // Press 5 the moment the slide-in starts.
+  // Press 5 the moment the fade-in starts.
   await page.evaluate(() => {
     const eq = document.querySelector('#eq');
     const watch = new MutationObserver(() => {
@@ -197,14 +206,15 @@ test('you can type as the next problem slides in', async ({ page }) => {
   });
   await typeKeys(page, ['7', 'Enter']);
   const five = await seen(page, { type: 'key', key: '5' });
-  expect(five.eq).toMatch(/\bin\b/);
+  expect(five.eq).toBe('eq');                              // faded in already
   expect(five).toMatchObject({ shown: '5', pressed: true });
   expect(await answerText(page)).toBe('5');
+  await expect(page.locator('#eq')).toHaveCSS('opacity', '1');
 });
 
 test('digits are ignored and do not flash while a correct answer is locked in', async ({ page }) => {
   await record(page);
-  // During the green (at once and 0.2s in), then during the slide-out.
+  // While inked (at once and 0.2s in), then during the fade-out.
   await pressWhenSaid(page, 'Correct', [['5', 0], ['6', 200]]);
   await page.evaluate(() => {
     const eq = document.querySelector('#eq');
@@ -225,10 +235,10 @@ test('digits are ignored and do not flash while a correct answer is locked in', 
   expect(await answerText(page)).toBe('');
 });
 
-test('a wrong answer shakes, clears and costs one life', async ({ page }) => {
+test('a wrong answer is struck through, clears and costs one life', async ({ page }) => {
   await record(page);
   await typeKeys(page, ['9', 'Enter']);
-  await seen(page, { type: 'animationstart', name: 'shake' });
+  await seen(page, { type: 'struck' });
   expect(await answerText(page)).toBe('');
   expect(await lostHearts(page)).toBe(1);
   await expect(page.locator('.lives')).toHaveAttribute('aria-label', '2 lives left');
@@ -236,15 +246,17 @@ test('a wrong answer shakes, clears and costs one life', async ({ page }) => {
   await expect(page.locator('#qnum')).toHaveText('Question 1 of 20');
 });
 
-test('the shake takes 0.32s', async ({ page }) => {
+test('the red-line takes 0.5s', async ({ page }) => {
   await record(page);
   await typeKeys(page, ['9', 'Enter']);
-  near(await lasted(page, 'shake'), 320);
+  const enter = await seen(page, { type: 'key', key: 'Enter' });
+  near((await seen(page, { type: 'unstruck' })).t - enter.t, 500);
 });
 
-test('you can type again straight away during the shake', async ({ page }) => {
+test('you can type again straight away during the red-line', async ({ page }) => {
   await typeKeys(page, ['9', 'Enter', '7']);
   expect(await answerText(page)).toBe('7');
+  await expect(page.locator('.fx, .shown .ghost')).toHaveCount(0);
 });
 
 test('with one life left, the label and the announcement say "1 life left"', async ({ page }) => {
@@ -336,7 +348,16 @@ test('Level 1 draws the new game even if the layout fails', async ({ page }) => 
   await expect(page.locator('#b')).toHaveText(String(b));
 });
 
-test('the level selector appears 0.45s after the third miss', async ({ page }) => {
+test('the level selector appears 0.5s after the third miss, once its red-line has cleared', async ({ page }) => {
+  await record(page);
+  for (let i = 0; i < 3; i++) await typeKeys(page, ['9', 'Enter']);
+  const third = await seen(page, { type: 'key', key: 'Enter' }, 3);
+  const selector = await seen(page, { type: 'selector' });
+  near(selector.t - third.t, 500);
+});
+
+test('under reduced motion, the level selector appears 0.45s after the third miss', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
   await record(page);
   for (let i = 0; i < 3; i++) await typeKeys(page, ['9', 'Enter']);
   const third = await seen(page, { type: 'key', key: 'Enter' }, 3);
@@ -509,11 +530,11 @@ test('nothing in the equation moves while typing or after a wrong answer', async
   await typeKeys(page, ['8']);
   expect(await positions()).toEqual(before);
   await typeKeys(page, ['Enter']);
-  await seen(page, { type: 'animationend', name: 'shake' });   // the shake has finished
+  await seen(page, { type: 'unstruck' });                     // the red-line has cleared
   expect(await positions()).toEqual(before);
 });
 
-test('the next problem slides in even if placing it fails', async ({ page }) => {
+test('the next problem fades in even if placing it fails', async ({ page }) => {
   await record(page);
   await page.evaluate(() => { window.mathtime.layout.place = () => { throw new Error('place failed (test)'); }; });
   await typeKeys(page, ['7', 'Enter']);

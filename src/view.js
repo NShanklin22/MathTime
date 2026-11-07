@@ -1,21 +1,31 @@
 import { levelName } from './levels.js';
+import { TIMING, RED_MS, reducedMotion, createEffects, inkOver, redLine, strikeGeometry, fadeOut, fadeIn, cancelOn } from './fx.js';
 
 // Draws game state into the page and plays the feedback animations
-// (timings from spec §2).
+// (fx.js: inked over, the in-place reprint, the red-line).
 export function createView(dom, layout, level) {
   const { eq, slot, shown, caret, qnum, hearts, livesBox, a, b, op, ans, status, here, run } = dom;
-  const ANIMS = ['shake', 'in', 'out'];
+  // While a right answer is locked in (correct), its frame inked (inked),
+  // the problem fading out or in (out, in), or a wrong answer struck (struck).
+  const FEEDBACK = ['correct', 'inked', 'out', 'in', 'struck'];
   const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+  const effects = createEffects();
 
   // Feedback in flight belongs to the run it started in. reset() ends that
   // run for the view, as leaving for the level selector and starting a run
   // do (Level 2 spec §4). A pending showCorrect, showOut or showFinished
   // then finds its token stale and stops, so nothing it had still to do
-  // happens: no slide, no next problem, no announcement, no screen after.
+  // happens: no reprint, no next problem, no announcement, no screen after.
+  // Whatever is still drawn goes with it.
   let runToken = 0;
   function reset() {
     runToken += 1;
-    eq.classList.remove(...ANIMS, 'correct');
+    stop();
+  }
+  function stop() {
+    effects.clear();
+    cancelOn(eq);
+    eq.classList.remove(...FEEDBACK);
   }
 
   // Problem digits: one fixed cell each, nudged so the ink is centred. The
@@ -82,83 +92,129 @@ export function createView(dom, layout, level) {
     run?.replaceChildren(...Array.from({ length: level.problemsPerRun }, () => document.createElement('span')));
   }
 
-  function play(cls) {
-    eq.classList.remove(...ANIMS);
-    void eq.offsetWidth;                 // restart the animation
-    eq.classList.add(cls);
-  }
-  eq.addEventListener('animationend', e => {
-    // 'out' holds its end state until 'in' replaces it.
-    if (e.target === eq && e.animationName !== 'out') eq.classList.remove(...ANIMS);
-  });
-
   // Tell screen readers which problem is now on screen.
   function announceProblem(state) {
     status.textContent = `Question ${state.question} of ${level.problemsPerRun}: ${state.problem.a} ${level.word} ${state.problem.b}`;
   }
 
-  // Green for 0.35s, slide out, swap in the next problem, slide in. The swap
-  // waits for the slide-out animation itself: its first frame comes a little
-  // after it is asked for, so a timer would cut it short. With animations
-  // off there is none, so the swap is at once; the long timer is only a
-  // last resort for one that never ends. The new problem is centred on its
-  // own ink before it slides in.
+  // Inked over (fx.js): the pen round the box's frame (slot::after, from
+  // the slot's own box), the answer's digits going green; then the frame's
+  // own border and the digits are green (.inked).
+  function ink() {
+    const s = slot.getBoundingClientRect(), after = getComputedStyle(slot, '::after');
+    const top = s.top + parseFloat(after.top);
+    inkOver(effects, {
+      parent: slot,
+      r: { left: s.left, right: s.right, top, bottom: top + parseFloat(after.height) },
+      bw: parseFloat(after.borderTopWidth),
+      digits: [shown],
+      traced: () => eq.classList.add('inked'),
+    });
+  }
+
+  // Red-line (fx.js): `cell`, the wrong answer `typed` as it was drawn,
+  // laid over the cleared box and struck through on its ink's middle.
+  // A wrong entry wider than the box was drawn scaled to fit it.
+  function strike(cell, typed) {
+    if (!cell || !typed) return;
+    const { geo } = layout;
+    const ghost = document.createElement('span');
+    ghost.className = 'ghost';
+    ghost.append(cell);
+    shown.parentElement.append(ghost);
+    const inner = shown.parentElement.getBoundingClientRect();
+    const w = Math.min(layout.inkOf(typed, geo.boxW).w, geo.boxW);
+    const s = strikeGeometry({
+      left: inner.left + (geo.boxW - w) / 2 * geo.fs,
+      right: inner.left + (geo.boxW + w) / 2 * geo.fs,
+      mid: inner.top + geo.mid * geo.fs,
+      size: geo.fs,
+    }, devicePixelRatio);
+    eq.classList.add('struck');
+    redLine(effects, { parent: slot, s, ghost, ended: () => eq.classList.remove('struck') });
+  }
+
+  // Right: inked over (150ms), the closed green frame held 90ms, faded out
+  // (80ms); the next problem drawn and placed while unseen, centred on its
+  // own ink, then faded in (120ms) where it sits. Input is locked until
+  // the swap, 320ms. The fade-out is timed from the frame now shown
+  // (fx.js), and the swap waits for it to end, not for a timer, so it is
+  // never cut short. The fade-in starts fresh, from its own first frame:
+  // drawing and placing the next problem comes just before it. Under
+  // reduced motion there is neither: the inked state shows at once and
+  // the swap is at 320ms. The long timer is only a last resort for a
+  // fade-out that never ends.
   async function showCorrect(state, next) {
     const token = runToken;
+    stop();
     status.textContent = 'Correct';      // always differs from the problem before it, so it is announced
     eq.classList.add('correct');
-    renderRun(state);                    // its segment fills with the green
-    await wait(350);
+    renderRun(state);                    // its segment fills with the ink
+    ink();
+    await wait(TIMING.hold);
     if (token !== runToken) return;      // its run is over
-    play('out');
-    const slide = eq.getAnimations().find(anim => anim.animationName === 'out');
-    if (slide) await Promise.race([slide.finished.catch(() => {}), wait(1000)]);
+    eq.classList.add('out');
+    const out = fadeOut(eq);
+    await (out ? Promise.race([out.finished.catch(() => {}), wait(1000)]) : wait(TIMING.out));
     if (token !== runToken) return;
     next();
-    eq.classList.remove('correct');
+    effects.clear();
+    eq.classList.remove(...FEEDBACK);
     render(state);
     try {
       layout.place();
     } catch (err) {
-      console.error(err);                // still slide in, wherever it is
+      console.error(err);                // still fade in, wherever it is
     }
+    out?.cancel();
     announceProblem(state);
-    play('in');
+    fadeIn(effects, eq);
   }
 
+  // Wrong: the box cleared, and what was in it struck through (red-line).
   function showWrong(state) {
+    stop();
+    const cell = shown.firstElementChild?.cloneNode(true), typed = cell?.textContent ?? '';
     render(state);
     status.textContent = `Wrong, ${livesBox.getAttribute('aria-label')}`;
-    play('shake');
+    strike(cell, typed);
   }
 
-  // Third miss: shake, then resolve true 0.45s later, when the level selector
-  // is due, unless the game was restarted or its run ended meanwhile.
+  // Third miss: the red-line, then resolve true once it has cleared (0.5s;
+  // 0.45s under reduced motion), when the level selector is due, unless the
+  // game was restarted or its run ended meanwhile.
   async function showOut(state) {
     const token = runToken;
-    render(state);
+    showWrong(state);
     status.textContent = 'Out of lives';
-    play('shake');
-    await wait(450);
+    await wait(reducedMotion() ? 450 : RED_MS);
     if (token !== runToken || state.phase !== 'out') return false;
-    eq.classList.remove(...ANIMS);
+    stop();
     return true;
   }
 
-  // The run's last correct answer: green for 0.35s, its segment filled at
-  // once, then resolve true when the finish screen is due (runs spec §3),
-  // unless its run ended meanwhile (a new one started, or you left). No
-  // slide: the screen gives way.
+  // The run's last correct answer: inked over, its segment filled at once,
+  // then resolve true when the finish screen is due (0.24s, as the closed
+  // frame's hold ends; runs spec §3), unless its run ended meanwhile (a new
+  // one started, or you left). No fade: the screen gives way.
   async function showFinished(state) {
     const token = runToken;
+    stop();
     status.textContent = 'Correct';
     eq.classList.add('correct');
     renderRun(state);
-    await wait(350);
+    ink();
+    await wait(TIMING.hold);
     if (token !== runToken || state.phase !== 'finished') return false;
-    eq.classList.remove('correct');
+    stop();
     return true;
   }
 
-  return { render, renderAnswer, setLevel, announceProblem, showCorrect, showWrong, showOut, showFinished, reset };
+  // A key (skip) jumps a red-line or a fade-in to its end at once; a new
+  // layout (settle) jumps every effect to its end, so none is left where
+  // the screen was.
+  const skip = () => effects.skip();
+  const settle = () => effects.settle();
+
+  return { render, renderAnswer, setLevel, announceProblem, showCorrect, showWrong, showOut, showFinished, reset, skip, settle };
 }

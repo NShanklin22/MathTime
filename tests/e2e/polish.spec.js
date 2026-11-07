@@ -66,7 +66,7 @@ test('"Question N" stays centred where canvas has no letter spacing', async ({ p
   note('worst label centring', worst);
 });
 
-test('a new problem after a correct answer is centred before it slides in', async ({ page }) => {
+test('a new problem after a correct answer is centred before it fades in', async ({ page }) => {
   // "4" and "7" have the least and the most space before their ink in Plex
   // Mono, so a placement made for one is visibly off-centre for the other.
   // Measured to the box's border (to its dashed outline until that was
@@ -79,7 +79,7 @@ test('a new problem after a correct answer is centred before it slides in', asyn
       next();
       game.state.problem = { a: 7, b: 1, answer: 8 };
     };
-    // Where the equation is when the slide-in starts.
+    // Where the equation is when the fade-in starts.
     const eq = document.querySelector('#eq');
     const watch = new MutationObserver(() => {
       if (!eq.classList.contains('in')) return;
@@ -90,7 +90,7 @@ test('a new problem after a correct answer is centred before it slides in', asyn
   });
   await typeKeys(page, ['7', 'Enter']);
   await expect(page.locator('#qnum')).toHaveText('Question 2 of 20');
-  await expect(page.locator('#eq')).not.toHaveClass(/\bin\b/);   // it has slid in
+  await expect(page.locator('#eq')).not.toHaveClass(/\bin\b/);   // it has faded in
   expect(await page.evaluate(() => document.querySelector('#eq').style.left)).toBe(await page.evaluate(() => window.leftAtSlideIn));
   const off = (await groupOffset(page)).offset;
   note('centring after a correct answer', off);

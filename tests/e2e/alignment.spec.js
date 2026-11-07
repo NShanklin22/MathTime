@@ -317,9 +317,10 @@ test('a layout fits the problem it shows, one digit or two, whatever was drawn b
   }
 });
 
-// The shake and slide animations move #eq with a transform. Lay out while it
-// is moved, then check where it lands once the transform is gone. Where it
-// goes depends on the first digit, so try each.
+// No feedback moves #eq any more (fx.js), but the layout still discounts a
+// transform on it (layout.js, eqBox). Lay out while it is moved, then check
+// where it lands once the transform is gone. Where it goes depends on the
+// first digit, so try each.
 async function laidOutOnGrid(page) {
   for (let a = 0; a <= 9; a++) {
     await page.evaluate(a => {

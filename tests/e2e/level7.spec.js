@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import {
   open, levelRow, typeKeys, setColumns, work, finishColumnRun, boardCell, written, againstMockup, expectSame,
-  shaken, shakes, listen, flashFor, rect,
+  shaken, strikes, listen, flashFor, rect,
 } from './helpers.js';
 
 // Level 7, column subtraction with borrowing (Levels 6–7 batch plan), on
@@ -71,7 +71,7 @@ test.describe('the board is the mockup\'s, pixel for pixel, at every size', () =
     expectSame(await againstMockup(page, 7, 'partial'));
   });
 
-  test('a wrong column, after its shake: the ones digit without the borrow', async ({ page }) => {
+  test('a wrong column, after its red-line: the ones digit without the borrow', async ({ page }) => {
     await setColumns(page, 52, 27, { cells: { O: '5' }, focus: null });
     await typeKeys(page, ['Enter']);
     await shaken(page);
@@ -169,9 +169,9 @@ test('the arrows: Up into the borrow cell, Down or Right back to the ones; the t
   }
 });
 
-test('a missing borrow is wrong: only the borrow cell shakes, the ones digit stays, and the borrow starts', async ({ page }) => {
+test('a missing borrow is wrong: only the borrow cell is struck, the ones digit stays, and the borrow starts', async ({ page }) => {
   await setColumns(page, 52, 27);
-  const shook = await shakes(page);
+  const shook = await strikes(page);
   await typeKeys(page, ['5', 'Enter']);
   await expect(page.locator('#status')).toHaveText('Wrong: Tens, borrow: the new tens digit. 2 lives left');
   expect(await shook()).toEqual(['B']);
@@ -188,7 +188,7 @@ test('a missing borrow is wrong: only the borrow cell shakes, the ones digit sta
 // (amber), which typing replaces.
 test('a borrow where none is needed is wrong and taken back for you: the strike goes, the cursor on the right ones digit', async ({ page }) => {
   await setColumns(page, 86, 34);
-  const shook = await shakes(page);
+  const shook = await strikes(page);
   await typeKeys(page, ['ArrowUp', '7', '2']);
   await borrowShown(page, true);
   await typeKeys(page, ['Enter']);
@@ -222,7 +222,8 @@ test('the tens may be left empty where they are 0: Enter checks the empty cell a
   await expect(page.locator('#status')).toHaveText('Right. Tens column.');
   const done = await page.evaluate(() => new Promise(resolve => {
     document.querySelector('#ans').dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
-    // Once the frames have faded (0.2s), before the slide out (0.35s).
+    // Once the frames have faded (0.2s), before the swap (0.32s): the frames'
+    // own opacity, whatever the board's fade.
     setTimeout(() => {
       const frame = id => getComputedStyle(document.querySelector(`.board .cell[data-tap="${id}"] .frame`)).opacity;
       resolve({ T: frame('T'), O: frame('O'), B: frame('B'), status: document.querySelector('#status').textContent });
@@ -244,13 +245,13 @@ test('the tens may be left empty where they are 0: Enter checks the empty cell a
   await expect(page.locator('.board .qlabel')).toHaveText('Question 2 of 20');
 });
 
-test('an empty tens cell where the tens are not 0 is a wrong check: the answer row shakes, a life goes, the cursor in the tens', async ({ page }) => {
+test('an empty tens cell where the tens are not 0 is a wrong check: the empty tens cell is struck, a life goes, the cursor in the tens', async ({ page }) => {
   await setColumns(page, 52, 27);
   await typeKeys(page, ['ArrowUp', '4', '5', 'Enter']);
-  const shook = await shakes(page);
+  const shook = await strikes(page);
   await typeKeys(page, ['Enter']);
   await expect(page.locator('#status')).toHaveText('Wrong: Tens, answer. 2 lives left');
-  expect(await shook()).toEqual(['O', 'T']);
+  expect(await shook()).toEqual(['T']);
   await expect(page.locator('.lives')).toHaveAttribute('aria-label', '2 lives left');
   expect(await focus(page)).toBe('T');
   await expect(boardCell(page, 'T')).toHaveClass(/\bfocus\b/);

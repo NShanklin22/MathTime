@@ -49,8 +49,8 @@ async function at(browser, baseURL, [width, height, dpr], runs = null) {
 }
 
 // What clips by design, and so may hold more than it shows:
-// - the problem area (.stage): it clips the equation and the board as they
-//   slide in and out (translateX(±40vw));
+// - the problem area (.stage): it clips the equation and the board, should
+//   either ever be wider than it (nothing slides any more: fx.js);
 // - the live region (.sr-only, #status): visually hidden, in a 1px box, so
 //   screen readers hear it and nothing shows.
 const CLIPS_BY_DESIGN = ['.stage', '.sr-only'];
