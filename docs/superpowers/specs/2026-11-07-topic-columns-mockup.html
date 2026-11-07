@@ -1,0 +1,337 @@
+<!doctype html>
+<html lang="en" class="loading">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Topic columns mockup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<!-- The level selector in topic columns (2026-11-07): one column per topic,
+     left to right in route order, each its heading and then its levels, so
+     row N of every topic is at the same height and the headings share a
+     line. On the game's own styles (src/styles.css). Served by the dev
+     server (scripts/serve.mjs), from the site root:
+       /docs/superpowers/specs/2026-11-07-topic-columns-mockup.html
+       ?topics=6   two made-up topics after Division (Negatives, Decimals)
+       ?topics=6tall  the same with three levels each, so neither band is short
+       ?done=1,3   the levels (by n) shown finished; default Addition 1 and
+                   Subtraction 2
+     The grid's rules are in the script, above arrange().
+     Tuning, for the review only: ?cap= (columns per band), ?min= ?max= (tile width), ?gap= (between
+     columns), ?pad= (a tile's side padding), ?sample= (the sample's size). -->
+<link rel="stylesheet" href="/src/styles.css">
+<style>
+  /* ---------- Topic columns ---------- */
+  /* Where two or more tiles fit across, the list is a grid of topic
+     columns: --cols columns, each --tile wide, --col-gap apart, the bands of
+     topics --group-gap apart. Every column of a band starts at the band's
+     top, and its heading and rows are all the same height, so headings
+     share a line and row N lines up across the band. The script places the
+     grid (arrange()), its left edge on a whole device pixel; --tile is a whole
+     number of device pixels and --col-gap, 24px, is one at 1x, 1.25x, 1.5x,
+     2x and 3x alike, so every column's edges are on device pixels. */
+  .select.cols { max-width: none; padding-left: 0; padding-right: 0; }
+  .select.cols .groups {
+    display: grid;
+    grid-template-columns: repeat(var(--cols), var(--tile));
+    column-gap: var(--col-gap);
+    row-gap: var(--group-gap);
+    align-items: start;
+    width: max-content;
+  }
+  .select.cols .group + .group { margin-top: 0; }
+  /* A narrower tile: the side padding and the sample one step smaller,
+     the same in every tile, so the samples still line up down a column
+     and across. */
+  .select.cols .row { padding: 0 var(--tile-pad); }
+  .select.cols .sample { font-size: var(--tile-sample); }
+</style>
+</head>
+<body class="at-select">
+  <header class="top">
+    <div class="where">
+      <nav class="crumbs" aria-label="Breadcrumb">
+        <a class="back" href="#" aria-label="Levels" tabindex="-1"><span class="word">Levels</span><svg class="chevron" viewBox="0 0 12 12" aria-hidden="true"><path d="M7.25 2.5L3.75 6l3.5 3.5"/></svg></a>
+        <svg class="sep" viewBox="0 0 12 12" aria-hidden="true"><path d="M4.5 2.5L8 6l-3.5 3.5"/></svg>
+        <span class="here" aria-current="step">Addition 1</span>
+        <span class="home" aria-current="page">Levels</span>
+      </nav>
+    </div>
+    <div class="lives" role="img" aria-label="3 lives left">
+      <svg viewBox="2 3 20 18" aria-hidden="true"><path d="M19.5 12.572l-7.5 7.428l-7.5 -7.428a5 5 0 1 1 7.5 -6.566a5 5 0 1 1 7.5 6.572"/></svg>
+      <svg viewBox="2 3 20 18" aria-hidden="true"><path d="M19.5 12.572l-7.5 7.428l-7.5 -7.428a5 5 0 1 1 7.5 -6.566a5 5 0 1 1 7.5 6.572"/></svg>
+      <svg viewBox="2 3 20 18" aria-hidden="true"><path d="M19.5 12.572l-7.5 7.428l-7.5 -7.428a5 5 0 1 1 7.5 -6.566a5 5 0 1 1 7.5 6.572"/></svg>
+    </div>
+  </header>
+  <div class="select" role="region" aria-label="Levels"></div>
+<script type="module">
+  import { LEVELS } from '/src/levels.js';
+  import { fontsReady } from '/src/fonts.js';
+  import { createScanner } from '/src/scanner.js';
+  import { fitHeader } from '/src/header.js';
+  import { byTopic, rowLabel } from '/src/selector.js';
+  import { formatTime } from '/src/finish.js';
+  import { band, snap, onLayoutGrid } from '/src/ink.js';
+
+  const params = new URLSearchParams(location.search);
+  const num = (key, fallback) => params.has(key) ? Number(params.get(key)) : fallback;
+  // The tile: as wide as the room shares out, from MIN to MAX (arrange()).
+  const MIN = num('min', 288), MAX = num('max', 320), GAP = num('gap', 24);
+  const PAD = num('pad', 20), SAMPLE = num('sample', 24);
+
+  // Two made-up topics after Division, for ?topics=6: one of two levels,
+  // one of one, with samples as wide as today's widest.
+  const FAKE = [
+    { n: 101, k: 1, topic: 'Negatives', name: 'Adding negatives', op: '+', sample: ['−3', 8] },
+    { n: 102, k: 2, topic: 'Negatives', name: 'Below zero', op: '−', sample: ['−4', 6] },
+    { n: 103, k: 1, topic: 'Decimals', name: 'Adding tenths', op: '+', sample: ['0.4', '0.3'] },
+  ];
+  // ?topics=6tall: three levels each, so a second band is as tall as the first.
+  const TALL = [
+    { n: 104, k: 3, topic: 'Negatives', name: 'Negative times', op: '×', sample: ['−3', 4] },
+    { n: 105, k: 2, topic: 'Decimals', name: 'Taking tenths', op: '−', sample: ['0.9', '0.4'] },
+    { n: 106, k: 3, topic: 'Decimals', name: 'Times ten', op: '×', sample: ['0.7', 10] },
+  ];
+  const topics = params.get('topics');
+  const levels = topics === '6' ? [...LEVELS, ...FAKE] : topics === '6tall' ? [...LEVELS, ...FAKE, ...TALL] : LEVELS;
+  const done = new Set((params.get('done') ?? '1,3').split(',').filter(Boolean).map(Number));
+  const BEST = { 1: 72_400, 3: 95_000 };
+
+  // Scrollbars take room here as in the game (main.js markScrollbars()).
+  {
+    const probe = document.createElement('div');
+    probe.style.cssText = 'position:absolute;top:0;left:0;width:100px;height:100px;overflow:scroll;visibility:hidden';
+    document.body.append(probe);
+    document.documentElement.classList.toggle('scrollbars-take-room', probe.offsetWidth - probe.clientWidth > 0);
+    probe.remove();
+  }
+
+  // ---------- The rows, as selector.js builds them ----------
+  const CHECK = '<svg class="tick" viewBox="2 5 20 14.5"><path d="M3.5 12.5l5.5 5.5l11.5-11.5"/></svg>';
+  const el = (tag, cls, text) => {
+    const node = document.createElement(tag);
+    if (cls) node.className = cls;
+    if (text != null) node.textContent = text;
+    return node;
+  };
+  const root = document.querySelector('.select');
+  const groups = el('div', 'groups');
+  root.append(groups);
+  const rows = [];
+  let group = null;
+  for (const level of byTopic(levels)) {
+    if (group?.dataset.topic !== level.topic) {
+      group = el('section', 'group');
+      group.dataset.topic = level.topic;
+      group.append(el('h2', 'group-name', level.topic));
+      groups.append(group);
+    }
+    const row = el('button', 'row');
+    row.dataset.level = level.n;
+    const txt = el('span', 'txt');
+    txt.append(el('span', 'title', `Level ${level.k}`), el('span', 'name', level.name));
+    const sample = el('span', 'sample');
+    sample.setAttribute('aria-hidden', 'true');
+    const [a, b] = level.sample;
+    sample.append(el('span', null, String(a)), el('span', 'op', level.op), el('span', null, String(b)));
+    const result = el('span', 'result');
+    result.setAttribute('aria-hidden', 'true');
+    result.innerHTML = CHECK;
+    result.append(el('span', 'best'));
+    row.append(txt, sample, result);
+    const ms = done.has(level.n) ? BEST[level.n] ?? 81_300 : null;
+    row.classList.toggle('finished', ms != null);
+    if (ms != null) result.querySelector('.best').textContent = formatTime(ms);
+    row.setAttribute('aria-label', rowLabel(level, ms));
+    rows.push(row);
+    group.append(row);
+  }
+  root.style.setProperty('--tile-pad', PAD + 'px');
+  root.style.setProperty('--tile-sample', SAMPLE + 'px');
+  root.style.setProperty('--col-gap', GAP + 'px');
+
+  // ---------- Topic columns ----------
+  // The page's side: where the header's title, "Levels", starts its ink.
+  // The grid's rows are measured against it.
+  //
+  // Which grid (the UI review, 2026-11-07):
+  // - n columns fit across when n tiles of MIN and their gaps fit inside
+  //   the sides. Fewer than two fit: one column, as today (388px, the
+  //   topics stacked; it may scroll there, as today).
+  // - Otherwise the topics go into bands of c columns, as even as they
+  //   come (6 topics in 4 columns are 2 bands of 3; 4 in 3, 2 of 2), so no
+  //   band is ragged against another and the columns are the same in
+  //   every band.
+  // - c is at most CAP (4) where the height allows: 4 topics are one row;
+  //   6 are 3 + 3, at the full tile, not 6 narrow tiles, even where 6 fit.
+  // - When a band won't fit, the fallback is first more columns per band,
+  //   up to as many as fit across at MIN, as long as the grid gets shorter
+  //   and fits; then, if none fits, the list scrolls with the themed
+  //   scrollbar, laid out as the shortest of them (the first, of equals).
+  // - The tile is its share of the width inside the title's inset on both
+  //   sides, down to a whole number of device pixels (the gap, 24px, is one
+  //   at every ratio, so every column's edges are on device pixels), and
+  //   never more than MAX. The grid is centred, its left edge on a whole
+  //   device pixel: under MAX its edges are the title's inset on both sides
+  //   (the rounding's leftover split between them); at MAX the tile stops
+  //   growing and the margins grow from the inset, smoothly, with the width.
+  const CAP = num('cap', 4);
+  let scrolls = false;                   // the grid can't fit, and scrolls
+  function arrange() {
+    const all = [...groups.children];
+    const cs = getComputedStyle(root);
+    const px = name => parseFloat(cs.getPropertyValue(name));
+    root.classList.remove('cols');
+    groups.style.marginLeft = '';
+    scrolls = false;
+    // Measured with no scrollbar: the stacked column would scroll here
+    // even where the grid won't.
+    root.style.maxWidth = 'none';
+    root.style.overflowY = 'hidden';
+    const box = root.getBoundingClientRect();
+    let client = root.clientWidth;
+    const title = document.querySelector('.crumbs .home').getBoundingClientRect().left;
+    const inset = title - box.left;
+    const width = client - 2 * inset;
+    const most = Math.min(all.length, Math.floor((width + GAP) / (MIN + GAP)));
+    if (most < 2) { root.style.maxWidth = root.style.overflowY = ''; return; }
+    // Each group's height, all the same at any tile width (the rows are 80px).
+    const heights = all.map(g => g.getBoundingClientRect().height);
+    const bandGap = px('--group-gap');
+    const room = box.height - px('--select-top-least') - px('--select-bottom-least');
+    const shape = c => {
+      const bands = Math.ceil(all.length / c), cols = Math.ceil(all.length / bands);
+      let h = (bands - 1) * bandGap;
+      for (let b = 0; b < bands; b++) h += Math.max(...heights.slice(b * cols, (b + 1) * cols));
+      return { cols, h };
+    };
+    let chosen = null;
+    for (let c = Math.min(CAP, most); c <= most; c++) {
+      const s = shape(c);
+      if (s.h <= room) { chosen = s; break; }
+      if (!chosen || s.h < chosen.h) chosen = s;
+    }
+    scrolls = chosen.h > room;
+    // Where it scrolls, less the scrollbar's room, if it takes any.
+    root.style.overflowY = scrolls ? 'scroll' : 'hidden';
+    client = root.clientWidth;
+    root.style.overflowY = root.style.maxWidth = '';
+    const n = chosen.cols;
+    const share = (client - 2 * inset - (n - 1) * GAP) / n;
+    const dpr = devicePixelRatio, onPixel = x => Math.round(x * dpr) / dpr, down = x => Math.floor(x * dpr + 1e-6) / dpr;
+    const tile = Math.min(MAX, down(share));
+    // Always centred: under MAX the grid fills the sides less under a device
+    // pixel per tile, split evenly; at MAX the margins grow from the inset.
+    const left = onPixel(box.left + root.clientLeft + (client - (n * tile + (n - 1) * GAP)) / 2);
+    root.classList.add('cols');
+    root.style.setProperty('--cols', n);
+    root.style.setProperty('--tile', tile + 'px');
+    groups.style.marginLeft = (left - groups.getBoundingClientRect().left) + 'px';
+  }
+
+  // The padding gives way as in selector.js fit(): top and bottom alike,
+  // to their least, each on a whole device pixel; or whole, and it scrolls.
+  // But a grid that scrolls (a phone held sideways, too many tall topics)
+  // starts at the least top padding, so more of it shows; the one column
+  // keeps today's whole padding.
+  function pad() {
+    const cs = getComputedStyle(root);
+    const px = name => parseFloat(cs.getPropertyValue(name));
+    const [top, bottom, topLeast, bottomLeast] = ['--select-top', '--select-bottom', '--select-top-least', '--select-bottom-least'].map(px);
+    root.style.paddingTop = root.style.paddingBottom = '';
+    const height = root.getBoundingClientRect().height;
+    const tallest = groups.getBoundingClientRect().height;
+    const dpr = devicePixelRatio, spare = height - tallest, down = x => Math.floor(x * dpr + 1e-6) / dpr;
+    let [above, below] = [top, bottom];
+    if (spare < top + bottom && spare >= topLeast + bottomLeast) {
+      below = Math.max(bottomLeast, down(bottom - (top + bottom - spare) / 2));
+      above = down(spare - below);
+      if (above < topLeast) [above, below] = [topLeast, down(spare - topLeast)];
+    } else if (scrolls) above = topLeast;
+    root.style.paddingTop = above === top ? '' : `${above}px`;
+    root.style.paddingBottom = below === bottom ? '' : `${below}px`;
+  }
+
+  // ---------- On its ink, as selector.js does ----------
+  const scan = createScanner();
+  const DIGITS = [...'0123456789'];
+  function textOf(node) {
+    const cs = getComputedStyle(node);
+    const fs = parseFloat(cs.fontSize);
+    const style = { weight: cs.fontWeight, family: cs.fontFamily, color: cs.color, spacing: (parseFloat(cs.letterSpacing) || 0) / fs };
+    return { fs, style, text: cs.textTransform === 'uppercase' ? node.textContent.toUpperCase() : node.textContent };
+  }
+  const rightEdge = row => row.getBoundingClientRect().right - parseFloat(getComputedStyle(row).paddingRight);
+  function inkLeft(node) {
+    const dpr = devicePixelRatio;
+    node.style.marginLeft = '';
+    const { fs, style, text } = textOf(node);
+    const left = node.getBoundingClientRect().left;
+    const at = snap(left + scan(text, style, fs * dpr).abl * fs, dpr);
+    node.style.marginLeft = onLayoutGrid(at - left, dpr) + 'px';
+  }
+  function inkRight(node, edge) {
+    const dpr = devicePixelRatio;
+    node.style.left = '';
+    const { fs, style, text } = textOf(node);
+    const left = node.getBoundingClientRect().left;
+    const at = snap(edge - scan(text, style, fs * dpr).abr * fs, dpr);
+    node.style.left = onLayoutGrid(at - left, dpr) + 'px';
+  }
+  function placeSample(sample, row) {
+    const dpr = devicePixelRatio;
+    sample.style.removeProperty('--ink-dx');
+    sample.style.removeProperty('--ink-dy');
+    const { fs, style } = textOf(sample);
+    const size = fs * dpr;
+    const probe = document.createElement('span');
+    probe.style.cssText = 'position:absolute;visibility:hidden;display:block;height:1em;line-height:1;white-space:pre';
+    probe.innerHTML = '0<span style="display:inline-block;width:0;height:0;vertical-align:baseline"></span>';
+    sample.appendChild(probe);
+    const base = (probe.lastChild.getBoundingClientRect().top - probe.getBoundingClientRect().top) / fs;
+    probe.remove();
+    const each = DIGITS.map(c => scan(c, style, size));
+    const digits = band({ asc: Math.max(...each.map(m => m.asc)), desc: Math.max(...each.map(m => m.desc)) }, base);
+    for (const op of sample.querySelectorAll('.op')) {
+      const m = scan(op.textContent, { ...style, color: getComputedStyle(op).color }, size);
+      op.style.top = (digits.mid - band(m, base).mid).toFixed(4) + 'em';
+    }
+    const r = row.getBoundingClientRect();
+    const baseline = sample.getBoundingClientRect().top + base * fs;
+    const wanted = snap(r.top + r.height / 2 + (base - digits.mid) * fs, dpr);
+    sample.style.setProperty('--ink-dy', onLayoutGrid(wanted - baseline, dpr) + 'px');
+    const last = sample.lastElementChild;
+    const start = last.getBoundingClientRect().left;
+    const at = snap(rightEdge(row) - scan(last.textContent, style, size).abr * fs, dpr);
+    sample.style.setProperty('--ink-dx', onLayoutGrid(at - start, dpr) + 'px');
+  }
+
+  function layout() {
+    if (!root.clientWidth) return;
+    arrange();
+    pad();
+    arrange();                       // a scrollbar may have come or gone
+    const shown = node => node.getClientRects().length > 0;
+    for (const node of root.querySelectorAll('.group-name, .title, .name')) inkLeft(node);
+    for (const row of rows) {
+      const sample = row.querySelector('.sample'), best = row.querySelector('.best');
+      if (shown(sample)) placeSample(sample, row);
+      if (shown(best)) inkRight(best, rightEdge(row));
+    }
+  }
+
+  let queued = false;
+  const relayout = () => {
+    if (queued) return;
+    queued = true;
+    requestAnimationFrame(() => { queued = false; layout(); });
+  };
+  fontsReady().then(() => {
+    fitHeader(document.querySelector('.top'), scan);
+    layout();
+    document.documentElement.classList.remove('loading');
+    addEventListener('resize', relayout);
+  });
+</script>
+</body>
+</html>

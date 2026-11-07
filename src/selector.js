@@ -28,56 +28,53 @@ export function byTopic(levels) {
   return topics.flatMap(topic => levels.filter(level => level.topic === topic));
 }
 
-// The topic groups in columns (incident 2026-11-05): groups `heights` tall,
-// in order, `gap` apart within a column, go into the fewest columns whose
-// tallest fits in `room`, and no more than `most` (but always one, and
-// never more than there are groups). The columns take the groups in order,
-// never splitting one, and the tallest column is as short as it can be.
-// Where no number of columns up to `most` fits, it is the fewest that are
-// as short as any of them, and the list scrolls. Of the splits that short,
-// each column in turn takes as many groups as it can, leaving one for each
-// column after it, as a column of text fills. Returns the index of the
-// group each column starts with.
-export function columnsFor(heights, gap, room, most) {
-  const count = heights.length;
-  if (!count) return [];
-  // Groups `from` to `to` - 1 in one column.
-  const tall = (from, to) => heights.slice(from, to).reduce((sum, h) => sum + h, gap * (to - from - 1));
-  // The shortest the tallest column can be, the groups from `from` on in
-  // `n` columns. Each answer is kept: every split shares them.
-  const kept = new Map();
-  const least = (from, n) => {
-    if (n === 1) return tall(from, count);
-    const key = from * (count + 1) + n;
-    if (!kept.has(key)) {
-      let found = Infinity;
-      for (let to = from + 1; to <= count - n + 1; to++) found = Math.min(found, Math.max(tall(from, to), least(to, n - 1)));
-      kept.set(key, found);
-    }
-    return kept.get(key);
+// The topic columns (the topic-columns mockup, 2026-11-07): which grid.
+// The topics, `heights` tall, go into bands of columns, one topic a
+// column, left to right in order; the bands `gap` apart, each as tall as
+// its tallest topic. `most` columns fit across (tiles at their least
+// width); fewer than two, and it is no grid: null, the one stacked column.
+// Otherwise:
+// - the bands are as even as they come (6 topics in 4 columns are 2 bands
+//   of 3; 4 in 3, 2 of 2), so no band is ragged against another and the
+//   columns are the same in every band;
+// - a band has at most `cap` columns where the height allows: 4 topics are
+//   one band; 6 are 3 + 3, at the full tile, not 6 narrow tiles;
+// - where that won't fit in `room`, more columns a band, up to `most`, as
+//   long as the grid gets shorter and fits; where none fits, the shortest
+//   of them (the first, of equals), and the list scrolls.
+// Returns the columns a band, the grid's height and whether it scrolls.
+export function gridFor(heights, gap, room, most, cap = 4) {
+  most = Math.min(most, heights.length);
+  if (most < 2) return null;
+  const shape = c => {
+    const bands = Math.ceil(heights.length / c), cols = Math.ceil(heights.length / bands);
+    let h = (bands - 1) * gap;
+    for (let b = 0; b < bands; b++) h += Math.max(...heights.slice(b * cols, (b + 1) * cols));
+    return { cols, h };
   };
-  const widest = Math.min(Math.max(1, most), count);
-  let n = 1, tallest = least(0, 1);
-  for (let m = 2; m <= widest && tallest > room; m++) {
-    const t = least(0, m);
-    if (t < tallest || t <= room) [n, tallest] = [m, t];
+  let chosen = null;
+  for (let c = Math.min(cap, most); c <= most; c++) {
+    const s = shape(c);
+    if (s.h <= room) { chosen = s; break; }
+    if (!chosen || s.h < chosen.h) chosen = s;
   }
-  // Each column as full as `tallest` lets it be.
-  const starts = [];
-  for (let c = 0, from = 0; c < n; c++) {
-    starts.push(from);
-    let to = from + 1;
-    while (to < count - (n - c - 1) && (c === n - 1 || tall(from, to + 1) <= tallest)) to++;
-    from = to;
-  }
-  return starts;
+  return { ...chosen, scrolls: chosen.h > room };
+}
+
+// A tile's width, `n` tiles `gap` apart across `width` (the room inside the
+// header title's inset on both sides): its share, down to a whole number
+// of `dpr` device pixels, and never more than `max`. The gap is a whole
+// number of device pixels too, so every column's edges are on them.
+export function tileFor(width, n, gap, max, dpr) {
+  const share = (width - (n - 1) * gap) / n;
+  return Math.min(max, Math.floor(share * dpr + 1e-6) / dpr);
 }
 
 // The level selector (Level 2 spec §3): a row per built level, grouped by
 // topic (byTopic()), each a button that calls choose(level). The rows are
 // in the page in the order shown, so the keyboard follows them. The level
-// you came from is marked with an amber bar and gets the focus. layout()
-// puts the groups in as many columns as the window needs (fit()), then
+// you came from gets the focus (and aria-current). layout()
+// puts the topics in columns where the width allows (fit()), then
 // lines the labels, samples and finished rows' times up on their ink,
 // measured with `scan` (Level 2 spec §5), as layout.js does the equation;
 // it can run any number of times.
@@ -98,7 +95,7 @@ export function createSelector(root, levels, choose, scan) {
   let pressableAt = -Infinity, downAt = null;
   root.addEventListener('pointerdown', e => { downAt = e.timeStamp; }, true);
   root.addEventListener('mousedown', e => { if (e.timeStamp < pressableAt) e.preventDefault(); });
-  // The groups' own box, which fit() sets in columns.
+  // The groups' own box, which fit() makes the grid of topic columns.
   const groups = el('div', 'groups');
   root.append(groups);
   let group = null;
@@ -143,8 +140,8 @@ export function createSelector(root, levels, choose, scan) {
     if (e.repeat && (e.key === 'Enter' || e.key === ' ')) e.preventDefault();
   });
 
-  // Mark the level you came from, or none: the amber bar, and aria-current
-  // for screen readers.
+  // Mark the level you came from, or none: aria-current for screen
+  // readers; it shows only by taking the focus.
   function mark(level) {
     for (const [l, row] of rows) {
       row.classList.toggle('current', l === level);
@@ -188,79 +185,119 @@ export function createSelector(root, levels, choose, scan) {
     reveal(root, row);
   }
 
-  // ---------- In columns (incident 2026-11-05) ----------
+  // ---------- In topic columns (the topic-columns mockup, 2026-11-07) ----------
 
-  // Where one column of groups is taller than the list's room, they flow
-  // into as few columns as fit, as many as the width takes (columnsFor()):
-  // side by side, each the one column's width (--select-column), the gap
-  // between groups (--group-gap) apart, the list as wide as they are and
-  // centred as the one column is. The width takes n columns when what you
-  // see of them, their rows, n × --select-column + (n − 1) × --group-gap,
-  // fits inside the page's sides, as the header's text does: the gutter, or
-  // the safe-area inset where it is larger (--side-left, --side-right). The
-  // list's own padding, which shows nothing, may run into them. The columns
-  // are centred, so the larger side counts on both. One column is always
-  // allowed. They are CSS columns on the groups' box, so nothing moves in
-  // the page: the keyboard still goes group by group, row by row, and the
-  // focus is never lost. A group that starts a column breaks before it and
-  // has no top margin there. Where one column fits, it is left as it always
-  // was: not a column box at all.
+  // Where two or more tiles fit across, the list is a grid of topic
+  // columns (gridFor()): one column a topic, its heading and then its
+  // rows, the bands of topics --group-gap apart, so row N of every topic in
+  // a band is at the same height and the headings share a line. Each tile
+  // is its share of the width inside the page's sides (the header title's
+  // inset: the gutter, or the safe-area inset where it is larger; the
+  // larger side on both, as the grid is centred), from --tile-min up to
+  // --tile-max (tileFor()). The grid is centred, its left edge on a whole
+  // device pixel: under --tile-max its edges are the sides (the rounding's
+  // leftover split between them); at --tile-max the tile stops growing and
+  // the margins grow from the sides, smoothly, with the width. Fewer than
+  // two fit (a phone): the one stacked column, as it always was, which may
+  // scroll. The rows stay in the page in the order shown, so the keyboard
+  // still goes topic by topic, row by row, and the focus is never lost.
   //
-  // The room is the list's height less its padding at its least: the rows
-  // fit if they fit there. Then the padding gives way only by what it must
-  // (the UI reviews): the top and the bottom by the same amount, the bottom
-  // no further than --select-bottom-least and the top than
-  // --select-top-least, the other then giving what is still needed; each to
-  // a whole device pixel rounded down, so rows and padding never come out a
-  // hair too tall, and the first headings stay on the device pixels the
-  // whole padding puts them on (the header's foot is on one).
-  // Where the rows fit with it whole, or don't fit at all (the list
-  // scrolls), the padding is whole.
-  //
-  // When the number of columns changes, the focused row, if it is in the
-  // list, is shown: the scroll position stays where it was, which may now
-  // leave it out of sight.
-  let laidOut = 0;                           // columns as last laid out
-  function fit() {
+  // The room is the list's height less its padding at its least: the grid
+  // fits if it fits there. The width is measured with no scrollbar (the
+  // stacked column would scroll here even where the grid won't); where the
+  // grid scrolls, again less the scrollbar's room, if it takes any, and the
+  // tiles are counted and shared out from that.
+  const BAND = 4;                            // columns a band, where the height allows
+  let scrolls = false;                       // the grid can't fit, and scrolls
+  function arrange() {
     const all = [...groups.children];
     const cs = getComputedStyle(root);
     const px = name => parseFloat(cs.getPropertyValue(name));
-    const column = px('--select-column'), gap = px('--group-gap');
-    const side = Math.max(px('--side-left'), px('--side-right'));
-    const [top, bottom, topLeast, bottomLeast] = ['--select-top', '--select-bottom', '--select-top-least', '--select-bottom-least'].map(px);
-    // The width the rows may take: the list's own with no max-width (the
-    // window's), less the page's sides.
-    root.style.maxWidth = 'none';
-    const width = root.getBoundingClientRect().width - 2 * side;
-    root.style.maxWidth = '';
-    const height = root.getBoundingClientRect().height;
-    const most = Math.floor((width + gap) / (column + gap));
+    root.classList.remove('cols');
+    groups.style.marginLeft = '';
+    scrolls = false;
+    root.style.overflowY = 'hidden';
+    const box = root.getBoundingClientRect();
+    // The sides: where the header's title, "Levels", starts (its box, which
+    // fitHeader() moves so its ink is on the page's edge), as far in on the
+    // right where the right side is the larger.
+    const title = document.querySelector('.top .crumbs .home');
+    const edge = title?.getClientRects().length ? title.getBoundingClientRect().left - box.left : px('--side-left');
+    const side = edge + Math.max(0, px('--side-right') - px('--side-left'));
+    // The gap on a whole number of device pixels: 24px is one at 1x, 1.25x,
+    // 1.5x, 2x and 3x, but not at 1.1x or 0.9x (a zoomed page).
+    const dpr = devicePixelRatio;
+    root.style.removeProperty('--col-gap');
+    const gap = Math.round(px('--col-gap') * dpr) / dpr;
+    const fits = client => Math.floor((client - 2 * side + gap) / (px('--tile-min') + gap));
+    // Each topic's height, the same at any tile width (the rows are 80px).
     const heights = all.map(g => g.getBoundingClientRect().height);
-    const starts = columnsFor(heights, gap, height - topLeast - bottomLeast, most);
-    all.forEach((g, i) => g.classList.toggle('column-start', i > 0 && starts.includes(i)));
-    if (starts.length > 1) {
-      root.style.setProperty('--columns', starts.length);
-      groups.style.columnCount = starts.length;
-    } else {
-      root.style.removeProperty('--columns');
-      groups.style.columnCount = '';
+    const room = box.height - px('--select-top-least') - px('--select-bottom-least');
+    let grid = gridFor(heights, px('--group-gap'), room, fits(root.clientWidth), BAND);
+    // A grid that scrolls has the scrollbar's room the less, which may take
+    // a tile below --tile-min: then as many as fit beside it. Fewer columns
+    // are no shorter, so it still scrolls.
+    let client = root.clientWidth;
+    if (grid?.scrolls) {
+      root.style.overflowY = 'scroll';
+      client = root.clientWidth;
+      if (fits(client) < grid.cols) grid = gridFor(heights, px('--group-gap'), room, fits(client), BAND);
     }
-    // The padding: what the tallest column leaves of the height.
-    const tallest = Math.max(...starts.map((from, c) => {
-      const to = starts[c + 1] ?? all.length;
-      return heights.slice(from, to).reduce((sum, h) => sum + h, gap * (to - from - 1));
-    }));
+    root.style.overflowY = '';
+    if (!grid) return 1;
+    scrolls = grid.scrolls;
+    const n = grid.cols;
+    const tile = tileFor(client - 2 * side, n, gap, px('--tile-max'), dpr);
+    const left = Math.round((box.left + root.clientLeft + (client - (n * tile + (n - 1) * gap)) / 2) * dpr) / dpr;
+    root.classList.add('cols');
+    root.style.setProperty('--cols', n);
+    root.style.setProperty('--tile', tile + 'px');
+    root.style.setProperty('--col-gap', gap + 'px');
+    groups.style.marginLeft = (left - groups.getBoundingClientRect().left) + 'px';
+    return n;
+  }
+
+  // Then the padding gives way only by what it must (the UI reviews): the
+  // top and the bottom by the same amount, the bottom no further than
+  // --select-bottom-least and the top than --select-top-least, the other
+  // then giving what is still needed; each to a whole device pixel rounded
+  // down, so rows and padding never come out a hair too tall, and the first
+  // headings stay on the device pixels the whole padding puts them on (the
+  // header's foot is on one). Where the rows fit with it whole, or don't
+  // fit at all (the list scrolls), the padding is whole; but a grid that
+  // scrolls (a phone held sideways, many tall topics) starts at the least
+  // top padding, so more of it shows. The one column keeps its whole
+  // padding.
+  function pad() {
+    const cs = getComputedStyle(root);
+    const px = name => parseFloat(cs.getPropertyValue(name));
+    const [top, bottom, topLeast, bottomLeast] = ['--select-top', '--select-bottom', '--select-top-least', '--select-bottom-least'].map(px);
+    root.style.paddingTop = root.style.paddingBottom = '';
+    const height = root.getBoundingClientRect().height;
+    const tallest = groups.getBoundingClientRect().height;
     const dpr = devicePixelRatio, spare = height - tallest, down = x => Math.floor(x * dpr + 1e-6) / dpr;
     let [above, below] = [top, bottom];
     if (spare < top + bottom && spare >= topLeast + bottomLeast) {
       below = Math.max(bottomLeast, down(bottom - (top + bottom - spare) / 2));
       above = down(spare - below);
       if (above < topLeast) [above, below] = [topLeast, down(spare - topLeast)];
-    }
+    } else if (scrolls) above = topLeast;
     root.style.paddingTop = above === top ? '' : `${above}px`;
     root.style.paddingBottom = below === bottom ? '' : `${below}px`;
-    if (starts.length !== laidOut) {
-      laidOut = starts.length;
+  }
+
+  // The grid, then the padding. The padding never changes the grid: it
+  // gives way only where the grid fits at the least padding, so the list
+  // scrolls, and has a scrollbar, just where arrange() said it would. When
+  // the number of columns changes, the focused row, if it is in the list,
+  // is shown: the scroll position stays where it was, which may now leave
+  // it out of sight.
+  let laidOut = 0;                           // columns as last laid out
+  function fit() {
+    const n = arrange();
+    pad();
+    if (n !== laidOut) {
+      laidOut = n;
       if (root.contains(document.activeElement)) reveal(root, document.activeElement);
     }
   }
