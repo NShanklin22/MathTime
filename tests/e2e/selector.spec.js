@@ -292,7 +292,7 @@ test('the mark moves to the level you came from last', async ({ page }) => {
 test('on a short screen the list scrolls just far enough to show the marked row and its ring', async ({ page }) => {
   const RING = 6;                                         // 2px, 4px out
   await open(page, 2);
-  await resize(page, 640, 320);
+  await resize(page, 600, 320);
   await setProblem(page, 7, 3);
   for (let i = 0; i < 3; i++) await typeKeys(page, ['9', 'Enter']);
   await expect(levelRow(page, 2)).toBeFocused();
@@ -319,11 +319,12 @@ test('on a short screen the list scrolls just far enough to show the marked row 
   expect(scrolled, 'the page itself never scrolls').toEqual([0, 0]);
 });
 
-// ---------- In columns (incident 2026-11-05, corrective action A) ----------
+// ---------- In topic columns (the topic-columns mockup, 2026-11-07) ----------
 
 // The topic groups as they stand: each column, left to right, with its
-// topics top to bottom, its left, right, top and bottom edges, and how far
-// each group's top is below the column's first.
+// topics top to bottom (a topic a column, a band of them; another band
+// below adds a topic to each column it reaches), its left, right, top and
+// bottom edges, and how far each group's top is below the column's first.
 const columns = page => page.evaluate(() => {
   const found = [];
   for (const g of document.querySelectorAll('.select .group')) {
@@ -340,6 +341,9 @@ const scrolls = page => page.evaluate(() => {
   const list = document.querySelector('.select');
   return list.scrollHeight > list.clientHeight;
 });
+// A row's side padding as laid out: 24px in the one column, 20px in topic
+// columns.
+const rowPadding = page => page.evaluate(() => parseFloat(getComputedStyle(document.querySelector('.select .row')).paddingLeft));
 // How far Level `n`'s focus ring (2px, 4px out) is past the top and the
 // foot of what the list shows (at most 0 where it shows whole).
 const ringInside = (page, n) => page.evaluate(n => {
@@ -349,7 +353,8 @@ const ringInside = (page, n) => page.evaluate(n => {
   const r = list.querySelector(`.row[data-level="${n}"]`).getBoundingClientRect();
   return { above: top - (r.top - 6), below: (r.bottom + 6) - bottom };
 }, n);
-// The list's padding as laid out, its height, and its rows' tallest column.
+// The list's padding as laid out, its height, and its rows' height: the
+// one column's, or the grid's, its bands and the gaps between them.
 const listPadding = page => page.evaluate(() => {
   const list = document.querySelector('.select');
   const cs = getComputedStyle(list);
@@ -362,52 +367,147 @@ const listPadding = page => page.evaluate(() => {
 // The padding the list should have for `rows` px of rows in `height`: 40px
 // above and 32px below where they fit (or the list scrolls); else both give
 // way by the same amount, the bottom no further than 6px and the top than
-// 16px, the other taking what is still needed. (The list rounds what gives
-// way down to whole device pixels, so compare to within one: nearPadding.)
-const nearPadding = async (page, pad, at) => {
+// 16px, the other taking what is still needed. A grid that scrolls starts
+// at the least top padding, 16px. (The list rounds what gives way down to
+// whole device pixels, so compare to within one: nearPadding.)
+const nearPadding = async (page, pad, at, grid = false) => {
   const dpr = await page.evaluate(() => devicePixelRatio);
-  const want = wantPadding(pad.rows, pad.height);
+  const want = wantPadding(pad.rows, pad.height, grid);
   for (const side of ['top', 'bottom']) {
     note(`${at}: padding ${side}`, pad[side]);
     expect.soft(Math.abs(pad[side] - want[side]), `${at}: the padding ${side === 'top' ? 'above' : 'below'} (${pad[side]}, want ${want[side]})`).toBeLessThanOrEqual(1 / dpr + 0.01);
   }
   if (pad.height - pad.rows >= 22) expect.soft(pad.top + pad.bottom + pad.rows, `${at}: rows and padding within the list`).toBeLessThanOrEqual(pad.height + 0.01);
 };
-const wantPadding = (rows, height) => {
+const wantPadding = (rows, height, grid) => {
   const spare = height - rows;
-  if (spare >= 72 || spare < 22) return { top: 40, bottom: 32 };
+  if (spare >= 72) return { top: 40, bottom: 32 };
+  if (spare < 22) return { top: grid ? 16 : 40, bottom: 32 };
   let bottom = Math.max(6, 32 - (72 - spare) / 2), top = spare - bottom;
   if (top < 16) [top, bottom] = [16, spare - 16];
   return { top, bottom };
 };
 
-// Where one column is taller than the list's room, the groups flow into as
-// few columns as fit, side by side, never split, read down each column then
-// across; where none fits, the fewest that are as short as any, and the list
-// scrolls. The room is the list's height less its padding at its least.
-// Each window in a context of its own at its pixel ratio (the desktop
-// project's browser, with real scrollbars).
+// The topics, a column each (FOUR); in two bands of two (TWO_BY_TWO:
+// Addition over Multiplication, Subtraction over Division); or stacked in
+// the one column (ONE).
 const ONE = [['Addition', 'Subtraction', 'Multiplication', 'Division']];
-const TWO = [['Addition', 'Subtraction'], ['Multiplication', 'Division']];
-const THREE = [['Addition'], ['Subtraction'], ['Multiplication', 'Division']];
-const SPLITS = [
-  [1366, 657, 1, TWO, false],
-  [1536, 730, 1.25, TWO, false],
-  [1280, 610, 1.5, TWO, false],
-  [1440, 900, 1, ONE, false],
-  [1920, 950, 1, ONE, false],
-  [1366, 400, 1, THREE, false],
-  [1240, 610, 1, TWO, false],
-  [1024, 620, 1, TWO, false],
-  [800, 890, 1, ONE, false],
-  [1920, 330, 1, THREE, true],
+const FOUR = [['Addition'], ['Subtraction'], ['Multiplication'], ['Division']];
+const TWO_BY_TWO = [['Addition', 'Multiplication'], ['Subtraction', 'Division']];
+
+// The grid as laid out, against the mockup's rules: each band's columns
+// --tile wide, whole device pixels, from 288px to 320px, 24px apart, their
+// headings on one line and row N of each at the same height; the bands
+// 32px apart; the grid centred in the list, its left edge on a whole device
+// pixel, never closer to the sides than the header's title, "Levels", is,
+// and under 320px tiles, as close as the rounding lets it be.
+async function expectGrid(page, at) {
+  const g = await page.evaluate(() => {
+    const list = document.querySelector('.select');
+    const box = list.getBoundingClientRect();
+    const r = el => { const b = el.getBoundingClientRect(); return { left: b.left, right: b.right, top: b.top, bottom: b.bottom }; };
+    return {
+      dpr: devicePixelRatio, left: box.left + list.clientLeft, client: list.clientWidth,
+      title: document.querySelector('.crumbs .home').getBoundingClientRect().left - box.left,
+      groups: [...list.querySelectorAll('.group')].map(g => ({ ...r(g), rows: [...g.querySelectorAll('.row')].map(row => r(row).top) })),
+    };
+  });
+  const on = x => Math.abs(x * g.dpr - Math.round(x * g.dpr)) < 0.01;
+  const tile = g.groups[0].right - g.groups[0].left;
+  note(`${at}: tile`, tile);
+  expect.soft(on(tile), `${at}: the tile (${tile}) a whole number of device pixels`).toBe(true);
+  expect.soft(tile, `${at}: the tile at least 288px`).toBeGreaterThanOrEqual(288 - 0.01);
+  expect.soft(tile, `${at}: the tile at most 320px`).toBeLessThanOrEqual(320 + 0.01);
+  const bands = [];
+  for (const group of g.groups) {
+    expect.soft(Math.abs(group.right - group.left - tile), `${at}: every tile as wide`).toBeLessThan(0.01);
+    expect.soft(on(group.left), `${at}: each column's left on a device pixel`).toBe(true);
+    const band = bands.find(b => Math.abs(b[0].top - group.top) < 0.01);
+    if (band) band.push(group);
+    else bands.push([group]);
+  }
+  for (const [b, band] of bands.entries()) {
+    expect.soft(band.length, `${at}: band ${b + 1} as full as the first, or one short`).toBeGreaterThanOrEqual(bands[0].length - 1);
+    for (let i = 1; i < band.length; i++) {
+      expect.soft(band[i].left - band[i - 1].right, `${at}: band ${b + 1}, column ${i} → ${i + 1}`).toBeCloseTo(24, 2);
+      for (let k = 0; k < Math.min(band[i].rows.length, band[0].rows.length); k++) expect.soft(band[i].rows[k], `${at}: band ${b + 1}, row ${k + 1} lined up`).toBeCloseTo(band[0].rows[k], 2);
+    }
+    if (b) {
+      const above = Math.max(...bands[b - 1].map(c => c.bottom));
+      expect.soft(band[0].top - above, `${at}: band ${b} → ${b + 1}`).toBeCloseTo(32, 2);
+      expect.soft(band[0].left, `${at}: band ${b + 1} under the first`).toBeCloseTo(bands[0][0].left, 2);
+    }
+  }
+  const widest = bands.reduce((w, band) => (band.length > w.length ? band : w));
+  const L = widest[0].left - g.left, R = g.left + g.client - widest.at(-1).right;
+  note(`${at}: margins, left`, L);
+  expect.soft(Math.abs(L - R), `${at}: centred (left ${L}, right ${R})`).toBeLessThanOrEqual(1 / g.dpr + 0.01);
+  expect.soft(L, `${at}: no nearer the side than the title`).toBeGreaterThanOrEqual(g.title - 0.01);
+  if (tile < 320 - 0.01) expect.soft(L - g.title, `${at}: under 320px tiles, at the title's inset, but for the rounding`).toBeLessThan(widest.length / g.dpr / 2 + 1 / g.dpr);
+}
+
+// Everything that scrolls, either way, and the document: only the list may,
+// and only down, where it is meant to (`scrolling`).
+const overflow = page => page.evaluate(() => {
+  const found = [];
+  const name = el => el.tagName.toLowerCase() + [...el.classList].map(c => `.${c}`).join('');
+  for (const el of document.querySelectorAll('*')) {
+    const cs = getComputedStyle(el);
+    const can = v => v === 'auto' || v === 'scroll';
+    if (can(cs.overflowY) && el.scrollHeight > el.clientHeight) found.push(el.matches('.select') ? 'the list scrolls down' : `${name(el)} scrolls down`);
+    if (can(cs.overflowX) && el.scrollWidth > el.clientWidth) found.push(`${name(el)} scrolls across`);
+  }
+  const doc = document.scrollingElement;
+  if (doc.scrollHeight > doc.clientHeight || doc.scrollWidth > doc.clientWidth) found.push('the document scrolls');
+  return found;
+});
+
+// The rows and headings as the mockup lays them out, unfinished, at the
+// page's own size and pixel ratio: the mockup's own page, from its own
+// script. Its default finishes Addition 1 and Subtraction 2, which moves
+// neither a row nor a heading.
+async function mockupBoxes(context, query = '') {
+  const page = await context.newPage();
+  try {
+    await page.goto(`/docs/superpowers/specs/2026-11-07-topic-columns-mockup.html${query}`);
+    await page.waitForFunction(() => !document.documentElement.classList.contains('loading'));
+    await settle(page);
+    return await boxes(page);
+  } finally {
+    await page.close();
+  }
+}
+const boxes = page => page.evaluate(() => [...document.querySelectorAll('.select .group-name, .select .row')].map(el => {
+  const b = el.getBoundingClientRect();
+  return `${el.classList[0]} ${b.left} ${b.top} ${b.width} ${b.height}`;
+}));
+
+// At each window: the topics in columns where two tiles of 288px fit inside
+// the title's inset on both sides, as the mockup lays them out, row for row;
+// else the one stacked column. Nothing scrolls but the list, and the list
+// only where it is meant to (a phone, a phone held sideways, a window too
+// short for even one band). Each window in a context of its own at its
+// pixel ratio (the desktop project's browser, with real scrollbars).
+const WINDOWS = [
+  [1366, 657, 1, FOUR, false],
+  [1536, 730, 1.25, FOUR, false],
+  [1280, 610, 1.5, FOUR, false],
+  [1440, 900, 1, FOUR, false],
+  [1920, 950, 1, FOUR, false],
+  [1920, 1080, 1, FOUR, false],
+  [1366, 400, 1, FOUR, false],
+  [1240, 610, 1, TWO_BY_TWO, false],                     // three fit across: two bands of two, not three and one
+  [1024, 620, 1, TWO_BY_TWO, false],
+  [800, 890, 1, TWO_BY_TWO, false],
+  [640, 900, 1, ONE, false],
+  [1920, 330, 1, FOUR, true],
   [375, 812, 2, ONE, true],
   [320, 640, 2, ONE, true],
-  [844, 390, 3, TWO, true],
+  [844, 390, 3, TWO_BY_TWO, true],
 ];
-test('the groups go into as many columns as it takes to fit, at each window', async ({ browser, baseURL }, info) => {
+test('the topics go into columns, as the mockup has them, at each window', async ({ browser, baseURL }, info) => {
   test.skip(info.project.name !== 'desktop', 'each window is a context at its own pixel ratio; the phone\'s ratio is forced by a launch flag');
-  for (const [width, height, dpr, want, scrolling] of SPLITS) {
+  for (const [width, height, dpr, want, scrolling] of WINDOWS) {
     const at = `${width}×${height}@${dpr}`;
     const context = await browser.newContext({ viewport: { width, height }, deviceScaleFactor: dpr, baseURL });
     try {
@@ -417,48 +517,178 @@ test('the groups go into as many columns as it takes to fit, at each window', as
       const found = await columns(page);
       expect.soft(found.map(c => c.topics), `${at}: the columns`).toEqual(want);
       expect.soft(await scrolls(page), `${at}: the list scrolls`).toBe(scrolling);
-      // In the page in reading order: down each column, then across.
+      expect.soft(await overflow(page), `${at}: nothing else scrolls`).toEqual(scrolling ? ['the list scrolls down'] : []);
+      // In the page in reading order: topic by topic, as shown.
       const order = await page.locator('.select .group').evaluateAll(groups => groups.map(g => g.dataset.topic));
-      expect.soft(order, `${at}: the groups in the page`).toEqual(want.flat());
-      for (const c of found) expect.soft(c.tops, `${at}: down the column`).toEqual([...c.tops].sort((a, b) => a - b));
-      // Every column as wide as the others, 32px apart, the first heading
-      // of each at the list's top, below its padding; that padding as the
-      // room calls for.
-      const list = await rect(page, '.select');
-      const pad = await listPadding(page);
-      await nearPadding(page, pad, at);
-      for (const c of found) {
-        expect.soft(c.right - c.left, `${at}: as wide as the first column`).toBeCloseTo(found[0].right - found[0].left, 2);
-        expect.soft(c.top - list.top, `${at}: each column starts at the list's top`).toBeCloseTo(pad.top, 1);
+      expect.soft(order, `${at}: the groups in the page`).toEqual(ONE[0]);
+      const grid = want !== ONE;
+      expect.soft(await page.locator('.select').evaluate(list => list.classList.contains('cols')), `${at}: in topic columns`).toBe(grid);
+      await nearPadding(page, await listPadding(page), at, grid);
+      if (grid) {
+        await expectGrid(page, at);
+        await expect.soft(levelRow(page, 1), `${at}: 20px side padding`).toHaveCSS('padding-left', '20px');
+        await expect.soft(levelRow(page, 1).locator('.sample'), `${at}: 24px samples`).toHaveCSS('font-size', '24px');
+      } else {
+        // The one column, as it always was: the keypad's 420px less 16px
+        // each side, centred; narrower where the window is, and its
+        // scrollbar, where it takes room, takes it from the rows' right.
+        const bar = await page.locator('.select').evaluate(l => l.offsetWidth - l.clientWidth);
+        expect.soft(found[0].right - found[0].left, `${at}: the one column's width`).toBeCloseTo(Math.min(388, width - 32) - bar, 2);
+        expect.soft(Math.abs(found[0].left - Math.max(16, (width - 388) / 2)), `${at}: centred`).toBeLessThanOrEqual(0.01);
+        await expect.soft(levelRow(page, 1), `${at}: 24px side padding`).toHaveCSS('padding-left', '24px');
       }
-      for (let i = 1; i < found.length; i++) expect.soft(found[i].left - found[i - 1].right, `${at}: column ${i} → ${i + 1}`).toBeCloseTo(32, 2);
-      // The rows inside the page's sides (the gutter), as the header's text is.
-      const side = await page.evaluate(() => parseFloat(getComputedStyle(document.querySelector('.top')).paddingLeft));
-      if (found.length > 1) {
-        expect.soft(found[0].left, `${at}: inside the left gutter`).toBeGreaterThanOrEqual(side - 0.01);
-        expect.soft(width - found.at(-1).right, `${at}: inside the right gutter`).toBeGreaterThanOrEqual(side - 0.01);
-      }
-      if (!scrolling) {
-        // Today's column width, the keypad's 420px less 16px each side,
-        // and the whole block centred in the window.
-        for (const c of found) expect.soft(c.right - c.left, `${at}: a column's width`).toBeCloseTo(388, 2);
-        const mid = (found[0].left + found.at(-1).right) / 2;
-        expect.soft(Math.abs(mid - width / 2), `${at}: centred`).toBeLessThanOrEqual(0.5);
-      }
+      expect.soft(await boxes(page), `${at}: the mockup's rows and headings`).toEqual(await mockupBoxes(context));
     } finally {
       await context.close();
     }
   }
 });
 
-// The columns' rows keep inside the page's sides, as the header's text
-// does: the gutter, or the safe-area inset where it is larger. Held
-// sideways at 844×390 two columns' rows (808px) fit inside 16px gutters;
-// with a 47px notch each side (as landscape.spec.js has), only one does.
-test('columns are allowed only where their rows fit inside the gutters or the notches', async ({ page }) => {
+// Under 320px tiles the grid's edges are the title's inset, give or take
+// the rounding's leftover (under a device pixel a tile, split between the
+// sides); beyond, the tile stops growing and the margins grow, half a pixel
+// each side for each pixel of width: no jump between a grid at the sides
+// and a centred one. Every 3px from 1300 to 1480 (the tile reaches 320px at
+// about 1398).
+test('past 320px tiles the margins grow smoothly with the width, never jumping', async ({ page }) => {
   await home(page);
-  await resize(page, 844, 390);
-  expect((await columns(page)).map(c => c.topics), 'two columns in 16px gutters').toEqual(TWO);
+  const dpr = await page.evaluate(() => devicePixelRatio);
+  let last = null;
+  for (let width = 1300; width <= 1480; width += 3) {
+    await resize(page, width, 760);
+    const { left, tile, title } = await page.evaluate(() => {
+      const g = document.querySelector('.select .group').getBoundingClientRect();
+      return { left: g.left, tile: g.width, title: document.querySelector('.crumbs .home').getBoundingClientRect().left };
+    });
+    expect(tile, `${width}px: the tile`).toBeLessThanOrEqual(320);
+    expect(left, `${width}px: no nearer the side than the title`).toBeGreaterThanOrEqual(title - 0.01);
+    if (tile < 320) expect(left - title, `${width}px: at the title's inset`).toBeLessThan(4 / dpr / 2 + 1 / dpr);
+    if (last) {
+      expect(Math.abs(left - last.left), `${width}px: the margin never jumps`).toBeLessThanOrEqual(3 / 2 + 4 / dpr / 2 + 1 / dpr);
+      expect(tile - last.tile, `${width}px: the tile never shrinks`).toBeGreaterThanOrEqual(-0.01);
+      if (last.tile === 320) {
+        expect(left - last.left, `${width}px: at 320px tiles the margin grows with the width`).toBeGreaterThanOrEqual(3 / 2 - 1 / dpr - 0.01);
+        expect(left - last.left, `${width}px: at 320px tiles the margin grows with the width`).toBeLessThanOrEqual(3 / 2 + 1 / dpr + 0.01);
+      }
+    }
+    last = { left, tile };
+  }
+  expect(last.tile, 'at 1480px the tile is at its most').toBe(320);
+});
+
+// A grid that scrolls has the scrollbar's room the less (8px, the theme's),
+// and its tiles are counted from what is left: never below 288px. At
+// 632×300 two tiles fit without the scrollbar but not beside it (285px), so
+// it is the one column; at 1258×330 four fit without it but not beside it
+// (287.5px), so it is two bands of two; at 1270×330 four still fit beside
+// it (290px). And across the widths around each, every tile is 288px or
+// more. (The desktop project: its scrollbars take room.)
+test('a grid that scrolls counts its tiles beside the scrollbar, never below 288px', async ({ page }, info) => {
+  test.skip(info.project.name !== 'desktop', 'the phone project hides scrollbars, which take no room');
+  await home(page);
+  const tiles = () => page.evaluate(() => [...document.querySelectorAll('.select .group')].map(g => g.getBoundingClientRect().width));
+  for (const [width, height, want] of [[632, 300, ONE], [1258, 330, TWO_BY_TWO], [1270, 330, FOUR]]) {
+    const at = `${width}×${height}`;
+    await resize(page, width, height);
+    expect((await columns(page)).map(c => c.topics), `${at}: the columns`).toEqual(want);
+    expect(await scrolls(page), `${at}: the list scrolls`).toBe(true);
+    if (want !== ONE) for (const tile of await tiles()) expect(tile, `${at}: a tile`).toBeGreaterThanOrEqual(288);
+    expect(await overflow(page), `${at}: nothing else scrolls`).toEqual(['the list scrolls down']);
+  }
+  for (const [from, to, height] of [[620, 660, 300], [1240, 1280, 330]]) {
+    for (let width = from; width <= to; width += 2) {
+      await resize(page, width, height);
+      if (await page.locator('.select').evaluate(list => list.classList.contains('cols'))) {
+        for (const tile of await tiles()) expect(tile, `${width}×${height}: a tile`).toBeGreaterThanOrEqual(288);
+      }
+    }
+  }
+});
+
+// At a pixel ratio where 24px is not a whole number of device pixels (a
+// page zoomed to 110% or 90%), the gap is rounded to one, so every
+// column's left edge is still on a device pixel, to within the 1/64px
+// Chrome lays boxes out in (a tile and a gap each, column by column).
+for (const dpr of [1.1, 0.9]) test(`at ${dpr}x the columns' edges are on device pixels`, async ({ browser, baseURL }, info) => {
+  test.skip(info.project.name !== 'desktop', 'each window is a context at its own pixel ratio');
+  const context = await browser.newContext({ viewport: { width: 1366, height: 657 }, deviceScaleFactor: dpr, baseURL });
+  try {
+    const page = await context.newPage();
+    await home(page);
+    await settle(page);
+    expect((await columns(page)).map(c => c.topics)).toEqual(FOUR);
+    const lefts = await page.evaluate(() => [...document.querySelectorAll('.select .group')].map(g => g.getBoundingClientRect().left * devicePixelRatio));
+    lefts.forEach((x, i) => {
+      note(`column ${i + 1}: off a device pixel`, Math.abs(x - Math.round(x)), ' device px');
+      expect(Math.abs(x - Math.round(x)), `column ${i + 1} at ${x} device px`).toBeLessThanOrEqual((2 * i + 1) / 64 * dpr + 1e-6);
+    });
+  } finally {
+    await context.close();
+  }
+});
+
+// Phones keep the one stacked column, as it always was.
+for (const [width, height] of [[375, 812], [320, 640]]) test(`a phone, ${width}×${height}, keeps the one stacked column`, async ({ page }) => {
+  await home(page);
+  await resize(page, width, height);
+  expect((await columns(page)).map(c => c.topics)).toEqual(ONE);
+  await expect(page.locator('.select')).not.toHaveClass(/\bcols\b/);
+  await expect(levelRow(page, 1)).toHaveCSS('padding-left', '24px');
+});
+
+// More topics than a band holds (the mockup's ?topics=6 and ?topics=6tall):
+// two made-up topics after Division, in a selector of their own on the
+// page, in place of the game's. They go in two bands of three, as even as
+// they come, as the mockup lays them out.
+const FAKE = [
+  { n: 101, k: 1, topic: 'Negatives', name: 'Adding negatives', op: '+', sample: ['−3', 8] },
+  { n: 102, k: 2, topic: 'Negatives', name: 'Below zero', op: '−', sample: ['−4', 6] },
+  { n: 103, k: 1, topic: 'Decimals', name: 'Adding tenths', op: '+', sample: ['0.4', '0.3'] },
+];
+const TALL = [
+  { n: 104, k: 3, topic: 'Negatives', name: 'Negative times', op: '×', sample: ['−3', 4] },
+  { n: 105, k: 2, topic: 'Decimals', name: 'Taking tenths', op: '−', sample: ['0.9', '0.4'] },
+  { n: 106, k: 3, topic: 'Decimals', name: 'Times ten', op: '×', sample: ['0.7', 10] },
+];
+const SIX = [['Addition', 'Division'], ['Subtraction', 'Negatives'], ['Multiplication', 'Decimals']];
+for (const [topics, extra] of [['6', FAKE], ['6tall', [...FAKE, ...TALL]]]) test(`six topics (?topics=${topics}) go into two bands of three, as the mockup has them`, async ({ browser, baseURL }, info) => {
+  test.skip(info.project.name !== 'desktop', 'each window is a context at its own pixel ratio');
+  for (const [width, height, dpr] of [[1366, 657, 1], [1920, 1080, 1], [1536, 730, 1.25], [1280, 610, 1.5]]) {
+    const at = `${width}×${height}@${dpr}`;
+    const context = await browser.newContext({ viewport: { width, height }, deviceScaleFactor: dpr, baseURL });
+    try {
+      const page = await context.newPage();
+      await home(page);
+      await page.evaluate(async extra => {
+        const { createSelector } = await import('/src/selector.js');
+        const { createScanner } = await import('/src/scanner.js');
+        const old = document.querySelector('.select');
+        const root = old.cloneNode(false);
+        root.removeAttribute('style');
+        old.replaceWith(root);
+        createSelector(root, [...window.mathtime.levels, ...extra], () => {}, createScanner()).layout();
+      }, extra);
+      await settle(page);
+      expect.soft((await columns(page)).map(c => c.topics), `${at}: the columns`).toEqual(SIX);
+      await expectGrid(page, at);
+      // Three-row topics in both bands are too tall for 657px or 610px: there the grid scrolls.
+      expect.soft(await overflow(page), `${at}: nothing else scrolls`).toEqual(topics === '6tall' && height < 700 ? ['the list scrolls down'] : []);
+      expect.soft(await boxes(page), `${at}: the mockup's rows and headings`).toEqual(await mockupBoxes(context, `?topics=${topics}`));
+    } finally {
+      await context.close();
+    }
+  }
+});
+
+// The topic columns keep inside the page's sides, as the header's text
+// does: the gutter, or the safe-area inset where it is larger. Held
+// sideways at 667×375 two tiles of 288px and their gap (600px) fit inside
+// 16px gutters; with a 47px notch each side (as landscape.spec.js has),
+// they don't, and it is the one column.
+test('topic columns are allowed only where their tiles fit inside the gutters or the notches', async ({ page }) => {
+  await home(page);
+  await resize(page, 667, 375);
+  expect((await columns(page)).map(c => c.topics), 'two columns in 16px gutters').toEqual(TWO_BY_TWO);
   const cdp = await page.context().newCDPSession(page);
   await cdp.send('Emulation.setSafeAreaInsetsOverride', { insets: { top: 0, left: 47, right: 47, bottom: 21 } });
   await expect.poll(async () => (await columns(page)).length, 'one column inside 47px notches').toBe(1);
@@ -466,31 +696,33 @@ test('columns are allowed only where their rows fit inside the gutters or the no
   expect(header, 'the header keeps inside the notch').toBe(47);
   const [c] = await columns(page);
   expect(c.left, 'its rows inside the left notch').toBeGreaterThanOrEqual(47);
-  expect(844 - c.right, 'and the right').toBeGreaterThanOrEqual(47);
+  expect(667 - c.right, 'and the right').toBeGreaterThanOrEqual(47);
 });
 
-// The columns are centred, so the larger side counts on both. At 880×390
-// two columns' rows (808px) fit inside 16px gutters, and would inside a
-// 47px notch on the left and the 16px gutter on the right (817px), but not
-// once centred, 47px clear on both sides (786px): one column.
-test('with a notch on one side only, the larger side counts on both', async ({ page }) => {
+// The grid is centred, so the larger side counts on both. At 680×375 two
+// tiles (600px) fit inside 16px gutters, and would inside a 47px notch on
+// one side and the 16px gutter on the other, but not once centred, 47px
+// clear on both sides: one column, the notch on the left or the right.
+for (const [left, right] of [[47, 0], [0, 47]]) test(`with a notch on the ${left ? 'left' : 'right'} only, the larger side counts on both`, async ({ page }) => {
   await home(page);
-  await resize(page, 880, 390);
-  expect((await columns(page)).map(c => c.topics), 'two columns in 16px gutters').toEqual(TWO);
+  await resize(page, 680, 375);
+  expect((await columns(page)).map(c => c.topics), 'two columns in 16px gutters').toEqual(TWO_BY_TWO);
   const cdp = await page.context().newCDPSession(page);
-  await cdp.send('Emulation.setSafeAreaInsetsOverride', { insets: { top: 0, left: 47, right: 0, bottom: 0 } });
+  await cdp.send('Emulation.setSafeAreaInsetsOverride', { insets: { top: 0, left, right, bottom: 0 } });
   await expect.poll(async () => (await columns(page)).length, 'one column').toBe(1);
   const header = await page.evaluate(() => { const cs = getComputedStyle(document.querySelector('.top')); return [cs.paddingLeft, cs.paddingRight]; });
-  expect(header, 'the header: the notch on the left, the gutter on the right').toEqual(['47px', '16px']);
+  expect(header, 'the header: the notch on its side, the gutter on the other').toEqual(left ? ['47px', '16px'] : ['16px', '47px']);
   const [c] = await columns(page);
   expect(c.left, 'the rows inside the notch').toBeGreaterThanOrEqual(47);
+  expect(680 - c.right, 'on both sides').toBeGreaterThanOrEqual(47);
 });
 
 // Where only the list's padding would overflow, it gives way so nothing
 // scrolls (the UI review): the top and the bottom by the same amount, the
 // bottom no further than 6px (a focused row's ring; or the home bar) and
 // the top than 16px, the other then taking what is still needed. Where even
-// that can't make room, the padding is whole and the list scrolls.
+// that can't make room, the padding is whole and the list scrolls; but a
+// grid that scrolls starts at the least top padding.
 test('where only the padding would overflow, top and bottom give way alike, and the list doesn\'t scroll', async ({ page }) => {
   await home(page);
   const dpr = await page.evaluate(() => devicePixelRatio);
@@ -501,19 +733,19 @@ test('where only the padding would overflow, top and bottom give way alike, and 
     expect(Math.abs((40 - pad.top) - (32 - pad.bottom)), `${at}: the top gives way as far as the bottom`).toBeLessThanOrEqual(1 / dpr + 0.01);
     expect(pad.top, `${at}: the top less than whole`).toBeLessThan(40);
   };
-  // 1440×900: one column, 782px of rows in 848px.
-  await resize(page, 1440, 900);
-  expect((await columns(page)).map(c => c.topics), '1440×900: one column').toEqual(ONE);
+  // 640×900: one column, 782px of rows in 848px.
+  await resize(page, 640, 900);
+  expect((await columns(page)).map(c => c.topics), '640×900: one column').toEqual(ONE);
   let pad = await listPadding(page);
-  expect(await scrolls(page), '1440×900: the list doesn\'t scroll').toBe(false);
-  alike(pad, '1440×900');
-  // 1280×610: two columns, 513px of rows in 558px.
-  await resize(page, 1280, 610);
-  expect((await columns(page)).map(c => c.topics), '1280×610: two columns').toEqual(TWO);
+  expect(await scrolls(page), '640×900: the list doesn\'t scroll').toBe(false);
+  alike(pad, '640×900');
+  // 1366×400: four columns, 286.5px of rows in 352px.
+  await resize(page, 1366, 400);
+  expect((await columns(page)).map(c => c.topics), '1366×400: four columns').toEqual(FOUR);
   pad = await listPadding(page);
-  expect(await scrolls(page), '1280×610: the list doesn\'t scroll').toBe(false);
-  alike(pad, '1280×610');
-  // The foot of the first column, Level 7, focused: its ring shows whole.
+  expect(await scrolls(page), '1366×400: the list doesn\'t scroll').toBe(false);
+  alike(pad, '1366×400');
+  // The foot of the tallest column, Level 7, focused: its ring shows whole.
   for (let i = 0; i < 5; i++) await page.keyboard.press('Tab');
   await expect(levelRow(page, 7)).toBeFocused();
   const { ring, bottom, scrollTop } = await page.evaluate(() => {
@@ -536,6 +768,12 @@ test('where only the padding would overflow, top and bottom give way alike, and 
   pad = await listPadding(page);
   expect(await scrolls(page), '375×812: the list scrolls').toBe(true);
   expect([pad.top, pad.bottom], '375×812: its padding whole').toEqual([40, 32]);
+  // 1920×330: four columns, 286.5px of rows in 282px: the grid scrolls,
+  // from the least top padding, the bottom whole.
+  await resize(page, 1920, 330);
+  pad = await listPadding(page);
+  expect(await scrolls(page), '1920×330: the list scrolls').toBe(true);
+  expect([pad.top, pad.bottom], '1920×330: the top at its least').toEqual([16, 32]);
 });
 
 // A home bar (the safe area below) is the bottom's floor: there the bottom
@@ -576,7 +814,7 @@ test('a focused row keeps the focus, and shows whole, as the window resizes acro
   await home(page);
   for (let i = 0; i < 5; i++) await page.keyboard.press('Tab');
   await expect(levelRow(page, 7)).toBeFocused();
-  for (const [width, height, want] of [[1366, 657, TWO], [1366, 400, THREE], [375, 812, ONE], [844, 390, TWO], [1920, 950, ONE]]) {
+  for (const [width, height, want] of [[1366, 657, FOUR], [1024, 620, TWO_BY_TWO], [375, 812, ONE], [844, 390, TWO_BY_TWO], [1920, 330, FOUR], [1920, 950, FOUR]]) {
     const at = `${width}×${height}`;
     await resize(page, width, height);
     expect((await columns(page)).map(c => c.topics), `${at}: the columns`).toEqual(want);
@@ -588,7 +826,7 @@ test('a focused row keeps the focus, and shows whole, as the window resizes acro
   }
 });
 
-// Putting the groups in columns changes the list's width, which the page
+// Putting the topics in columns changes the list's width, which the page
 // watches (main.js): the layout that follows chooses the same, so a resize
 // settles after a layout or two, and nothing loops.
 test('a resize across column counts settles: a layout or two, then none', async ({ page }) => {
@@ -602,7 +840,7 @@ test('a resize across column counts settles: a layout or two, then none', async 
       layout();
     };
   });
-  for (const [width, height, want] of [[1366, 657, TWO], [1366, 400, THREE], [375, 812, ONE]]) {
+  for (const [width, height, want] of [[1366, 657, FOUR], [1024, 620, TWO_BY_TWO], [375, 812, ONE], [1920, 330, FOUR]]) {
     await page.evaluate(() => { window.selectorLayouts = 0; });
     await resize(page, width, height);
     expect((await columns(page)).map(c => c.topics), `${width}×${height}: the columns`).toEqual(want);
@@ -615,16 +853,16 @@ test('a resize across column counts settles: a layout or two, then none', async 
   }
 });
 
-// In two columns (1366×657), Tab still goes through the rows as shown,
-// down the first column and then the second, and back.
-test('in two columns, Tab and Shift+Tab go down the first column, then the second, and back', async ({ page }) => {
+// In topic columns Tab still goes through the rows as shown, topic by
+// topic: down each column, then on to the next, band by band, and back.
+for (const [width, height, want] of [[1366, 657, FOUR], [1024, 620, TWO_BY_TWO]]) test(`in topic columns at ${width}×${height}, Tab and Shift+Tab go down each topic, then on to the next, and back`, async ({ page }) => {
   await home(page);
-  await resize(page, 1366, 657);
+  await resize(page, width, height);
   const found = await columns(page);
-  expect(found.map(c => c.topics), 'two columns').toEqual(TWO);
+  expect(found.map(c => c.topics), 'the columns').toEqual(want);
   const left = async n => (await levelRow(page, n).boundingBox()).x;
-  expect(await left(4), 'Level 4 in the second column').toBeGreaterThan(found[0].right);
-  expect(await left(7), 'Level 7 in the first').toBeLessThan(found[0].right);
+  expect(await left(6), 'Level 6 under Level 1').toBeCloseTo(await left(1), 2);
+  expect(await left(2), 'Level 2 in the second column').toBeGreaterThan(found[0].right);
   for (const n of SHOWN) {
     await page.keyboard.press('Tab');
     await expect(levelRow(page, n)).toBeFocused();
@@ -635,10 +873,11 @@ test('in two columns, Tab and Shift+Tab go down the first column, then the secon
   }
 });
 
-// At 900×320 the list is two columns and still scrolls: Level 5, the last
-// row of the second column, is below the fold. Back from it, the list
-// scrolls down just far enough to show its row and its ring, and only down.
-test('back from Level 5, at the foot of the second column, the list scrolls just far enough to show its row and ring', async ({ page }) => {
+// At 900×320 the list is two bands of two and still scrolls: Level 5,
+// Division's, in the second column of the second band, is below the fold.
+// Back from it, the list scrolls down just far enough to show its row and
+// its ring, and only down.
+test('back from Level 5, in the second band, the list scrolls just far enough to show its row and ring', async ({ page }) => {
   const RING = 6;                                         // 2px, 4px out
   // Chosen through the game's handle, so the list is unscrolled when it
   // comes back: a click on the row would scroll it into view first.
@@ -650,7 +889,7 @@ test('back from Level 5, at the foot of the second column, the list scrolls just
   await expect(levelRow(page, 5)).toBeFocused();
   await expect(levelRow(page, 5)).toHaveClass(/\bcurrent\b/);
   const found = await columns(page);
-  expect(found.map(c => c.topics), 'two columns').toEqual(TWO);
+  expect(found.map(c => c.topics), 'two bands of two').toEqual(TWO_BY_TWO);
   const { row, view, scrolled } = await page.evaluate(() => {
     const list = document.querySelector('.select');
     const box = list.getBoundingClientRect();
@@ -680,9 +919,17 @@ test('the level you came from has no bar: it is marked only for screen readers a
   expect(before).toBe('none');
 });
 
-test('rows are 80px tall with the key ring and 24px padding; pressed, they take the key-press fill', async ({ page }) => {
+// Rows are 24px in from their sides in the one column, 20px in topic
+// columns (the topic-columns mockup), the same in every tile.
+test('rows are 80px tall with the key ring and 24px padding, 20px in topic columns; pressed, they take the key-press fill', async ({ page }) => {
   await home(page);
   const row = levelRow(page, 1);
+  await resize(page, 1440, 900);
+  for (const n of SHOWN) {
+    await expect(levelRow(page, n)).toHaveCSS('padding-left', '20px');
+    await expect(levelRow(page, n)).toHaveCSS('padding-right', '20px');
+  }
+  await resize(page, 375, 812);
   await expect(row).toHaveCSS('height', '80px');
   await expect(row).toHaveCSS('padding-left', '24px');
   await expect(row).toHaveCSS('padding-right', '24px');
@@ -694,8 +941,13 @@ test('rows are 80px tall with the key ring and 24px padding; pressed, they take 
   await page.mouse.up();
 });
 
+// The samples are 30px in the one column, 24px in topic columns (the
+// topic-columns mockup), the same in every tile.
 test('the type is set as the spec says', async ({ page }) => {
   await home(page);
+  await resize(page, 1440, 900);
+  for (const n of SHOWN) await expect(levelRow(page, n).locator('.sample')).toHaveCSS('font-size', '24px');
+  await resize(page, 375, 812);
   const heading = page.locator('.select .group-name').first();
   await expect(heading).toHaveCSS('font-size', '12px');
   await expect(heading).toHaveCSS('font-weight', '500');
@@ -741,20 +993,46 @@ test('the list starts 40px below the header, headings 14px above their rows, top
   }
 });
 
-// One column, or each of the columns, is the keypad's width less the
-// list's 16px padding, the columns 32px apart, and the list centred.
-test('the column is as wide as the keypad, centred; in columns, each is, 32px apart', async ({ page }) => {
+// The one column is the keypad's width less 16px each side, centred, or
+// the window's less 16px each side where that is narrower (topic columns:
+// the grid tests above). The list itself is the window's width.
+for (const [width, height] of [[600, 857], [400, 900]]) test(`the one column is as wide as the keypad, centred, at ${width}×${height}`, async ({ page }) => {
   await home(page);
-  const width = await page.evaluate(() => innerWidth);
-  const column = await rect(page, '.select');
+  await resize(page, width, height);
+  const list = await rect(page, '.select');
   const found = await columns(page);
-  const n = found.length;
-  expect(column.width).toBe(Math.min(n * 388 + (n - 1) * 32 + 32, width));
-  expect(Math.abs(column.left + column.width / 2 - width / 2)).toBeLessThanOrEqual(0.5);
+  expect(found.map(c => c.topics), 'one column').toEqual(ONE);
+  expect([list.left, list.width], 'the list spans the window').toEqual([0, width]);
   const row = await rect(page, '.select .row', 0);
-  expect(row.left - column.left).toBe(16);
-  expect(column.right - found.at(-1).right).toBe(16);
-  for (let i = 1; i < n; i++) expect(found[i].left - found[i - 1].right, `column ${i} → ${i + 1}`).toBe(32);
+  expect(row.width).toBe(Math.min(388, width - 32));
+  expect(Math.abs(row.left + row.width / 2 - width / 2)).toBeLessThanOrEqual(0.5);
+  expect(row.left).toBe(Math.max(16, (width - 388) / 2));
+});
+
+// Where the one column scrolls, the list's scrollbar is at the window's
+// right edge, not beside the centred column, and the rows are where they
+// were when the list was the column's own width: 16px in from a 420px
+// list, centred, less the scrollbar's room on the right. Up to 640px:
+// wider, the list is in topic columns, whose scroller already spans the
+// window. (The desktop project: its scrollbars take room and show.)
+test('where the one column scrolls, the scrollbar is at the window\'s right edge', async ({ page }, info) => {
+  test.skip(info.project.name !== 'desktop', 'the phone project hides scrollbars');
+  await home(page);
+  for (const [width, height] of [[400, 300], [480, 320], [560, 700], [600, 300], [632, 300], [640, 500]]) {
+    const at = `${width}×${height}`;
+    await resize(page, width, height);
+    expect((await columns(page)).map(c => c.topics), `${at}: one column`).toEqual(ONE);
+    const got = await page.evaluate(() => {
+      const list = document.querySelector('.select');
+      const b = list.getBoundingClientRect(), r = list.querySelector('.row').getBoundingClientRect();
+      return { right: b.right, bar: list.offsetWidth - list.clientWidth, scrolls: list.scrollHeight > list.clientHeight, row: [r.left, r.width] };
+    });
+    expect(got.scrolls, `${at}: the list scrolls`).toBe(true);
+    expect(got.bar, `${at}: with a scrollbar that takes room`).toBeGreaterThan(0);
+    expect(got.right, `${at}: the scroller's right edge is the window's`).toBe(width);
+    const column = Math.min(420, width);
+    expect(got.row, `${at}: the rows where they were`).toEqual([(width - column) / 2 + 16, column - 32 - got.bar]);
+  }
 });
 
 // ---------- On its ink (Level 2 spec §5, finished-mark spec §1) ----------
@@ -837,22 +1115,22 @@ async function shotWith(page, selector, i) {
 }
 
 // Each also at 320×640, where the samples are set at 22px (the narrow
-// rules), and at 1366×657, in two columns: every column is on its ink.
+// rules), and at 1366×657, in four topic columns: every column is on its ink.
 for (const size of [null, [320, 640], [1366, 657]]) test.describe(size ? `ink alignment, ${size.join('×')}` : 'ink alignment', () => {
   test.beforeEach(async ({ page }) => {
     await home(page);
     await freeze(page);
     if (size) await resize(page, ...size);
-    if (size?.[0] === 1366) expect((await columns(page)).map(c => c.topics), 'two columns').toEqual(TWO);
+    if (size?.[0] === 1366) expect((await columns(page)).map(c => c.topics), 'four columns').toEqual(FOUR);
   });
 
   test('row text starts on its ink at the left padding edge, headings at the column\'s', async ({ page }) => {
-    const near = await onEdge(page);
+    const [near, pad] = [await onEdge(page), await rowPadding(page)];
     for (let i = 0; i < await rows(page); i++) {
       const p = await rowInk(page, await shotWith(page, '.select .row', i), i);
-      note(`row ${i + 1} title from the padding edge`, p.title.left - (p.row.left + 24));
-      expect(Math.abs(p.title.left - (p.row.left + 24)), `row ${i + 1} title`).toBeLessThanOrEqual(near);
-      expect(Math.abs(p.name.left - (p.row.left + 24)), `row ${i + 1} name`).toBeLessThanOrEqual(near);
+      note(`row ${i + 1} title from the padding edge`, p.title.left - (p.row.left + pad));
+      expect(Math.abs(p.title.left - (p.row.left + pad)), `row ${i + 1} title`).toBeLessThanOrEqual(near);
+      expect(Math.abs(p.name.left - (p.row.left + pad)), `row ${i + 1} name`).toBeLessThanOrEqual(near);
     }
     // A heading at its own column's edge: its group's left, which its rows
     // share (in one column, the list's padding edge). Read from that
@@ -868,12 +1146,12 @@ for (const size of [null, [320, 640], [1366, 657]]) test.describe(size ? `ink al
 
   // The samples line up down each column (in columns, each has its own edge).
   test('each sample ends on its ink at the right padding edge, so the samples line up', async ({ page }) => {
-    const [near, together] = [await onEdge(page), await apart(page)];
+    const [near, together, pad] = [await onEdge(page), await apart(page), await rowPadding(page)];
     const rights = new Map();                             // a column's left edge → its samples' right ink
     for (let i = 0; i < await rows(page); i++) {
       const p = await rowInk(page, await shotWith(page, '.select .row', i), i);
-      note(`row ${i + 1} sample from the padding edge`, p.sample.right - (p.row.right - 24));
-      expect(Math.abs(p.sample.right - (p.row.right - 24)), `row ${i + 1}`).toBeLessThanOrEqual(near);
+      note(`row ${i + 1} sample from the padding edge`, p.sample.right - (p.row.right - pad));
+      expect(Math.abs(p.sample.right - (p.row.right - pad)), `row ${i + 1}`).toBeLessThanOrEqual(near);
       const column = Math.round(p.row.left);
       rights.set(column, [...(rights.get(column) ?? []), p.sample.right]);
     }
@@ -967,10 +1245,10 @@ for (const size of [null, [320, 640], [1366, 657]]) test.describe(size ? `ink al
 
   test('a new width lays the selector out again', async ({ page }) => {
     await resize(page, 360, 700);
-    const near = await onEdge(page);
+    const [near, pad] = [await onEdge(page), await rowPadding(page)];
     const p = await rowInk(page, await capture(page), 1);
-    expect(Math.abs(p.title.left - (p.row.left + 24)), 'title').toBeLessThanOrEqual(near);
-    expect(Math.abs(p.sample.right - (p.row.right - 24)), 'sample').toBeLessThanOrEqual(near);
+    expect(Math.abs(p.title.left - (p.row.left + pad)), 'title').toBeLessThanOrEqual(near);
+    expect(Math.abs(p.sample.right - (p.row.right - pad)), 'sample').toBeLessThanOrEqual(near);
   });
 
   test('laying the selector out again moves nothing', async ({ page }) => {
@@ -1001,8 +1279,8 @@ for (const size of [null, [320, 640], [1366, 657]]) test.describe(size ? `ink al
     });
     await page.addStyleTag({ content: '.select { padding-right: 33px !important; }' });   // 17px narrower
     await expect.poll(() => page.evaluate(() => window.selectorLayouts)).toBeGreaterThan(0);
-    const p = await rowInk(page, await capture(page), 0);
-    expect(Math.abs(p.sample.right - (p.row.right - 24))).toBeLessThanOrEqual(await onEdge(page));
+    const [p, pad] = [await rowInk(page, await capture(page), 0), await rowPadding(page)];
+    expect(Math.abs(p.sample.right - (p.row.right - pad))).toBeLessThanOrEqual(await onEdge(page));
   });
 });
 
@@ -1084,16 +1362,16 @@ for (const size of [null, [1366, 657]]) test.describe(size ? `ink alignment, fin
     await home(page);
     await freeze(page);
     if (size) await resize(page, ...size);
-    if (size?.[0] === 1366) expect((await columns(page)).map(c => c.topics), 'two columns').toEqual(TWO);
+    if (size?.[0] === 1366) expect((await columns(page)).map(c => c.topics), 'four columns').toEqual(FOUR);
   });
 
   // The check's viewBox is cropped to its ink, so its box, at the padding,
   // is its ink there. The time is moved onto its ink, as the text is.
   test('a finished row\'s check and time end on their ink at the right padding edge, and its margins match', async ({ page }) => {
-    const [near, together] = [await onEdge(page), await apart(page)];
+    const [near, together, pad] = [await onEdge(page), await apart(page), await rowPadding(page)];
     for (let i = 0; i < await rows(page); i++) {
       const p = await rowInk(page, await shotWith(page, '.select .row', i), i);
-      const edge = p.row.right - 24;
+      const edge = p.row.right - pad;
       note(`row ${i + 1} check from the padding edge`, p.tick.right - edge);
       note(`row ${i + 1} time from the padding edge`, p.best.right - edge);
       expect(Math.abs(p.tick.right - edge), `row ${i + 1} check`).toBeLessThanOrEqual(TOL);

@@ -209,27 +209,35 @@ test('"Levels" goes to the selector, with this level marked and focused', async 
   await expect(levelRow(page, 2)).toBeFocused();
 });
 
-// "Levels" pressed twice by `twice(x, y)`, from a Level 1 run, where a row
-// of the selector will take its place: the second press, on that row, must
-// not start its level or take the focus from Level 1's. A tap there once
-// the double tap is over chooses it. The row is the one most under
-// "Levels" (Level 6's, the second in Addition, since the rows are grouped
-// by topic), from where the rows are on opening: the selector comes back
-// as it opens, unscrolled, Level 1's row at the top.
-async function pressLevelsTwice(page, twice, tap) {
+// "Levels" pressed twice by `twice(x, y)`, from a Level 1 run, at
+// `width`×`height`, where a row of the selector will take its place: the
+// second press, on that row, must not start its level or take the focus
+// from Level 1's. A tap there once the double tap is over chooses it. The
+// row is the one most under "Levels" (at 375×812 Level 6's, the second in
+// Addition, since the rows are grouped by topic; in topic columns at
+// 1024×620 Level 7's, Subtraction's third), pressed where the two
+// overlap, from where the rows are on opening: the selector comes back as
+// it opens, unscrolled, Level 1's row at the top.
+async function pressLevelsTwice(page, twice, tap, [width, height] = [375, 812]) {
   await page.goto('/');
   await page.waitForFunction(() => !document.documentElement.classList.contains('loading'));
+  await resize(page, width, height);
   const rows = await page.locator('.select .row').evaluateAll(rows => rows.map(r => {
     const b = r.getBoundingClientRect();
-    return { n: r.dataset.level, top: b.top, bottom: b.bottom };
+    return { n: r.dataset.level, top: b.top, bottom: b.bottom, left: b.left, right: b.right };
   }));
   await levelRow(page, 1).click();
   await finishRun(page);
   const box = await page.locator('.finish .levels').boundingBox();
-  const [under] = rows.map(r => ({ n: r.n, top: Math.max(r.top, box.y), bottom: Math.min(r.bottom, box.y + box.height) }))
-    .sort((p, q) => (q.bottom - q.top) - (p.bottom - p.top));
+  const overlap = r => ({
+    n: r.n, top: Math.max(r.top, box.y), bottom: Math.min(r.bottom, box.y + box.height),
+    left: Math.max(r.left, box.x), right: Math.min(r.right, box.x + box.width),
+  });
+  const area = p => Math.max(0, p.bottom - p.top) * Math.max(0, p.right - p.left);
+  const [under] = rows.map(overlap).sort((p, q) => area(q) - area(p));
   expect(under.bottom - under.top, 'a row will lie under "Levels"').toBeGreaterThanOrEqual(8);
-  const [x, y] = [box.x + box.width / 2, (under.top + under.bottom) / 2];
+  expect(under.right - under.left, 'a row will lie under "Levels"').toBeGreaterThanOrEqual(8);
+  const [x, y] = [(under.left + under.right) / 2, (under.top + under.bottom) / 2];
   await twice(x, y);
   await expect(page.locator('.select')).toBeVisible();
   expect(await page.evaluate(([x, y]) => document.elementFromPoint(x, y).closest('.row')?.dataset.level, [x, y])).toBe(under.n);
@@ -238,6 +246,7 @@ async function pressLevelsTwice(page, twice, tap) {
   await tap(x, y);
   await expect(page.locator('.select')).toBeHidden();
   await expect(page.locator('.crumbs .here')).toHaveText(levelName(LEVELS.find(level => level.n === Number(under.n))));
+  return under.n;
 }
 
 test('a double click on "Levels" stops at the selector', async ({ page }) => {
@@ -266,6 +275,42 @@ test.describe('by touch', () => {
     const tap = (x, y) => page.touchscreen.tap(x, y);
     await pressLevelsTwice(page, async (x, y) => { await tap(x, y); await tap(x, y); }, tap);
   });
+});
+
+// In topic columns too: at 1024×620 Level 7's row lies most under "Levels".
+test('in topic columns, a double click on "Levels" stops at the selector', async ({ page }) => {
+  const n = await pressLevelsTwice(page, (x, y) => page.mouse.dblclick(x, y), (x, y) => page.mouse.click(x, y), [1024, 620]);
+  expect(n, 'the row under "Levels"').toBe('7');
+});
+
+test.describe('in topic columns, by touch', () => {
+  test.use({ hasTouch: true });
+  test('a double tap on "Levels" stops at the selector', async ({ page }) => {
+    const tap = (x, y) => page.touchscreen.tap(x, y);
+    await pressLevelsTwice(page, async (x, y) => { await tap(x, y); await tap(x, y); }, tap, [1024, 620]);
+  });
+});
+
+// At 1440×900 no row lies under "Levels": it is over the gap between the
+// second and third topics' columns, below the third's one row. A double
+// click there stops at the selector, Level 1's row focused, and nothing
+// starts, the second press or the wait after it.
+test('in topic columns at 1440×900, a double click on "Levels" stops at the selector, over no row', async ({ page }) => {
+  await page.goto('/');
+  await page.waitForFunction(() => !document.documentElement.classList.contains('loading'));
+  await resize(page, 1440, 900);
+  await levelRow(page, 1).click();
+  await finishRun(page);
+  const box = await page.locator('.finish .levels').boundingBox();
+  const [x, y] = [box.x + box.width / 2, box.y + box.height / 2];
+  await page.mouse.dblclick(x, y);
+  await expect(page.locator('.select')).toBeVisible();
+  await expect(page.locator('.select')).toHaveClass(/\bcols\b/);
+  expect(await page.evaluate(([x, y]) => document.elementFromPoint(x, y).closest('.row')?.dataset.level ?? null, [x, y]), 'no row under "Levels"').toBe(null);
+  await expect(levelRow(page, 1)).toBeFocused();
+  await page.waitForTimeout(450);
+  await expect(page.locator('body')).toHaveClass(/\bat-select\b/);
+  await expect(levelRow(page, 1)).toBeFocused();
 });
 
 test('"Levels" by keyboard: the selector takes a press at once', async ({ page }) => {

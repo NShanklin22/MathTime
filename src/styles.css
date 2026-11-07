@@ -4,7 +4,8 @@
 /* Registered, so a bad value falls back to a length: layout.js reads it. */
 @property --gutter { syntax: '<length>'; inherits: true; initial-value: 24px; }
 /* The level selector's column, the gap between its groups, the page's
-   sides and the list's padding, which selector.js reads: registered too,
+   sides, the list's padding and its topic columns' tiles and gap, which
+   selector.js reads: registered too,
    so they read as px. */
 @property --select-column { syntax: '<length>'; inherits: true; initial-value: 388px; }
 @property --group-gap { syntax: '<length>'; inherits: true; initial-value: 32px; }
@@ -14,6 +15,9 @@
 @property --select-top-least { syntax: '<length>'; inherits: true; initial-value: 16px; }
 @property --select-bottom { syntax: '<length>'; inherits: true; initial-value: 32px; }
 @property --select-bottom-least { syntax: '<length>'; inherits: true; initial-value: 6px; }
+@property --tile-min { syntax: '<length>'; inherits: true; initial-value: 288px; }
+@property --tile-max { syntax: '<length>'; inherits: true; initial-value: 320px; }
+@property --col-gap { syntax: '<length>'; inherits: true; initial-value: 24px; }
 
 :root {
   color-scheme: dark;
@@ -413,26 +417,26 @@ body.typing .board .cell.focus.struck:not(.filled) .caret { visibility: hidden; 
 .pad button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
 
 /* ---------- Level selector (Level 2 spec §3) ---------- */
-/* One column, as wide as the keypad. Where it is taller than its room and
-   the width allows, the topic groups go into columns side by side
-   (incident 2026-11-05): selector.js sets --columns and the groups' column
-   count. Each column is the one column's width, 388px (the keypad's 420
-   less the list's padding), the gap between groups apart, and the list is
-   as wide as they are, centred. The columns' rows stay inside the page's
-   sides, as the header's text does: the gutter, or the safe-area inset
-   where it is larger (--side-left, --side-right). Where the rows fit and
-   only the padding would not, the padding gives way (the UI reviews): the
-   top and the bottom alike, the bottom no further than 6px (a focused
-   row's ring, 2px 4px out, and no less than the home bar) and the top than
-   16px, the other then giving what is still needed. selector.js sets it.
-   Where even that can't fit, the padding is whole and it scrolls.
+/* One column, as wide as the keypad (388px rows: the keypad's 420 less
+   16px each side), centred in the window-wide list. Where two or more tiles fit across, the topics go into
+   columns instead (the topic-columns mockup, below). The rows stay inside
+   the page's sides, as the header's text does: the gutter, or the
+   safe-area inset where it is larger (--side-left, --side-right). Where the
+   rows fit and only the padding would not, the padding gives way (the UI
+   reviews): the top and the bottom alike, the bottom no further than 6px
+   (a focused row's ring, 2px 4px out, and no less than the home bar) and
+   the top than 16px, the other then giving what is still needed.
+   selector.js sets it. Where even that can't fit, it scrolls: the one
+   column with its padding whole, topic columns from the least top padding.
    Text boxes are trimmed to the capitals and the baseline, so spacing and
    centring are of the ink, not the line box. selector.js moves each label
    and sample onto its ink. */
 .select {
-  --columns: 1;
   --select-column: 388px;
   --group-gap: 32px;
+  --tile-min: 288px;
+  --tile-max: 320px;
+  --col-gap: 24px;
   --side-left: max(var(--gutter), env(safe-area-inset-left));
   --side-right: max(var(--gutter), env(safe-area-inset-right));
   --select-top: 40px;
@@ -441,18 +445,40 @@ body.typing .board .cell.focus.struck:not(.filled) .caret { visibility: hidden; 
   --select-bottom-least: max(6px, env(safe-area-inset-bottom));
   display: none;
   width: 100%;
-  max-width: calc(var(--columns) * var(--select-column) + (var(--columns) - 1) * var(--group-gap) + 32px);
   min-height: 0;
-  justify-self: center;
   overflow-y: auto;
-  padding: var(--select-top) 16px var(--select-bottom);
+  /* The list is the window's width, so where it scrolls its scrollbar is at
+     the window's edge; the column is centred in it by its side padding,
+     16px or more, the same on both sides. */
+  padding: var(--select-top) max(16px, (100% - var(--select-column)) / 2) var(--select-bottom);
 }
 body.at-select .stage, body.at-select .run, body.at-select .pad, body.at-select .lives { display: none; }
 body.at-select .select { display: block; }
-.select .groups { column-gap: var(--group-gap); }
-.select .group { break-inside: avoid; }
 .select .group + .group { margin-top: var(--group-gap); }
-.select .group.column-start { break-before: column; margin-top: 0; }
+/* ---------- Topic columns (the topic-columns mockup, 2026-11-07) ---------- */
+/* Where two or more tiles fit across, the list is a grid of topic columns:
+   --cols columns a band, each --tile wide, --col-gap apart, the bands of
+   topics --group-gap apart. Every column of a band starts at the band's
+   top, and its heading and rows are all the same height, so headings share
+   a line and row N lines up across the band. selector.js places the grid,
+   its left edge on a whole device pixel; --tile is a whole number of device
+   pixels and so is --col-gap: 24px is at 1x, 1.25x, 1.5x, 2x and 3x, and
+   selector.js rounds it where it isn't (1.1x, 0.9x), so every column's
+   edges are on device pixels. A narrower tile has its
+   side padding and its sample one step smaller, the same in every tile, so
+   the samples still line up down a column and across. */
+.select.cols { padding-left: 0; padding-right: 0; }
+.select.cols .groups {
+  display: grid;
+  grid-template-columns: repeat(var(--cols), var(--tile));
+  column-gap: var(--col-gap);
+  row-gap: var(--group-gap);
+  align-items: start;
+  width: max-content;
+}
+.select.cols .group + .group { margin-top: 0; }
+.select.cols .row { padding: 0 20px; }
+.select.cols .sample { font-size: 24px; }
 /* Rows in a group (Level 3 spec §3): 12px apart, the finish buttons' gap,
    so a focused row's ring (2px, 4px out) stays 6px clear of the next. */
 .select .row + .row { margin-top: 12px; }
