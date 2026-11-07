@@ -9,7 +9,7 @@ import { LEVELS, levelName } from '../../src/levels.js';
 
 // Runs in the page: `ms` after the status first reads "Correct", press Esc,
 // note what leaving left (window.left), choose Level `n`, and from then on
-// log #eq's own animations (window.since).
+// log the feedback classes added to #eq (window.since).
 const leaveDuringCorrect = (page, { ms, n }) => page.evaluate(({ ms, n }) => {
   const status = document.querySelector('#status');
   const eq = document.querySelector('#eq');
@@ -21,10 +21,20 @@ const leaveDuringCorrect = (page, { ms, n }) => page.evaluate(({ ms, n }) => {
       window.left = { eq: eq.className, status: status.textContent, phase: window.mathtime.game.state.phase };
       document.querySelector(`.select .row[data-level="${n}"]`).click();
       window.since = [];
-      eq.addEventListener('animationstart', e => { if (e.target === eq) window.since.push(e.animationName); });
+      sinceOn(eq);
     }, ms);
   }).observe(status, { childList: true, characterData: true, subtree: true });
 }, { ms, n });
+
+// In the page: from now on, every class added to `eq`, in window.since.
+const SINCE = `window.sinceOn = eq => {
+  let had = new Set(eq.classList);
+  new MutationObserver(() => {
+    for (const name of eq.classList) if (!had.has(name)) window.since.push(name);
+    had = new Set(eq.classList);
+  }).observe(eq, { attributes: true, attributeFilter: ['class'] });
+};`;
+test.beforeEach(async ({ page }) => { await page.addInitScript(SINCE); });
 
 // Which parts of the breadcrumb show, in order: the way back's word or its
 // chevron, the separator, the level.
@@ -355,8 +365,8 @@ test('leaving mid-problem abandons it: the level starts again at question 1', as
   await expect(page.locator('.run span.done')).toHaveCount(0);
 });
 
-// 100ms is while the answer shows green; 450ms is during the slide-out.
-for (const ms of [100, 450]) test(`leaving ${ms}ms into a right answer's feedback leaves nothing to finish later`, async ({ page }) => {
+// 100ms is while the pen traces; 280ms is during the fade-out.
+for (const ms of [100, 280]) test(`leaving ${ms}ms into a right answer's feedback leaves nothing to finish later`, async ({ page }) => {
   await open(page);
   await setProblem(page, 3, 4);
   await leaveDuringCorrect(page, { ms, n: 2 });
@@ -364,7 +374,8 @@ for (const ms of [100, 450]) test(`leaving ${ms}ms into a right answer's feedbac
   await page.waitForFunction(() => window.since);
   await page.waitForTimeout(1200);                            // past every timer the old feedback had
   expect(await page.evaluate(() => window.left), 'as it left').toEqual({ eq: 'eq', status: '', phase: 'left' });
-  expect(await page.evaluate(() => window.since), 'animations after choosing Level 2').toEqual([]);
+  expect(await page.evaluate(() => window.since), 'feedback after choosing Level 2').toEqual([]);
+  await expect(page.locator('.fx')).toHaveCount(0);
   await expect(page.locator('.crumbs .here')).toHaveText('Subtraction 1');
   await expect(page.locator('#qnum')).toHaveText('Question 1 of 20');
   expect(await page.evaluate(() => document.querySelector('#eq').className)).toBe('eq');
@@ -375,7 +386,7 @@ for (const ms of [100, 450]) test(`leaving ${ms}ms into a right answer's feedbac
 // The old run's next() must not move the new run on. play() is called
 // straight, not through toSelector(), so only play()'s own view.reset()
 // stops the old feedback: the new problem is not green, and a right answer
-// to it gets one slide out and one slide in.
+// to it is inked, fades out and fades in once.
 test('a run started during a right answer\'s feedback is not moved on by it', async ({ page }) => {
   await open(page);
   await setProblem(page, 3, 4);
@@ -388,9 +399,9 @@ test('a run started during a right answer\'s feedback is not moved on by it', as
       watch.disconnect();
       setTimeout(() => {
         play(levels[0]);                       // no toSelector(): only play()'s reset stands guard
-        window.green = eq.classList.contains('correct');
+        window.green = eq.classList.contains('correct') || eq.classList.contains('inked');
         window.since = [];
-        eq.addEventListener('animationstart', e => { if (e.target === eq) window.since.push(e.animationName); });
+        window.sinceOn(eq);
         for (const d of String(game.state.problem.answer)) press(d);
         press('Enter');
       }, 100);
@@ -400,22 +411,22 @@ test('a run started during a right answer\'s feedback is not moved on by it', as
   await page.waitForFunction(() => window.since);
   await page.waitForTimeout(1500);
   expect(await page.evaluate(() => window.green), 'new problem not green').toBe(false);
-  expect(await page.evaluate(() => window.since)).toEqual(['out', 'in']);
+  expect(await page.evaluate(() => window.since)).toEqual(['correct', 'inked', 'out', 'in']);
   await expect(page.locator('#qnum')).toHaveText('Question 2 of 20');
 });
 
-test('leaving during the out-of-lives shake, then coming straight back, keeps you playing', async ({ page }) => {
+test('leaving during the out-of-lives red-line, then coming straight back, keeps you playing', async ({ page }) => {
   await open(page);
   await setProblem(page, 3, 4);
   await typeKeys(page, ['9', 'Enter', '9', 'Enter', '9', 'Enter', 'Escape']);
   await expect(page.locator('.select')).toBeVisible();
   await levelRow(page, 2).click();
-  await page.waitForTimeout(600);                             // past the 0.45s the selector waited
+  await page.waitForTimeout(650);                             // past the 0.5s the selector waited
   await expect(page.locator('.select')).toBeHidden();
   await expect(page.locator('#ans')).toBeFocused();
 });
 
-test('leaving during the last answer\'s green stops at the selector: the finish screen never comes', async ({ page }) => {
+test('leaving during the last answer\'s ink stops at the selector: the finish screen never comes', async ({ page }) => {
   await open(page);
   await playTo(page, 20);
   await page.evaluate(() => {
@@ -428,7 +439,7 @@ test('leaving during the last answer\'s green stops at the selector: the finish 
   });
   await answer(page);
   await expect(page.locator('.select')).toBeVisible();
-  await page.waitForTimeout(600);                             // past the 0.35s the finish screen waited for
+  await page.waitForTimeout(600);                             // past the 0.24s the finish screen waited for
   await expect(page.locator('.finish')).toBeHidden();
   expect(await page.evaluate(() => document.body.className)).toBe('at-select');
   expect(await page.evaluate(() => window.mathtime.game.state.phase)).toBe('left');

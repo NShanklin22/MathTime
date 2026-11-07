@@ -13,20 +13,14 @@ export async function open(page, level = 1) {
 // The level selector's row for Level `n`.
 export const levelRow = (page, n) => page.locator(`.select .row[data-level="${n}"]`);
 
-// For pixel measurement: plain background (no grid), a hidden caret (its rect
-// still works) and a transparent dashed outline (it still counts in layout).
-// None of these change layout.
-const HIDE_OUTLINE = '.slot::after{outline-color:transparent!important}';
+// For pixel measurement: plain background (no grid) and a hidden caret (its
+// rect still works). Neither changes layout. (It also hid the box's dashed
+// outline until that was removed, 2026-11-06: there is nothing left to hide.)
 export async function freeze(page) {
   await page.addStyleTag({
-    content: 'body{background:#12407e!important}.caret{visibility:hidden!important}' + HIDE_OUTLINE,
+    content: 'body{background:#12407e!important}.caret{visibility:hidden!important}',
   });
 }
-
-// Undo freeze()'s transparent outline, to measure the outline itself.
-export const showOutline = page => page.evaluate(rule => {
-  for (const style of document.querySelectorAll('style')) style.textContent = style.textContent.replace(rule, '');
-}, HIDE_OUTLINE);
 
 // Wait out a resize: ResizeObserver reports it, then the layout runs in the
 // next animation frame.
@@ -92,7 +86,7 @@ export async function setProblem(page, a, b) {
 
 // Answer questions correctly through the game itself, with no feedback in
 // between, until question `n` is on screen, drawn, placed and announced as
-// after a slide-in.
+// after the reprint.
 export const playTo = (page, n) => page.evaluate(n => {
   const { game, view, layout } = window.mathtime;
   while (game.state.question < n) {
@@ -148,8 +142,8 @@ export async function digitBand(page) {
   return { top, bottom, mid: (top + bottom) / 2 };
 }
 
-// The window around the answer box for pixel measurement: room for the
-// dashed outline at the sides and below, starting below the "Question N"
+// The window around the answer box for pixel measurement: room round the
+// box above and below, starting below the "Question N"
 // label (it comes within reach of the box on narrow screens), and inside
 // the problem area (the keypad's key rings are ink-coloured too).
 async function boxWindow(page) {
@@ -165,8 +159,8 @@ async function boxWindow(page) {
   };
 }
 
-// The answer box's outer edges, measured from pixels (it is a pseudo-element).
-// Needs freeze(), which hides the dashed outline.
+// The answer box's outer edges, measured from pixels (it is a pseudo-element):
+// the outside of its solid border, the edge of what you see. Needs freeze().
 export async function boxEdges(page, shot) {
   const { s, top, bottom } = await boxWindow(page);
   return ink(shot, { left: s.left - 2, right: s.right + 2, top, bottom });
@@ -200,21 +194,16 @@ export const showAnswer = (page, typed) => page.evaluate(t => {
   view.renderAnswer(t);
 }, typed);
 
-// The dashed outline's outer edges, from pixels. Needs showOutline() after freeze().
-export async function outlineEdges(page, shot) {
-  const { left, right, top, bottom } = await boxWindow(page);
-  return ink(shot, { left, right, top, bottom }, OUTLINE);
-}
-
 // How far the centre of what you see of the equation, from the first digit's
-// ink to the box's dashed outline, is right of the problem area's centre.
-// Needs showOutline().
+// ink to the box's border, is right of the problem area's centre. (It ended
+// at the box's dashed outline until that was removed, 2026-11-06.) Needs
+// freeze().
 export async function groupOffset(page) {
   const shot = await capture(page);
   const first = await digitInk(page, shot, '#a');
-  const outline = await outlineEdges(page, shot);
+  const box = await boxEdges(page, shot);
   const s = await rect(page, '.stage');
-  return { offset: (first.left + outline.right) / 2 - (s.left + s.right) / 2, first, outline, shot };
+  return { offset: (first.left + box.right) / 2 - (s.left + s.right) / 2, first, box, shot };
 }
 
 // The ink gap from "=" to the box's outer edge, and the mean of the ink gaps
@@ -243,14 +232,14 @@ export async function labelInk(page, shot) {
 }
 
 // How far "Question N"'s ink is below the problem area's top (null if it is
-// clipped away), and the box's dashed outline above its bottom. Needs
-// showOutline().
+// clipped away), and the box's border above its bottom (its dashed outline
+// until that was removed, 2026-11-06). Needs freeze().
 export async function clearances(page) {
   const shot = await capture(page);
   const stage = await rect(page, '.stage');
   const label = await labelInk(page, shot);
-  const outline = await outlineEdges(page, shot);
-  return { above: label && label.top - stage.top, below: stage.bottom - outline.bottom };
+  const box = await boxEdges(page, shot);
+  return { above: label && label.top - stage.top, below: stage.bottom - box.bottom };
 }
 
 // How far each digit key's label ink is from its key's centre, worst case
@@ -278,8 +267,6 @@ export const MUTED = [182, 205, 238];     // #b6cdee: operators, crumbs, "Questi
 export const LOST = [143, 176, 221];      // #8fb0dd: a lost heart
 export const FAINT = [111, 149, 204];     // #6f95cc: the run bar's empty segments
 export const GOOD = [143, 240, 192];      // #8ff0c0: its filled ones, and "New best"
-// The dashed outline, ink at 55% opacity (stored as 140/255) over the background.
-export const OUTLINE = INK.map((c, i) => Math.round(BG[i] + (c - BG[i]) * 140 / 255));
 
 // Sub-pixel bounds (CSS px) of `colour` ink inside `area` (CSS px), from real
 // screenshot pixels. A pixel's coverage is the average over R, G and B of how
@@ -409,7 +396,7 @@ export async function work(page) {
 
 // A column level's playTo(): problems worked right through the game itself,
 // with no feedback in between, until question `n` is on screen, drawn,
-// placed and announced as after a slide-in.
+// placed and announced as after the reprint.
 export const playColumnsTo = (page, n) => page.evaluate(n => {
   const { game, board } = window.mathtime;
   const keys = x => game.level.n === 6
@@ -530,22 +517,26 @@ export function expectSame(found) {
   }
 }
 
-// A wrong check settled: said, and its shake over.
+// A wrong check settled: said, and its red-line cleared (the build's), or
+// its shake over (the column-methods mockup's, a record of its design).
 export const shaken = page => page.waitForFunction(() => document.querySelector('#status').textContent.startsWith('Wrong')
-  && !document.querySelector('.board .shake'));
+  && !document.querySelector('.board .shake, .board .fx, .board .redframe'));
 
-// From now on, which of the board's cells shake (their ids, as each shake
-// starts). The function returned waits for the shake to end, then says.
-export async function shakes(page) {
+// From now on, which of the board's cells are marked wrong by the red-line
+// (their ids, as each is drawn): a wrong digit struck through, an empty cell
+// framed in red. The function returned waits for them to clear, then says.
+export async function strikes(page) {
   await page.evaluate(() => {
-    window.shook = [];
-    document.querySelector('.board').addEventListener('animationstart', e => {
-      if (e.animationName === 'colshake') window.shook.push(e.target.dataset.tap);
-    });
+    window.struck = [];
+    new MutationObserver(records => {
+      for (const r of records) for (const node of r.addedNodes) {
+        if (node.classList?.contains('redline') || node.classList?.contains('redframe')) window.struck.push(node.dataset.cell);
+      }
+    }).observe(document.querySelector('.board'), { childList: true, subtree: true });
   });
   return async () => {
-    await page.waitForFunction(() => window.shook.length && !document.querySelector('.board .shake'));
-    return page.evaluate(() => window.shook.sort());
+    await page.waitForFunction(() => window.struck.length && !document.querySelector('.board .fx, .board .redframe'));
+    return page.evaluate(() => window.struck.sort());
   };
 }
 

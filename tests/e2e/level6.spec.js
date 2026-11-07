@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import {
   open, levelRow, typeKeys, setColumns, work, finishColumnRun, boardCell, written, againstMockup, expectSame,
-  shaken, shakes, listen, flashFor,
+  shaken, strikes, listen, flashFor,
 } from './helpers.js';
 
 // Level 6, column addition with carrying (Levels 6–7 batch plan), played on
@@ -55,7 +55,7 @@ test.describe('the board is the mockup\'s, pixel for pixel, at every size', () =
     expectSame(await againstMockup(page, 6, 'partial'));
   });
 
-  test('a wrong column, after its shake: the ones digit with the carry skipped', async ({ page }) => {
+  test('a wrong column, after its red-line: the ones digit with the carry skipped', async ({ page }) => {
     await setColumns(page, 47, 38, { cells: { O: '5' }, focus: 'C' });
     await typeKeys(page, ['Enter']);
     await shaken(page);
@@ -124,7 +124,7 @@ test('a whole problem worked right, a column at a time: each turns green and the
   await expect(field(page)).toHaveAttribute('aria-label', 'Ones, answer');
 });
 
-test('the green: every cell turns green for 0.35s, its segment fills, then the board slides out and the next slides in', async ({ page }) => {
+test('right: the answer is inked over, its segment fills, then the board fades out and the next fades in, 0.32s after Enter', async ({ page }) => {
   await setColumns(page, 75, 38);
   await typeKeys(page, ['3', '1', 'Enter', '1', '1']);   // 113: the tens' carry goes straight into the hundreds
   await expect(written(page, 'H')).toHaveText('1');
@@ -136,29 +136,30 @@ test('the green: every cell turns green for 0.35s, its segment fills, then the b
       if (board.classList.contains('in') && !log.in) { log.in = performance.now(); resolve(log); }
     }).observe(board, { attributes: true, attributeFilter: ['class'] });
     document.querySelector('#ans').dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
-    log.green = [...board.querySelectorAll('.cell')].every(c => c.classList.contains('ok'));
+    // At once: the column's carry and the rest green, the written answer
+    // (113) green only once the pen has closed its frame.
+    log.green = [...board.querySelectorAll('.cell')].filter(c => c.classList.contains('ok')).map(c => c.dataset.tap).sort();
+    log.pen = !!board.querySelector('svg.fx.pen');
     log.focus = board.querySelectorAll('.cell.focus').length;
     log.segments = document.querySelectorAll('.run span.done').length;
+    setTimeout(() => { log.inked = [...board.querySelectorAll('.cell')].every(c => c.classList.contains('ok')); }, 225);
   }));
-  expect(t.green, 'every cell green at once').toBe(true);
+  expect(t.green, 'the earlier column green; the answer not yet').toEqual(['C', 'O']);
+  expect(t.pen, 'the pen is tracing').toBe(true);
+  expect(t.inked, 'every cell green once traced').toBe(true);
   expect(t.focus, 'no cursor').toBe(0);
   expect(t.segments, 'its segment filled').toBe(1);
-  expect(Math.abs(t.out - t.start - 350), `slides out after ${(t.out - t.start).toFixed(0)}ms`).toBeLessThanOrEqual(40);
-  expect(t.in - t.out, 'then slides in, after the slide out').toBeGreaterThanOrEqual(200);
-  // Its slide-in over, the board lets go of it, as the equation does: shown
-  // again later, it would otherwise slide in again.
-  await page.evaluate(() => new Promise(resolve => {
-    const board = document.querySelector('.board');
-    if (!board.getAnimations().some(a => a.animationName === 'in')) resolve();
-    board.addEventListener('animationend', e => { if (e.animationName === 'in') resolve(); });
-  }));
+  expect(Math.abs(t.out - t.start - 240), `fades out after ${(t.out - t.start).toFixed(0)}ms`).toBeLessThanOrEqual(40);
+  expect(Math.abs(t.in - t.start - 320), `the next fades in after ${(t.in - t.start).toFixed(0)}ms`).toBeLessThanOrEqual(40);
+  // Its fade-in over, the board lets go of it.
   await expect(page.locator('.board')).not.toHaveClass(/\bin\b/);
   await expect(page.locator('.board')).toHaveClass('board');
+  await expect(page.locator('.board')).toHaveCSS('opacity', '1');
 });
 
-test('a skipped carry is wrong: only the carry cell shakes and clears, the digit stays, a life goes', async ({ page }) => {
+test('a skipped carry is wrong: only the carry cell is struck and clears, the digit stays, a life goes', async ({ page }) => {
   await setColumns(page, 47, 38);
-  const shook = await shakes(page);
+  const shook = await strikes(page);
   await typeKeys(page, ['5', 'Enter']);
   await expect(page.locator('#status')).toHaveText('Wrong: Tens, carry. 2 lives left');
   expect(await shook()).toEqual(['C']);
@@ -172,12 +173,12 @@ test('a skipped carry is wrong: only the carry cell shakes and clears, the digit
   await expect(page.locator('#status')).toHaveText('Right. Tens column.');
 });
 
-test('a wrong digit with the carry right: the answer row shakes as one box, the carry stays', async ({ page }) => {
+test('a wrong digit with the carry right: only the digit is struck through, the carry stays', async ({ page }) => {
   await setColumns(page, 47, 38);
-  const shook = await shakes(page);
+  const shook = await strikes(page);
   await typeKeys(page, ['4', '1', 'Enter']);
   await expect(page.locator('#status')).toHaveText('Wrong: Ones, answer. 2 lives left');
-  expect(await shook()).toEqual(['H', 'O', 'T']);
+  expect(await shook()).toEqual(['O']);
   await expect(written(page, 'O')).toHaveText('');
   await expect(written(page, 'C')).toHaveText('1');
   await expect(boardCell(page, 'O')).toHaveClass(/\bfocus\b/);
@@ -248,10 +249,10 @@ test('Esc and "Levels" go back to the selector, even during the green; nothing o
   await expect(page.locator('.select')).toBeHidden();
   await setColumns(page, 47, 38);
   await typeKeys(page, ['5', '1', 'Enter', '8', 'Enter']);
-  await page.keyboard.press('Escape');                  // within the 0.35s of green
+  await page.keyboard.press('Escape');                  // within the 0.32s lock
   await expect(page.locator('.select')).toBeVisible();
   await levelRow(page, 6).click();
-  await page.waitForTimeout(800);                       // past when the slide would have been
+  await page.waitForTimeout(800);                       // past when the fade would have been
   await expect(page.locator('.board .qlabel')).toHaveText('Question 1 of 20');
   await expect(page.locator('.board')).not.toHaveClass(/\b(out|in)\b/);
   await expect(page.locator('#status')).toHaveText(/^Question 1 of 20: \d\d plus \d\d$/);

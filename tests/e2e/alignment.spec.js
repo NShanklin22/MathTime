@@ -1,22 +1,23 @@
 import { test, expect } from '@playwright/test';
 import { chromium } from 'playwright-core';
 import {
-  open, freeze, showOutline, resize, setProblem, rect, capture, ink, digitInk, digitBand, boxEdges, outlineEdges,
+  open, freeze, resize, setProblem, rect, capture, ink, digitInk, digitBand, boxEdges,
   boxInside, borderInner, showAnswer, layOut, fontSize, cssFontSize, TOL,
 } from './helpers.js';
 import { LEVELS, levelName } from '../../src/levels.js';
 
 // Space between the stage edges and what you see of the equation, from
-// pixels: the first digit's ink on the left, the box's dashed outline on the
-// right. The equation is centred on that, not on its layout box (spec §3.2).
+// pixels: the first digit's ink on the left, the box's border on the right
+// (its dashed outline, until that was removed on 2026-11-06: the border is
+// now the edge of what you see). The equation is centred on that, not on its
+// layout box (spec §3.2).
 async function gutters(page) {
-  await showOutline(page);
   const shot = await capture(page);
   const first = await digitInk(page, shot, '#a');
-  const outline = await outlineEdges(page, shot);
+  const box = await boxEdges(page, shot);
   const s = await rect(page, '.stage');
   const { scroll, phone } = await page.evaluate(() => ({ scroll: document.documentElement.scrollWidth - innerWidth, phone: innerWidth <= 480 }));
-  return { left: first.left - s.left, right: s.right - outline.right, scroll, phone };
+  return { left: first.left - s.left, right: s.right - box.right, scroll, phone };
 }
 
 
@@ -209,12 +210,46 @@ test('a layout while a key is pressed leaves that key\'s label alone', async ({ 
   expect(await label.evaluate(el => el.style.transform)).toBe(before);
 });
 
-test('gutters hold, overhang included, with no horizontal scroll', async ({ page }) => {
+test('gutters hold to the box border, with no horizontal scroll', async ({ page }) => {
   const g = await gutters(page);
   const min = g.phone ? 16 : 24;
   expect(g.left).toBeGreaterThanOrEqual(min - 0.01);
   expect(g.right).toBeGreaterThanOrEqual(min - 0.01);
   expect(g.scroll).toBeLessThanOrEqual(0);
+});
+
+// The box is its solid border alone: the dashed "construction outline" a few
+// px outside it read as a visual bug and was removed (2026-11-06). Nothing is
+// drawn in a ring round the border, on Levels 1, 3 and 4 (one- and two-digit
+// boxes, and the × level's wider ones). The ring is measured from where the
+// border is laid out (not from its ink, which would take the outline in), a
+// device pixel clear of it, out to 12px; on the left only up to the "=".
+test('no dashed outline is drawn round the answer box', async ({ page }) => {
+  for (const level of [1, 3, 4]) {
+    await open(page, level);
+    await freeze(page);
+    const after = await page.evaluate(() => {
+      const cs = getComputedStyle(document.querySelector('#slot'), '::after');
+      return { style: cs.outlineStyle, top: parseFloat(cs.top), height: parseFloat(cs.height) };
+    });
+    expect.soft(after.style, `Level ${level}: outline-style`).toBe('none');
+    const shot = await capture(page);
+    const s = await rect(page, '#slot');
+    const stage = await rect(page, '.stage');
+    const q = await rect(page, '#qnum');
+    const equals = ink(shot, await rect(page, '#eq .op', 1), [182, 205, 238]);   // muted #b6cdee
+    const top = s.top + after.top, bottom = top + after.height;
+    const clear = 1 / shot.dpr + 0.01, reach = 12;
+    const ring = {
+      left: { left: equals.right + 1, right: s.left - clear, top: top - reach, bottom: bottom + reach },
+      right: { left: s.right + clear, right: Math.min(s.right + reach, stage.right), top: top - reach, bottom: bottom + reach },
+      above: { left: s.left - reach, right: s.right + reach, top: Math.max(top - reach, q.bottom, stage.top), bottom: top - clear },
+      below: { left: s.left - reach, right: s.right + reach, top: bottom + clear, bottom: Math.min(bottom + reach, stage.bottom) },
+    };
+    for (const [side, area] of Object.entries(ring)) {
+      expect.soft(ink(shot, area), `Level ${level}: ink ${side} the box`).toBeNull();
+    }
+  }
 });
 
 test('a narrow screen shrinks the equation to fit, measured again', async ({ page }) => {
@@ -229,7 +264,6 @@ test('a narrow screen shrinks the equation to fit, measured again', async ({ pag
   const plus = ink(shot, await rect(page, '#eq .op', 0), [182, 205, 238]);   // muted #b6cdee
   expect(Math.abs(box.midY - digits.mid), 'box').toBeLessThanOrEqual(TOL);
   expect(Math.abs(plus.midY - digits.mid), '+').toBeLessThanOrEqual(TOL);
-  // Last: this shows the dashed outline, which the box measurement hides.
   const g = await gutters(page);
   expect(g.left).toBeGreaterThanOrEqual(16 - 0.01);
   expect(g.right).toBeGreaterThanOrEqual(16 - 0.01);
@@ -265,9 +299,11 @@ test('a repeat layout after a full shrink needs no new scans', async ({ page }) 
 // A layout fits the equation for the problem it is about to draw, not for
 // the one drawn before it: Level 3's first number has two digits, the
 // others' one, and a level starts with the last level's problem still
-// drawn. At 280px wide Level 1 shrinks either way, more for two digits.
+// drawn. At 270px wide Level 1 shrinks either way, more for two digits.
+// (It was 280px until the box's dashed outline was removed, 2026-11-06:
+// without its 6px, one digit fits at its CSS size at 280px on the phone.)
 test('a layout fits the problem it shows, one digit or two, whatever was drawn before', async ({ page }) => {
-  await resize(page, 280, 700);
+  await resize(page, 270, 700);
   const fit = () => page.evaluate(() => {
     const eq = document.querySelector('#eq');
     return { size: eq.style.fontSize, left: eq.style.left };
@@ -276,14 +312,15 @@ test('a layout fits the problem it shows, one digit or two, whatever was drawn b
     await layOut(page, a, b);
     const first = await fit();
     await page.evaluate(() => window.mathtime.layout.layout());   // again, with it drawn
-    expect(first.size, `${a} + ${b}: shrunk at 280px`).not.toBe('');
+    expect(first.size, `${a} + ${b}: shrunk at 270px`).not.toBe('');
     expect(await fit(), `${a} + ${b}`).toEqual(first);
   }
 });
 
-// The shake and slide animations move #eq with a transform. Lay out while it
-// is moved, then check where it lands once the transform is gone. Where it
-// goes depends on the first digit, so try each.
+// No feedback moves #eq any more (fx.js), but the layout still discounts a
+// transform on it (layout.js, eqBox). Lay out while it is moved, then check
+// where it lands once the transform is gone. Where it goes depends on the
+// first digit, so try each.
 async function laidOutOnGrid(page) {
   for (let a = 0; a <= 9; a++) {
     await page.evaluate(a => {

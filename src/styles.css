@@ -23,6 +23,7 @@
   --faint: #6f95cc;          /* the run bar's empty segments, 3:1 on the background */
   --amber: #ffd66b;          /* the caret, and the level you came from */
   --good: #8ff0c0;
+  --redline: #ff8a7a;        /* a wrong answer's strike, warm red, 4.6:1 on the background */
   --heart-lost: #8fb0dd;
   --key-ring: inset 0 0 0 1.5px rgba(238, 245, 255, 0.8);
   --key-press: rgba(255, 255, 255, 0.12);
@@ -165,7 +166,6 @@ body.at-select .crumbs .home { display: block; }
    --slot-gap: extra space before the box, which has no side bearing
    --pad: the box padding (--box-pad em) in whole device pixels
    --bw: the box border width in px (kept outside the padding)
-   --outline-offset: the dashed outline's offset, in whole device pixels as drawn
    --fs: the equation font size in px
    --label-x: where "Question N" goes, so its ink is centred over what you see
    --label-scale: shrinks the label's px minimums with the font on short screens
@@ -179,8 +179,6 @@ body.at-select .crumbs .home { display: block; }
   --box-pad: 0.17;
   --bw-em: 0.025;            /* the box border: the larger of these two */
   --bw-min: 2px;
-  --outline-em: 0.06;        /* the outline's offset from it: likewise */
-  --outline-min: 5px;
   --pad: calc(var(--box-pad) * 1em);
   --bw: 3px;
   position: relative;
@@ -232,8 +230,6 @@ body.at-select .crumbs .home { display: block; }
   top: calc(var(--ink-top) * 1em - var(--pad) - var(--bw));
   height: calc(var(--ink-h) * 1em + 2 * var(--pad) + 2 * var(--bw));
   border: max(calc(var(--bw-em) * 1em), calc(var(--bw-min) * var(--line-scale, 1))) solid var(--ink);
-  outline: 1px dashed rgba(238, 245, 255, 0.55);
-  outline-offset: var(--outline-offset, max(calc(var(--outline-em) * 1em), calc(var(--outline-min) * var(--line-scale, 1))));
 }
 .shown {
   position: absolute;
@@ -268,23 +264,24 @@ body.at-select .crumbs .home { display: block; }
   caret-color: transparent;
 }
 
-.eq.correct .shown { color: var(--good); }
-/* The fade is on the way in only: the next problem's box is white at once. */
-.eq.correct .slot::after { border-color: var(--good); transition: border-color .15s; }
-.eq.correct .caret { visibility: hidden; }
-
-.eq.shake { animation: shake .32s ease; }
-@keyframes shake {
-  0%, 100% { transform: translateX(0); }
-  20% { transform: translateX(-0.12em); }
-  40% { transform: translateX(0.1em); }
-  60% { transform: translateX(-0.06em); }
-  80% { transform: translateX(0.04em); }
-}
-.eq.out { animation: out .22s ease-in forwards; }
-.eq.in { animation: in .22s ease-out; }
-@keyframes out { to { transform: translateX(-40vw); opacity: 0; } }
-@keyframes in { from { transform: translateX(40vw); opacity: 0; } }
+/* ---------- Feedback (fx.js) ---------- */
+/* From the approved mockup (docs/superpowers/specs/2026-11-06-animations-mockup.html,
+   "New"). The pen line and the strike are SVGs laid over the page, on
+   whole device pixels from the window's corner (position: fixed); they
+   never take a tap. Only opacity, colour, stroke-dashoffset and clip-path
+   change: nothing moves. */
+.fx { position: fixed; left: 0; top: 0; overflow: visible; pointer-events: none; z-index: 2; }
+.fx path { fill: none; stroke: var(--good); stroke-linejoin: miter; stroke-linecap: butt; }
+.fx line { stroke: var(--redline); stroke-linecap: butt; }
+.fx line.halo { stroke: var(--bg); }
+/* The trace done: the box's own border and the digits are green, at once.
+   The next problem's box is white at once. */
+.eq.inked .slot::after { border-color: var(--good); }
+.eq.inked .shown { color: var(--good); }
+/* The struck answer, a copy of what was in the box, over the cleared one. */
+.shown > .ghost { position: absolute; left: 0; top: 0; height: 1em; display: flex; }
+/* No caret while the answer is locked in or struck. */
+.eq.correct .caret, .eq.struck .caret { visibility: hidden; }
 
 /* ---------- The column board (Levels 6–7 batch plan) ---------- */
 /* A column level's play screen, from the approved mockup
@@ -300,7 +297,7 @@ body[data-kind="column"] .stage { position: relative; }
    grid: every answer cell is Level 1's box for one digit (sized from the
    measured digit ink, equal padding, the border outside it), and the digits
    above are centred on their ink in the same columns. */
-.board { position: absolute; left: 0; top: 0; font-weight: 500; --sk: 12px; }
+.board { position: absolute; left: 0; top: 0; font-weight: 500; }
 .board .t { position: absolute; left: 0; top: 0; display: block; height: 1em; line-height: 1; white-space: pre; }
 .board .dg { color: var(--ink); transition: color .15s; }
 .board .op, .board .qlabel { color: var(--muted); }
@@ -341,17 +338,19 @@ body.typing .board .cell.focus:not(.filled) .caret { visibility: visible; }
 .board .hit { position: absolute; cursor: pointer; }
 .board .cue path { fill: none; stroke: var(--muted); stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
 
-/* Feedback: the column's cells shake as Level 1's equation does. */
-.board .shake { animation: colshake .32s ease; }
-@keyframes colshake {
-  0%, 100% { translate: 0; }
-  20% { translate: calc(-1 * var(--sk)); }
-  40% { translate: calc(0.833 * var(--sk)); }
-  60% { translate: calc(-0.5 * var(--sk)); }
-  80% { translate: calc(0.333 * var(--sk)); }
+/* Feedback (fx.js), as on the answer box. The answer's cells inked over
+   turn green at once as the pen goes, with no fade; a wrong cell's digit,
+   copied over the cleared one, is struck through, with no caret. */
+.board .cell.inked .v, .board .cell.inked .frame { transition: none; }
+.board .cell .ghost { color: var(--ink); }
+/* An empty cell that needed a digit: its frame drawn solid warm red over
+   its own (fx.js redFrame), which shows again once it has gone. */
+.board .cell .redframe { position: absolute; inset: 0; border: 0 solid var(--redline); pointer-events: none; }
+body.typing .board .cell.focus.struck:not(.filled) .caret { visibility: hidden; }
+/* Under reduced motion the board's end states show at once too. */
+@media (prefers-reduced-motion: reduce) {
+  .board .dg, .board .cell .frame, .board .cell.ok .v, .board .strike, .board .strike line, .board .small1 { transition: none; }
 }
-.board.out { animation: out .22s ease-in forwards; }
-.board.in { animation: in .22s ease-out; }
 
 /* The answer field on a column level, beside the board (main.js moves it
    there): it holds focus and takes the keys (the phone's own keyboard is

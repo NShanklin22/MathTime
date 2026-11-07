@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import {
-  open, freeze, showOutline, resize, setProblem, rect, capture, ink, digitBand, boxEdges, groupOffset,
+  open, freeze, resize, setProblem, rect, capture, ink, digitBand, boxEdges, groupOffset,
   equalsGap, clearances, keyLabelOffsets, labelInk, note, fontSize, cssFontSize, TOL, MUTED,
 } from './helpers.js';
 
@@ -81,16 +81,17 @@ for (const [width, height] of [[667, 375], [844, 390], [568, 320], [740, 360], [
       const { mean, gap } = await equalsGap(page);
       note('"=" → box gap less the mean', gap - mean);
       expect(Math.abs(gap - mean), '"=" gap').toBeLessThanOrEqual(TOL);
-      // What you see is centred in the column, whatever the first digit.
-      await showOutline(page);
+      // What you see is centred in the column, whatever the first digit:
+      // from the first digit's ink to the box's border (to its dashed
+      // outline until that was removed, 2026-11-06).
       let worst = 0, label = 0;
       for (let a = 0; a <= 9; a++) {
         await setProblem(page, a, 5);
-        const { offset, first, outline, shot } = await groupOffset(page);
+        const { offset, first, box, shot } = await groupOffset(page);
         worst = Math.max(worst, Math.abs(offset));
         expect(Math.abs(offset), `a = ${a}: ${offset.toFixed(3)}px`).toBeLessThanOrEqual(TOL);
         // "Question N"'s ink over the same middle.
-        label = Math.max(label, Math.abs((await labelInk(page, shot)).midX - (first.left + outline.right) / 2));
+        label = Math.max(label, Math.abs((await labelInk(page, shot)).midX - (first.left + box.right) / 2));
       }
       note('worst centring', worst);
       note('worst label centring', label);
@@ -98,20 +99,21 @@ for (const [width, height] of [[667, 375], [844, 390], [568, 320], [740, 360], [
     });
 
     test('"Question N" and the box clear the column by 8px, inside its gutters, with no scroll', async ({ page }) => {
-      await showOutline(page);
+      // The box's border is what clears the bottom now (its dashed outline
+      // did until that was removed, 2026-11-06).
       const { above, below } = await clearances(page);
       expect(above, '"Question N" shows').not.toBeNull();
       note('"Question N" ink below the top', above);
-      note('outline ink above the bottom', below);
+      note('box ink above the bottom', below);
       expect(above, '"Question N" clear above').toBeGreaterThanOrEqual(8);
       expect(below, 'box clear below').toBeGreaterThanOrEqual(8);
-      // Gutters: phone gutters (16px) on what you see, outline included.
-      const { first, outline } = await groupOffset(page);
+      // Gutters: phone gutters (16px) on what you see, to the box's border.
+      const { first, box } = await groupOffset(page);
       const stage = await rect(page, '.stage');
       note('left gutter', first.left - stage.left);
-      note('right gutter', stage.right - outline.right);
+      note('right gutter', stage.right - box.right);
       expect(first.left - stage.left, 'left gutter').toBeGreaterThanOrEqual(16 - 0.01);
-      expect(stage.right - outline.right, 'right gutter').toBeGreaterThanOrEqual(16 - 0.01);
+      expect(stage.right - box.right, 'right gutter').toBeGreaterThanOrEqual(16 - 0.01);
       const scroll = await page.evaluate(() => ({
         x: document.documentElement.scrollWidth - innerWidth,
         y: document.documentElement.scrollHeight - innerHeight,
@@ -123,7 +125,7 @@ for (const [width, height] of [[667, 375], [844, 390], [568, 320], [740, 360], [
       // Shrunk for width only as far as phone gutters need: with the 1px
       // slack and the first digit's side bearing, they end up 16.5-20px.
       if (fs < await cssFontSize(page) - 0.01) {
-        expect(Math.min(first.left - stage.left, stage.right - outline.right), 'tightest gutter once shrunk').toBeLessThan(20);
+        expect(Math.min(first.left - stage.left, stage.right - box.right), 'tightest gutter once shrunk').toBeLessThan(20);
       }
     });
 
@@ -193,7 +195,7 @@ test('a phone sideways with safe-area insets keeps everything inside them', asyn
   const keysMid = (Math.min(...pad.map(k => k.top)) + Math.max(...pad.map(k => k.bottom))) / 2;
   note('keypad centre below the problem area\'s', keysMid - (stage.top + stage.bottom) / 2);
   expect(Math.abs(keysMid - (stage.top + stage.bottom) / 2), 'keypad centred on the problem area').toBeLessThanOrEqual(TOL);
-  await showOutline(page);
+  // To the box's border (its dashed outline until that was removed, 2026-11-06).
   const { offset } = await groupOffset(page);
   note('visible group right of the safe centre', offset);
   expect(Math.abs(offset), 'centred in the safe part').toBeLessThanOrEqual(TOL);
@@ -224,8 +226,8 @@ test('the header\'s ink margins match left and right in landscape', async ({ pag
 });
 
 // The layout at a size: where the keypad is, the font, and how centred what you see is.
+// (It showed the box's dashed outline first, until that was removed on 2026-11-06.)
 async function laidOut(page) {
-  await showOutline(page);
   const stage = await rect(page, '.stage');
   const pad = await rect(page, '.pad');
   return { beside: pad.left >= stage.right - 0.01, fs: await fontSize(page), offset: (await groupOffset(page)).offset };

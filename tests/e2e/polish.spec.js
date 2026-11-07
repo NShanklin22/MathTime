@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import {
-  open, levelRow, freeze, showOutline, settle, resize, setProblem, layOut, rect, capture, ink, digitBand, groupOffset,
+  open, levelRow, freeze, settle, resize, setProblem, layOut, rect, capture, ink, digitBand, groupOffset,
   equalsGap, labelInk, clearances, note, fontSize, cssFontSize, typeKeys, TOL, MUTED, LOST,
 } from './helpers.js';
 
@@ -20,7 +20,8 @@ test('the ink gap from "=" to the box matches the mean ink gap around the second
 });
 
 test('what you see of the equation is centred, for every first digit', async ({ page }) => {
-  await showOutline(page);
+  // From the first digit's ink to the box's border (to its dashed outline
+  // until that was removed, 2026-11-06).
   let worst = 0;
   for (let a = 0; a <= 9; a++) {
     await layOut(page, a, 5);
@@ -32,13 +33,14 @@ test('what you see of the equation is centred, for every first digit', async ({ 
 });
 
 test('"Question N" has its ink centred over what you see', async ({ page }) => {
-  await showOutline(page);
+  // Over the first digit's ink to the box's border (to its dashed outline
+  // until that was removed, 2026-11-06).
   let worst = 0;
   for (const [question, a] of [[1, 5], [7, 4], [10, 7], [18, 1]]) {
     await page.evaluate(n => { window.mathtime.game.state.question = n; }, question);
     await setProblem(page, a, 3);
-    const { first, outline, shot } = await groupOffset(page);
-    const off = (await labelInk(page, shot)).midX - (first.left + outline.right) / 2;
+    const { first, box, shot } = await groupOffset(page);
+    const off = (await labelInk(page, shot)).midX - (first.left + box.right) / 2;
     worst = Math.max(worst, Math.abs(off));
     expect(Math.abs(off), `Question ${question}, a = ${a}: ${off.toFixed(3)}px`).toBeLessThanOrEqual(TOL);
   }
@@ -51,23 +53,24 @@ test('"Question N" stays centred where canvas has no letter spacing', async ({ p
   await open(page);
   await freeze(page);
   expect(await page.evaluate(() => 'letterSpacing' in document.createElement('canvas').getContext('2d'))).toBe(false);
-  await showOutline(page);
+  // Over the first digit's ink to the box's border, as above.
   let worst = 0;
   for (const [question, a] of [[1, 5], [10, 7]]) {
     await page.evaluate(n => { window.mathtime.game.state.question = n; }, question);
     await setProblem(page, a, 3);
-    const { first, outline, shot } = await groupOffset(page);
-    const off = (await labelInk(page, shot)).midX - (first.left + outline.right) / 2;
+    const { first, box, shot } = await groupOffset(page);
+    const off = (await labelInk(page, shot)).midX - (first.left + box.right) / 2;
     worst = Math.max(worst, Math.abs(off));
     expect(Math.abs(off), `Question ${question}: ${off.toFixed(3)}px`).toBeLessThanOrEqual(TOL);
   }
   note('worst label centring', worst);
 });
 
-test('a new problem after a correct answer is centred before it slides in', async ({ page }) => {
+test('a new problem after a correct answer is centred before it fades in', async ({ page }) => {
   // "4" and "7" have the least and the most space before their ink in Plex
   // Mono, so a placement made for one is visibly off-centre for the other.
-  await showOutline(page);
+  // Measured to the box's border (to its dashed outline until that was
+  // removed, 2026-11-06).
   await layOut(page, 4, 3);
   await page.evaluate(() => {
     const { game } = window.mathtime;
@@ -76,7 +79,7 @@ test('a new problem after a correct answer is centred before it slides in', asyn
       next();
       game.state.problem = { a: 7, b: 1, answer: 8 };
     };
-    // Where the equation is when the slide-in starts.
+    // Where the equation is when the fade-in starts.
     const eq = document.querySelector('#eq');
     const watch = new MutationObserver(() => {
       if (!eq.classList.contains('in')) return;
@@ -87,7 +90,7 @@ test('a new problem after a correct answer is centred before it slides in', asyn
   });
   await typeKeys(page, ['7', 'Enter']);
   await expect(page.locator('#qnum')).toHaveText('Question 2 of 20');
-  await expect(page.locator('#eq')).not.toHaveClass(/\bin\b/);   // it has slid in
+  await expect(page.locator('#eq')).not.toHaveClass(/\bin\b/);   // it has faded in
   expect(await page.evaluate(() => document.querySelector('#eq').style.left)).toBe(await page.evaluate(() => window.leftAtSlideIn));
   const off = (await groupOffset(page)).offset;
   note('centring after a correct answer', off);
@@ -95,8 +98,8 @@ test('a new problem after a correct answer is centred before it slides in', asyn
 });
 
 test('the first problem of a restarted game is centred from its first frame', async ({ page }) => {
-  // From "4" to "7", as after a correct answer.
-  await showOutline(page);
+  // From "4" to "7", as after a correct answer. Measured to the box's
+  // border (to its dashed outline until that was removed, 2026-11-06).
   await layOut(page, 4, 3);
   await page.evaluate(() => {
     const { game } = window.mathtime;
@@ -198,12 +201,13 @@ for (const [width, height] of [[360, 400], [400, 430], [320, 740]]) {
     const digits = await digitBand(page);
     note('digit ink below centre', digits.mid - (stage.top + stage.bottom) / 2);
     expect(Math.abs(digits.mid - (stage.top + stage.bottom) / 2), 'digit ink centre').toBeLessThanOrEqual(TOL);
-    await showOutline(page);
+    // The box's border is what clears the bottom now (its dashed outline
+    // did until that was removed, 2026-11-06).
     const { above, below } = await clearances(page);
     expect(above, '"Question N" shows').not.toBeNull();
     note('font size', await fontSize(page));
     note('"Question N" ink below the top', above);
-    note('outline ink above the bottom', below);
+    note('box ink above the bottom', below);
     expect(above, '"Question N" clear above').toBeGreaterThanOrEqual(8);
     expect(below, 'box clear below').toBeGreaterThanOrEqual(8);
     if (height > 600) {
@@ -237,17 +241,17 @@ async function digitsInside(page) {
 
 test('a problem area too short for 8px clear still fits the whole group', async ({ page }) => {
   // About 30px tall: no font size keeps 8px clear, because the box border
-  // and outline keep their px sizes.
+  // keeps its px size. (Its dashed outline did too, and was what cleared the
+  // bottom, until it was removed on 2026-11-06: now the border is.)
   await resize(page, 300, 310);
-  await showOutline(page);
   const { above, below } = await clearances(page);
   note('font size', await fontSize(page));
   expect(above, '"Question N" shows').not.toBeNull();
   note('"Question N" ink below the top', above);
-  note('outline ink above the bottom', below);
+  note('box ink above the bottom', below);
   expect(Math.min(above, below), 'less than 8px clear: the rule cannot be met').toBeLessThan(8);
   expect(above, '"Question N" inside').toBeGreaterThanOrEqual(0);
-  expect(below, 'outline inside').toBeGreaterThanOrEqual(0);
+  expect(below, 'box inside').toBeGreaterThanOrEqual(0);
   const digits = await digitsInside(page);
   expect(Math.min(digits.above, digits.below), 'digit ink band inside').toBeGreaterThanOrEqual(0);
 });
@@ -277,9 +281,10 @@ async function forceStage(page, height) {
   await settle(page);
 }
 
-// How far "Question N" (its box), the box's outline and the digits' ink band
-// stay inside the problem area, from the layout (pixels can't show what the
-// problem area clips), and the font size.
+// How far "Question N" (its box), the answer box's border and the digits' ink
+// band stay inside the problem area, from the layout (pixels can't show what
+// the problem area clips), and the font size. (It took the box's dashed
+// outline until that was removed, 2026-11-06: the border is now its edge.)
 const inside = page => page.evaluate(() => {
   const eq = document.querySelector('#eq');
   const cs = getComputedStyle(eq);
@@ -292,7 +297,7 @@ const inside = page => page.evaluate(() => {
     fs,
     labelFont: parseFloat(getComputedStyle(document.querySelector('#qnum')).fontSize),
     label: document.querySelector('#qnum').getBoundingClientRect().top - stage.top,
-    outline: stage.bottom - (slot.top + parseFloat(after.top) + parseFloat(after.height) + parseFloat(after.outlineOffset) + parseFloat(after.outlineWidth)),
+    box: stage.bottom - (slot.top + parseFloat(after.top) + parseFloat(after.height)),
     digits: Math.min(band - stage.top, stage.bottom - band - parseFloat(cs.getPropertyValue('--ink-h')) * fs),
   };
 });
@@ -303,15 +308,18 @@ test('the fit grows steadily with the problem area, and nothing is cut', async (
     await forceStage(page, height);
     const m = await inside(page);
     note(`font at ${height}px`, m.fs);
-    for (const part of ['label', 'outline', 'digits']) {
+    for (const part of ['label', 'box', 'digits']) {
       expect(m[part], `${height}px: ${part} inside`).toBeGreaterThanOrEqual(-0.01);
     }
     if (last) expect(m.fs, `${height}px: font no smaller than at ${last.height}px`).toBeGreaterThanOrEqual(last.fs - 0.05);
     // A label shrunk below its 15px minimum is only as small as its side
     // needs: that side ends within a pixel of its clearance (8px, less under
-    // a 49px area, plus the 0.5px slack).
+    // a 37px area, plus the 0.5px slack). The clearance scales with what the
+    // group needs at its smallest, the 2px border and 16px; until the box's
+    // dashed outline was removed (2026-11-06) its 5px offset and 1px width
+    // counted too, and the area was 49px.
     if (m.labelFont < 15 - 0.01) {
-      const half = height / 2 - 0.5, clear = 8 * Math.min(1, Math.max(0, (half - 1) / 23));
+      const half = height / 2 - 0.5, clear = 8 * Math.min(1, Math.max(0, half / 18));
       expect(m.label, `${height}px: label side tight`).toBeLessThanOrEqual(clear + 0.5 + 1);
     }
     last = { height, fs: m.fs };

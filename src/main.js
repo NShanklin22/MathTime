@@ -154,15 +154,19 @@ addEventListener('keydown', e => {
 });
 
 // Handle for the browser tests (tests/e2e) to put a known problem, level or
-// finish screen on screen.
-window.mathtime = { game, view, layout, board, selector, finish, levels: LEVELS, play };
+// finish screen on screen, or lay the screen out again as a resize does (relayout).
+window.mathtime = { game, view, layout, board, selector, finish, levels: LEVELS, play, relayout };
 
 // The game locks input itself during the correct, out-of-lives and finished
 // transitions (spec §2), so every key just goes to game.press(). On the
 // board, a key that writes, moves the cursor or checks a column right just
 // redraws it ('typed', 'moved', 'step'); the rest is feedback, as on a
 // fact level.
+// While the game is playing, any key first jumps a red-line or a fade-in
+// still playing to its end (fx.js): an effect never delays a key. In any
+// other phase (out of lives, locked in) a key leaves the effect alone.
 bindInput(dom, key => {
+  if (game.state.phase === 'playing') screen.skip();
   const result = game.press(key);
   if (result === 'typed') {
     if (screen === board) board.render(game.state);
@@ -220,6 +224,7 @@ function relayout() {
   queued = true;
   requestAnimationFrame(() => {
     queued = false;
+    screen.settle();                 // no effect is left drawn where the screen was
     safeLayout();
   });
 }

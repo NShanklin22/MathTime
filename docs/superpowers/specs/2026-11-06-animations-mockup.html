@@ -1,0 +1,530 @@
+<!doctype html>
+<html lang="en" class="loading">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Animations mockup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<!-- Animation ideas 1-3 (docs/superpowers/specs/2026-11-06-animation-ideas.md)
+     on the real Level 1 play screen: the game's own markup, styles and code
+     (src/, served by scripts/serve.mjs from the site root). Only the view's
+     feedback (showCorrect, showWrong, showOut, showFinished) is swapped,
+     from this page, through the handle main.js exposes (window.mathtime);
+     nothing in src/ is changed.
+
+       1. Inked over: a green pen line traces the box's frame clockwise from
+          the top left in 150ms (stroke-dashoffset on an SVG path laid over
+          the border, on whole device pixels, 1 device px wider than it so
+          no white shows at its edges), and the digits go green. As the
+          trace ends, the box's own border turns green and the pen goes.
+       2. In-place reprint: the closed green frame and green digits hold
+          90ms, the old problem fades out (80ms) and the new one fades in
+          (120ms) at its final position. Input is locked 320ms (today
+          ~570ms). Nothing moves.
+       3. Red-line: a wrong answer is struck through by a solid warm-red
+          line ~0.07em thick with a knock-out halo (140ms draw, left to
+          right, clip-path), held 240ms, and cleared (120ms fade). Nothing
+          moves. Lives and hearts as today. Under reduced motion the struck
+          digits show still for 400ms (or until the next key), then clear.
+
+     The strip in the top left: "Now" (today's animations, the real code)
+     or "New"; "Slow ×4" slows the new ones (and today's slide and shake;
+     today's 350ms green is a timer inside view.js and stays 350ms).
+
+     URL params:
+       ?mode=now | ?mode=new            which animations (new unless given)
+       ?slow=1                          Slow ×4 on
+       ?freeze=ink&t=0.5                the ink trace paused at t (0-1) of 150ms
+       ?freeze=redline&t=0.5            the red-line paused at t of 500ms
+                                        (140 draw, 240 hold, 120 clear)
+       ?freeze=reprint&t=0.5            a right answer's whole sequence paused at
+                                        t of 440ms (150 trace, 90 hold, 80 out, 120 in)
+     The first problem is always 7 + 5 (frozen: answers 12 right, 13 wrong;
+     the reprint's next problem is 3 + 4). Keys: digits, Backspace, Enter. -->
+<link rel="stylesheet" href="/src/styles.css">
+<style>
+  :root { --redline: #ff8a7a; }   /* warm red, 4.6:1 on the background */
+
+  /* The pen line and the strike: SVGs over the box, placed by the script
+     on whole device pixels. They never take a tap. */
+  .slot > .fx { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; z-index: 2; }
+  /* A box laid out by the very rules of the frame (slot::after in
+     styles.css), with its border unseen: the pen line goes over it, so it
+     is wherever the frame is, at every pixel ratio. */
+  .slot > .fxbox {
+    position: absolute; left: 0; right: 0; z-index: 2; pointer-events: none;
+    top: calc(var(--ink-top) * 1em - var(--pad) - var(--bw));
+    height: calc(var(--ink-h) * 1em + 2 * var(--pad) + 2 * var(--bw));
+    border: max(calc(var(--bw-em) * 1em), calc(var(--bw-min) * var(--line-scale, 1))) solid transparent;
+  }
+  .fxbox > .fx { position: absolute; overflow: visible; }
+  .fx path { fill: none; stroke: var(--good); stroke-linejoin: miter; stroke-linecap: butt; }
+  .fx line { stroke: var(--redline); stroke-linecap: butt; }
+  .fx line.halo { stroke: var(--bg); }
+  /* The trace done: the box's own border and the digits are green. */
+  .eq.inked .slot::after { border-color: var(--good); }
+  .eq.inked #shown { color: var(--good); }
+  /* The struck answer, a copy of what was in the box, over the cleared one. */
+  .shown > .ghost { position: absolute; left: 0; top: 0; height: 1em; display: flex; }
+  /* No caret while the box is inked or struck. */
+  .eq.fx-lock .caret, .eq.fx-red .caret { visibility: hidden; }
+
+  /* ---------- The review strip ---------- */
+  .ab {
+    position: fixed; z-index: 10;
+    top: var(--top-h); left: max(var(--gutter), env(safe-area-inset-left));
+    display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+    font: 500 12px/1 var(--font); letter-spacing: 0.04em;
+  }
+  html.loading .ab, body.at-select .ab, body.at-finish .ab { visibility: hidden; }
+  .ab .seg { display: flex; }
+  .ab button {
+    appearance: none; margin: 0; border: 0; border-radius: 0;
+    height: 26px; padding: 0 10px;
+    background: transparent; color: var(--muted);
+    box-shadow: inset 0 0 0 1px rgba(238, 245, 255, 0.45);
+    font: inherit; letter-spacing: inherit; cursor: pointer;
+  }
+  .ab .seg button + button { margin-left: -1px; }
+  .ab button[aria-pressed="true"] { background: var(--ink); color: var(--bg); box-shadow: none; position: relative; }
+  .ab .frozen { color: var(--amber); }
+</style>
+</head>
+<body class="at-select" data-kind="fact">
+  <header class="top">
+    <div class="where">
+      <nav class="crumbs" aria-label="Breadcrumb">
+        <a class="back" href="#" aria-label="Levels" aria-keyshortcuts="Escape" tabindex="-1"><span class="word">Levels</span><svg class="chevron" viewBox="0 0 12 12" aria-hidden="true"><path d="M7.25 2.5L3.75 6l3.5 3.5"/></svg></a>
+        <svg class="sep" viewBox="0 0 12 12" aria-hidden="true"><path d="M4.5 2.5L8 6l-3.5 3.5"/></svg>
+        <span class="here" aria-current="step">Addition 1</span>
+        <span class="home" aria-current="page">Levels</span>
+      </nav>
+    </div>
+    <div class="lives" role="img" aria-label="3 lives left">
+      <svg viewBox="2 3 20 18" aria-hidden="true"><path d="M19.5 12.572l-7.5 7.428l-7.5 -7.428a5 5 0 1 1 7.5 -6.566a5 5 0 1 1 7.5 6.572"/></svg>
+      <svg viewBox="2 3 20 18" aria-hidden="true"><path d="M19.5 12.572l-7.5 7.428l-7.5 -7.428a5 5 0 1 1 7.5 -6.566a5 5 0 1 1 7.5 6.572"/></svg>
+      <svg viewBox="2 3 20 18" aria-hidden="true"><path d="M19.5 12.572l-7.5 7.428l-7.5 -7.428a5 5 0 1 1 7.5 -6.566a5 5 0 1 1 7.5 6.572"/></svg>
+    </div>
+  </header>
+
+  <main class="stage">
+    <div class="eq" id="eq">
+      <span class="qnum" id="qnum">Question 1 of 20</span>
+      <span id="a">7</span>
+      <span class="op">+</span>
+      <span id="b">5</span>
+      <span class="op">=</span>
+      <span class="slot empty" id="slot">
+        <span class="shown" aria-hidden="true"><span id="shown"></span><span class="caret"></span></span>
+        <input id="ans" inputmode="none" maxlength="2" autocomplete="off" aria-label="Answer">
+      </span>
+    </div>
+    <div class="board" id="board" aria-hidden="true"></div>
+  </main>
+
+  <div class="run" aria-hidden="true"></div>
+  <p class="sr-only" role="status" id="status"></p>
+  <div class="select" role="region" aria-label="Levels"></div>
+  <div class="finish" role="region" aria-labelledby="done-title">
+    <h1 class="line done-title" id="done-title"></h1>
+    <p class="line done-time"></p>
+    <p class="line done-best"></p>
+    <p class="line done-misses"></p>
+    <div class="done-buttons">
+      <button class="again"><span class="line">Again</span></button>
+      <button class="levels"><span class="line">Levels</span></button>
+    </div>
+  </div>
+
+  <div class="pad" role="group" aria-label="Keypad">
+    <button tabindex="-1" data-k="1"><span class="kl">1</span></button>
+    <button tabindex="-1" data-k="2"><span class="kl">2</span></button>
+    <button tabindex="-1" data-k="3"><span class="kl">3</span></button>
+    <button tabindex="-1" data-k="4"><span class="kl">4</span></button>
+    <button tabindex="-1" data-k="5"><span class="kl">5</span></button>
+    <button tabindex="-1" data-k="6"><span class="kl">6</span></button>
+    <button tabindex="-1" data-k="7"><span class="kl">7</span></button>
+    <button tabindex="-1" data-k="8"><span class="kl">8</span></button>
+    <button tabindex="-1" data-k="9"><span class="kl">9</span></button>
+    <button tabindex="-1" data-k="Backspace" aria-label="Delete"><svg viewBox="0 0 24 24" aria-hidden="true"><g transform="translate(-0.5 0)"><path d="M20 6H9l-5 6l5 6h11a1 1 0 0 0 1-1V7a1 1 0 0 0-1-1z"/><path d="M12.25 10.25l3.5 3.5m0-3.5l-3.5 3.5"/></g></svg></button>
+    <button tabindex="-1" data-k="0"><span class="kl">0</span></button>
+    <button tabindex="-1" data-k="Enter" class="go" aria-label="Check answer"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 12.5l5.5 5.5l11.5-11.5"/></svg></button>
+  </div>
+
+  <!-- Review only: not part of the design. -->
+  <div class="ab" aria-label="Mockup controls">
+    <span class="seg" role="group" aria-label="Animations">
+      <button tabindex="-1" data-mode="now" aria-pressed="false">Now</button>
+      <button tabindex="-1" data-mode="new" aria-pressed="true">New</button>
+    </span>
+    <button tabindex="-1" class="slow" aria-pressed="false">Slow ×4</button>
+    <span class="frozen" hidden></span>
+  </div>
+
+<script type="module">
+  import { LEVELS } from '/src/levels.js';
+  import { snap, onLayoutGrid } from '/src/ink.js';
+  import '/src/main.js';                 // the game itself, as index.html runs it
+
+  const { game, view, layout, play } = window.mathtime;
+  const $ = sel => document.querySelector(sel);
+  const eq = $('#eq'), slot = $('#slot'), shown = $('#shown'), shownBox = $('.shown'), status = $('#status');
+  const pad = $('.pad'), ans = $('#ans');
+  const SVG = 'http://www.w3.org/2000/svg';
+  const px = v => onLayoutGrid(v, devicePixelRatio) + 'px';
+  const sn = v => snap(v, devicePixelRatio);
+  const css = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+
+  const params = new URLSearchParams(location.search);
+  const freeze = params.get('freeze');
+  const freezeT = Math.min(1, Math.max(0, Number(params.get('t') ?? 0.5) || 0));
+  let mode = freeze ? 'new' : (params.get('mode') === 'now' ? 'now' : 'new');
+  let S = params.get('slow') === '1' ? 4 : 1;          // time stretch
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)');
+
+  // ---- Timings (ms, at Slow ×1) ----
+  const T = {
+    trace: 150, traceEase: 'cubic-bezier(.3,.1,.5,1)',
+    digitsAt: 100, digits: 50,       // the digits go green as the pen closes the frame
+    hold: 240, out: 80, in: 120,     // fade out 90ms after the trace; lock = hold + out = 320
+    draw: 140, redHold: 240, clear: 120,
+  };
+  const RED_TOTAL = T.draw + T.redHold + T.clear;        // 500
+  const REPRINT_TOTAL = T.hold + T.out + T.in;           // 440
+
+  /* ---------- Overlays ---------- */
+
+  // The frame's box, laid out by the frame's own rules (.fxbox), and its
+  // border width (a whole number of device pixels, as the page computes it). `r` is the slot's rect, which the strike is placed from.
+  function frame() {
+    const box = document.createElement('span');
+    box.className = 'fxbox';
+    slot.append(box);
+    const q = box.getBoundingClientRect();
+    const bw = parseFloat(getComputedStyle(box).borderTopWidth);
+    return { box, q, bw, r: slot.getBoundingClientRect() };
+  }
+  function svgAt(r, left, top, w, h) {
+    const svg = document.createElementNS(SVG, 'svg');
+    svg.classList.add('fx');
+    svg.setAttribute('aria-hidden', 'true');
+    svg.setAttribute('width', w);
+    svg.setAttribute('height', h);
+    svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
+    svg.style.left = px(left - r.left);
+    svg.style.top = px(top - r.top);
+    svg.style.width = w + 'px';
+    svg.style.height = h + 'px';
+    return svg;
+  }
+
+  // The pen line: one open path along the border's centre line, starting
+  // at the top left corner's outer edge and going clockwise, so the frame
+  // closes over itself. Its SVG covers the frame's border box. The pen
+  // starts at most 2px and settles to the border's weight plus one device
+  // pixel (half each side), so the border's edges never show beside it.
+  function penLine() {
+    const { box, q, bw } = frame();
+    // The page paints a border box with its edges rounded to whole device
+    // pixels (its border width is a whole number of them already), so the
+    // SVG covers exactly that. Its offsets are from the padding box.
+    const L = sn(q.left), T = sn(q.top), w = sn(q.right) - L, h = sn(q.bottom) - T, c = bw / 2;
+    const e = 0.5 / devicePixelRatio;
+    const svg = svgAt({ left: q.left + bw, top: q.top + bw }, L, T, w, h);
+    const path = document.createElementNS(SVG, 'path');
+    path.setAttribute('d', `M${-e} ${c}H${w - c}V${h - c}H${c}V${-e}`);
+    const from = Math.min(2, bw), to = bw + 2 * e;
+    path.style.strokeWidth = to;
+    const len = (w - c + e) + (h - 2 * c) + (w - 2 * c) + (h - c + e);
+    path.style.strokeDasharray = `${len} ${len}`;
+    path.style.strokeDashoffset = len;
+    svg.append(path);
+    box.append(svg);
+    return { svg: box, path, len, from, to };
+  }
+
+  // The strike through `typed`, the wrong answer still in the box: a solid
+  // line ~0.07em thick, across the digits' ink and 4px past it, on the
+  // ink's middle, every edge on a whole device pixel, with a halo of the
+  // background's colour 1-2px round it, knocking out the digits under it.
+  function strikeLine(typed) {
+    const { geo } = layout;
+    const f = frame();
+    f.box.remove();
+    const inner = shownBox.getBoundingClientRect();
+    const g = layout.inkOf(typed, geo.boxW);
+    const dpr = devicePixelRatio;
+    const ext = 4;
+    const x0 = sn(inner.left + (geo.boxW - g.w) / 2 * geo.fs - ext);
+    const x1 = sn(inner.left + (geo.boxW + g.w) / 2 * geo.fs + ext);
+    const sw = Math.max(1, Math.round(0.07 * geo.fs * dpr)) / dpr;     // whole device pixels
+    const halo = Math.max(1, Math.round(1.5 * dpr)) / dpr;
+    const y0 = sn(inner.top + geo.mid * geo.fs - sw / 2);
+    const W = x1 - x0 + 2 * halo, H = sw + 2 * halo;
+    const svg = svgAt(f.r, x0 - halo, y0 - halo, W, H);
+    const stroke = (cls, a, b, width) => {
+      const line = document.createElementNS(SVG, 'line');
+      if (cls) line.classList.add(cls);
+      line.setAttribute('x1', a); line.setAttribute('x2', b);
+      line.setAttribute('y1', H / 2); line.setAttribute('y2', H / 2);
+      line.setAttribute('stroke-width', width);
+      svg.append(line);
+    };
+    stroke('halo', 0, W, H);
+    stroke(null, halo, W - halo, sw);
+    slot.append(svg);
+    return svg;
+  }
+
+  /* ---------- Effects ---------- */
+  // Each effect is { anims, jump?, end }. jump() takes it to its end state
+  // at once (a key pressed meanwhile); end() tidies up.
+  const live = new Set();
+  let token = 0;
+  const opts = (delay, duration, extra) => ({ delay: delay * S, duration: duration * S, fill: 'both', ...extra });
+  function settle(anims, at) {
+    if (at == null) return;
+    for (const a of anims) if (a) { a.pause(); a.currentTime = at * S; }
+  }
+  function clearAll() {
+    token += 1;
+    for (const fx of live) fx.end();
+    live.clear();
+    for (const a of eq.getAnimations({ subtree: true })) if (a instanceof CSSAnimation === false) a.cancel();
+  }
+
+  // Inked over: the trace, then the digits green. As the trace ends the
+  // pen goes and the box's own border is green (.inked): the inked state,
+  // which stays until the reprint takes the problem away.
+  function ink(at) {
+    eq.classList.add('fx-lock');
+    const { svg, path, len, from, to } = penLine();
+    const traced = () => { svg.remove(); eq.classList.add('inked'); fx.anims.forEach(a => a.cancel()); };
+    const fx = { anims: [], end() { svg.remove(); fx.anims.forEach(a => a.cancel()); eq.classList.remove('fx-lock', 'inked'); } };
+    if (reduced.matches) {
+      traced();
+    } else {
+      fx.anims.push(path.animate([{ strokeDashoffset: len, strokeWidth: from }, { strokeDashoffset: 0, strokeWidth: to }], opts(0, T.trace, { easing: T.traceEase })));
+      fx.anims.push(shown.animate([{ color: css('--ink') }, { color: css('--good') }], opts(T.digitsAt, T.digits)));
+      if (at != null) {
+        settle(fx.anims, at);
+        if (at >= T.trace) traced();
+      } else {
+        fx.anims[0].finished.then(() => { if (live.has(fx)) traced(); }, () => {});
+      }
+    }
+    live.add(fx);
+    return fx;
+  }
+
+  // Red-line: `typed` was wrong and the box is already cleared (render).
+  // A copy of it is struck, held, and faded.
+  function redline(cell, typed, at) {
+    if (!cell || !typed) return null;
+    const ghost = document.createElement('span');
+    ghost.className = 'ghost';
+    ghost.append(cell);
+    shownBox.append(ghost);
+    const svg = strikeLine(typed);
+    eq.classList.add('fx-red');
+    if (reduced.matches) {
+      // Still: struck for 400ms, or until the next key, then cleared.
+      const timer = setTimeout(() => fx.end(), 400 * S);
+      const fx = { anims: [], jump() { fx.end(); }, end() { clearTimeout(timer); live.delete(fx); ghost.remove(); svg.remove(); eq.classList.remove('fx-red'); } };
+      live.add(fx);
+      return fx;
+    }
+    const fx = {
+      anims: [
+        svg.animate([{ clipPath: 'inset(0 100% 0 0)' }, { clipPath: 'inset(0 0% 0 0)' }], opts(0, T.draw, { easing: 'cubic-bezier(.3,0,.4,1)' })),
+        svg.animate([{ opacity: 1 }, { opacity: 0 }], opts(T.draw + T.redHold, T.clear)),
+        ghost.animate([{ opacity: 1 }, { opacity: 0 }], opts(T.draw + T.redHold, T.clear)),
+      ],
+      jump() { fx.end(); },
+      end() { live.delete(fx); fx.anims.forEach(a => a.cancel()); ghost.remove(); svg.remove(); eq.classList.remove('fx-red'); },
+    };
+    live.add(fx);
+    if (at != null) {
+      settle(fx.anims, at);
+      if (at >= RED_TOTAL) fx.end();           // its end state, as played out
+    } else {
+      fx.anims[2].finished.then(() => fx.end(), () => {});
+    }
+    return fx;
+  }
+
+  // The reprint's fade in: the next problem already where it will sit.
+  function fadeIn(at) {
+    if (reduced.matches) return;
+    const a = eq.animate([{ opacity: 0 }, { opacity: 1 }], opts(0, T.in));
+    const fx = { anims: [a], jump() { fx.end(); }, end() { live.delete(fx); a.cancel(); } };
+    live.add(fx);
+    if (at != null) { settle(fx.anims, at); if (at >= T.in) fx.end(); }
+    else a.finished.then(() => fx.end(), () => {});
+  }
+
+  const wait = ms => new Promise(r => setTimeout(r, ms));
+  // The answer's cell as drawn, before the view clears it.
+  const answerCell = () => shown.firstElementChild?.cloneNode(true);
+
+  /* ---------- The view's feedback, new ---------- */
+
+  // Right: inked over (150ms), the closed green frame held 90ms, fade out
+  // 80ms, the next problem drawn and placed while unseen, unlocked (320ms),
+  // faded in 120ms.
+  async function newCorrect(state, next, at) {
+    clearAll();
+    const my = token;
+    status.textContent = 'Correct';
+    view.render(state);                        // its run segment fills
+    const fx = ink(at);
+    const out = reduced.matches ? null : eq.animate([{ opacity: 1 }, { opacity: 0 }], opts(T.hold, T.out, { fill: 'forwards' }));
+    if (at != null) {
+      if (at < T.hold + T.out) { settle([out], at); return; }
+    } else if (out) {
+      await out.finished.catch(() => {});
+    } else {
+      await wait((T.hold + T.out) * S);
+    }
+    if (my !== token) return;
+    // The swap, while the equation is unseen.
+    next();
+    if (freeze) state.problem = { a: 3, b: 4, answer: 7 };
+    fx.end();
+    live.delete(fx);
+    view.render(state);
+    try { layout.place(); } catch (err) { console.error(err); }
+    out?.cancel();
+    view.announceProblem(state);
+    fadeIn(at == null ? null : at - T.hold - T.out);
+  }
+
+  function newWrong(state, at) {
+    clearAll();
+    const cell = answerCell(), typed = cell?.textContent ?? '';
+    view.render(state);
+    status.textContent = `Wrong, ${$('.lives').getAttribute('aria-label')}`;
+    return redline(cell, typed, at);
+  }
+
+  // Third miss: the red-line, then the level selector as today.
+  async function newOut(state) {
+    const fx = newWrong(state);
+    status.textContent = 'Out of lives';
+    const my = token;
+    await wait(Math.max(450, fx ? (reduced.matches ? 400 : RED_TOTAL) : 0) * S);
+    if (my !== token || state.phase !== 'out') return false;
+    clearAll();
+    return true;
+  }
+
+  // The run's last answer: inked over, then the finish screen.
+  async function newFinished(state) {
+    clearAll();
+    const my = token;
+    status.textContent = 'Correct';
+    view.render(state);
+    ink();
+    await wait(Math.max(T.trace, T.hold) * S);
+    if (my !== token || state.phase !== 'finished') return false;
+    clearAll();
+    return true;
+  }
+
+  /* ---------- Swapped into the view ---------- */
+  const was = { showCorrect: view.showCorrect, showWrong: view.showWrong, showOut: view.showOut, showFinished: view.showFinished, reset: view.reset };
+  view.showCorrect = (state, next) => mode === 'new' ? newCorrect(state, next) : was.showCorrect(state, next);
+  view.showWrong = state => mode === 'new' ? newWrong(state) : was.showWrong(state);
+  view.showOut = state => mode === 'new' ? newOut(state) : was.showOut(state);
+  view.showFinished = state => mode === 'new' ? newFinished(state) : was.showFinished(state);
+  view.reset = () => { clearAll(); was.reset(); };
+
+  // A key jumps whatever is playing out after the lock (the red-line, the
+  // fade in) to its end state before the game takes it. During the 210ms
+  // lock the game ignores keys, as today.
+  const jump = () => { for (const fx of [...live]) fx.jump?.(); };
+  addEventListener('keydown', e => { if (e.target === ans) jump(); }, true);
+  pad.addEventListener('click', e => { if (e.target.closest('button[data-k]')) jump(); }, true);
+
+  // Today's slide and shake, slowed too.
+  eq.addEventListener('animationstart', () => {
+    for (const a of eq.getAnimations()) if (a instanceof CSSAnimation && a.animationName !== 'blink') a.playbackRate = 1 / S;
+  });
+
+  // Overlays follow a new layout (a resize, a font arriving).
+  let queued = false;
+  new ResizeObserver(() => {
+    if (queued || freeze) return;
+    queued = true;
+    requestAnimationFrame(() => requestAnimationFrame(() => { queued = false; jump(); }));
+  }).observe(document.querySelector('.stage'));
+
+  /* ---------- The strip ---------- */
+  const strip = $('.ab');
+  function paintStrip() {
+    strip.querySelectorAll('[data-mode]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.mode === mode)));
+    strip.querySelector('.slow').setAttribute('aria-pressed', String(S === 4));
+  }
+  function remember() {
+    const p = new URLSearchParams();
+    if (mode === 'now') p.set('mode', 'now');
+    if (S === 4) p.set('slow', '1');
+    history.replaceState(null, '', location.pathname + (p.size ? '?' + p : ''));
+  }
+  strip.addEventListener('click', e => {
+    const b = e.target.closest('button');
+    if (!b || freeze) return;
+    if (b.dataset.mode) mode = b.dataset.mode;
+    else S = S === 4 ? 1 : 4;
+    paintStrip();
+    remember();
+  });
+  paintStrip();
+
+  /* ---------- Start: Level 1, 7 + 5 ---------- */
+  function setProblem(a, b) {
+    game.state.problem = { a, b, answer: a + b };
+    layout.layout();
+    view.announceProblem(game.state);
+  }
+  play(LEVELS[0]);
+  setProblem(7, 5);
+
+  if (freeze) {
+    const label = strip.querySelector('.frozen');
+    label.hidden = false;
+    label.textContent = `${freeze} t=${freezeT}`;
+    const s = document.createElement('style');
+    s.textContent = '.caret { animation: none !important; }';
+    document.head.append(s);
+    const frames = n => new Promise(r => { const f = () => (n-- ? requestAnimationFrame(f) : r()); f(); });
+    const ready = () => new Promise(r => {
+      const check = () => (document.documentElement.classList.contains('loading') ? requestAnimationFrame(check) : r());
+      check();
+    });
+    await ready();
+    await frames(3);
+    setProblem(7, 5);
+    const type = str => { for (const k of str) { game.press(k); view.renderAnswer(game.state.typed); } };
+    if (freeze === 'redline') {
+      type('13');
+      game.press('Enter');
+      newWrong(game.state, freezeT * RED_TOTAL);
+    } else if (freeze === 'ink' || freeze === 'reprint') {
+      type('12');
+      game.press('Enter');
+      if (freeze === 'ink') {
+        clearAll();
+        status.textContent = 'Correct';
+        view.render(game.state);
+        ink(freezeT * T.trace);
+      } else {
+        newCorrect(game.state, () => game.next(), freezeT * REPRINT_TOTAL);
+      }
+    }
+    document.documentElement.dataset.frozen = 'ready';
+  }
+</script>
+</body>
+</html>

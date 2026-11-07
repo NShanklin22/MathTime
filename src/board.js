@@ -3,6 +3,7 @@ import { fitHeader } from './header.js';
 import { centreKeys } from './keypad.js';
 import { placeRun } from './layout.js';
 import { levelName } from './levels.js';
+import { TIMING, RED_MS, reducedMotion, createEffects, inkOver, redLine, redFrame, strikeGeometry, fadeOut, fadeIn, cancelOn } from './fx.js';
 
 // The column board (Levels 6–7 batch plan): a column level's play screen,
 // drawn from the game's state (game.js) by the level's method (columns.js).
@@ -44,10 +45,18 @@ export function createBoard(dom, scan) {
   // or showFinished then finds its token stale and stops. Nothing is left
   // on the board either: it holds nothing while no column level is played.
   let runToken = 0;
+  const effects = createEffects();
   function reset() {
     runToken += 1;
-    board.classList.remove('out', 'in');
+    stop();
     board.replaceChildren();
+  }
+  // Whatever feedback is drawn or playing goes (fx.js).
+  function stop() {
+    effects.clear();
+    inking.clear();
+    cancelOn(board);
+    board.classList.remove('out', 'in');
   }
 
   // The caret shows only while the answer field has the focus.
@@ -226,7 +235,6 @@ export function createBoard(dom, scan) {
     board.style.top = px(snap(sr.top + sr.height / 2 - G.boardH / 2, dpr) - sr.top);
     board.style.fontSize = fs + 'px';
     board.style.setProperty('--bw', G.bw + 'px');
-    board.style.setProperty('--sk', (0.12 * fs).toFixed(3) + 'px');
 
     const lm = scan(label(), G.labelStyle, G.lfs * dpr);
     placeText(E.label, label(), G.lfs, G.labelStyle, G.boardW / 2, snap(-G.gapL - lm.desc * G.lfs, dpr));
@@ -272,7 +280,7 @@ export function createBoard(dom, scan) {
       const big = c.kind === 'big';
       cell.classList.toggle('filled', val !== '');
       cell.classList.toggle('focus', S.focus === c.id && playing);
-      cell.classList.toggle('ok', S.done[stepOf[c.id]]);
+      cell.classList.toggle('ok', S.done[stepOf[c.id]] && !inking.has(c.id));
       if (val === '') v.textContent = '';
       else placeText(v, val, big ? G.fs : G.fsS, G.style, (big ? G.W : G.Ws) / 2, big ? G.y3 - G.boxT : G.ySb);
     }
@@ -355,28 +363,85 @@ export function createBoard(dom, scan) {
     };
   }
 
-  // The column's small cell shakes, and the answer row as one box: its
-  // cells share borders, so one cell shaking alone would tear the box.
-  function shake(ids) {
-    const nodes = new Set();
-    for (const id of ids) {
-      if (method.cells.find(c => c.id === id).kind === 'small') nodes.add(E.cells[id].cell);
-      else for (const c of method.cells) if (c.kind === 'big') nodes.add(E.cells[c.id].cell);
-    }
-    for (const node of nodes) {
-      node.classList.remove('shake');
-      void node.offsetWidth;
-      node.classList.add('shake');
+  // Inked over, on the board (fx.js): the written answer, the answer row's
+  // cells with a digit in them, framed as one box (they share borders), is
+  // traced by the pen. Those of its cells not yet green (the column just
+  // checked) stay as they were until the pen closes the frame, their digits
+  // and the dividers between the cells going green as it does (the pen
+  // draws only the outside); then they are green at once (.ok.inked). The
+  // rest of the column (an empty cell rubbed out, a carry) turns green at
+  // once, as a column checked right does.
+  const inking = new Set();
+  function ink(state) {
+    const ids = method.cells.filter(c => c.kind === 'big' && state.cells[c.id] !== '').map(c => c.id);
+    const pending = ids.filter(id => !E.cells[id].cell.classList.contains('ok'));
+    pending.forEach(id => inking.add(id));
+    render(state);
+    if (!ids.length) return;
+    const rs = ids.map(id => E.cells[id].cell.getBoundingClientRect());
+    inkOver(effects, {
+      parent: board,
+      r: { left: Math.min(...rs.map(r => r.left)), right: Math.max(...rs.map(r => r.right)), top: rs[0].top, bottom: rs[0].bottom },
+      bw: G.bw,
+      digits: pending.map(id => E.cells[id].v),
+      // A pending cell's sides shared with another of the answer's cells.
+      borders: pending.map(id => {
+        const i = ids.indexOf(id);
+        const sides = [i > 0 && 'borderLeftColor', i < ids.length - 1 && 'borderRightColor'].filter(Boolean);
+        return { el: E.cells[id].cell.querySelector('.frame'), sides };
+      }).filter(b => b.sides.length),
+      traced: () => {
+        inking.clear();
+        for (const id of pending) E.cells[id]?.cell.classList.add('inked');
+        if (S) update();
+      },
+    });
+  }
+
+  // Red-line, on the board (fx.js): each wrong cell struck through, as the
+  // answer box is. `was` is what each held as drawn, before the check
+  // cleared it: a copy is laid over the cleared cell and struck on its
+  // ink's middle, the strike's ends (halo and all) 4px at least inside the
+  // frame's inner edge, as the answer box's are (a small cell's, half that).
+  // A wrong cell left empty (a carry skipped, a borrow not made, Level 7's
+  // tens) has nothing to strike, and a lone dash would read as a minus: its
+  // frame is drawn solid warm red instead, as heavy as a big cell's, on the
+  // same timing.
+  function drawn(ids) {
+    return ids.map(id => ({ id, text: E.cells[id].v.textContent, copy: E.cells[id].v.cloneNode(true) }));
+  }
+  function strike(was) {
+    const dpr = G.dpr, br = board.getBoundingClientRect();
+    for (const { id, text, copy } of was) {
+      const c = method.cells.find(cell => cell.id === id);
+      const big = c.kind === 'big';
+      const size = big ? G.fs : G.fsS;
+      const w = big ? G.W : G.Ws;
+      const frameW = big ? G.bw : G.bS;
+      const { cell } = E.cells[id];
+      if (!text) {
+        // The big cells' weight, in a small cell too (its own 1px dashed
+        // frame doesn't read), drawn inward over the cell: nothing moves.
+        redFrame(effects, { cell, width: G.bw, id });
+        continue;
+      }
+      const cx = G.ox + c.col * G.P + G.W / 2;
+      const base = big ? G.y3 : G.ySb;
+      const mid = base + ((big ? G.desc : G.descS) - (big ? G.asc : G.ascS)) / 2 * size;
+      const m = scan(text, G.style, size * dpr);
+      const inkW = (m.abl + m.abr) * size;
+      const inset = frameW + (big ? 4 : 4 * SMALL);
+      const ghost = copy;
+      ghost.classList.replace('v', 'ghost');   // not the cell's own digit
+      cell.append(ghost);
+      cell.classList.add('struck');
+      const s = strikeGeometry({
+        left: br.left + cx - inkW / 2, right: br.left + cx + inkW / 2, mid: br.top + mid, size, ext: big ? 4 : 2,
+        inside: { left: br.left + cx - w / 2 + inset, right: br.left + cx + w / 2 - inset },
+      }, dpr);
+      redLine(effects, { parent: board, s, ghost, cell: id, ended: () => cell.classList.remove('struck') });
     }
   }
-  // A shake ends on its cell; the slide-in on the board, which then lets go
-  // of it, as the equation does (view.js): shown again later, the board
-  // would otherwise slide in again. 'out' holds its end state until 'in'
-  // replaces it.
-  board.addEventListener('animationend', e => {
-    if (e.animationName === 'colshake') e.target.classList.remove('shake');
-    if (e.target === board && e.animationName === 'in') board.classList.remove('in');
-  });
 
   /* ---------- The view's interface ---------- */
 
@@ -426,30 +491,35 @@ export function createBoard(dom, scan) {
     status.textContent = `Right. ${method.steps[state.step].name} column.`;
   }
 
-  // Green for 0.35s, slide out, the next problem slides in, as the view's.
+  // The problem right, as the view's: the written answer inked over, the
+  // board held 90ms and faded out (80ms), the next problem built and placed
+  // while unseen, then faded in (120ms) where it sits. Input is locked
+  // until the swap, 320ms; under reduced motion nothing fades.
   async function showCorrect(state, next) {
     const token = runToken;
-    render(state);                       // every cell green, its segment filled
+    stop();
     status.textContent = 'Correct';
-    await wait(350);
+    ink(state);                          // its segment filled at once
+    await wait(TIMING.hold);
     if (token !== runToken) return;      // its run is over
-    board.classList.remove('in');
     board.classList.add('out');
-    const slide = board.getAnimations().find(anim => anim.animationName === 'out');
-    if (slide) await Promise.race([slide.finished.catch(() => {}), wait(1000)]);
+    const out = fadeOut(board);
+    await (out ? Promise.race([out.finished.catch(() => {}), wait(1000)]) : wait(TIMING.out));
     if (token !== runToken) return;
     next();
+    effects.clear();
+    inking.clear();
+    board.classList.remove('out');
     build();
     try {
       fit();
       place();
     } catch (err) {
-      console.error(err);                // still slide in, wherever it is
+      console.error(err);                // still fade in, wherever it is
     }
-    board.classList.remove('out');
-    void board.offsetWidth;              // restart the animation
-    board.classList.add('in');
+    out?.cancel();
     announceProblem(state);
+    fadeIn(effects, board);
   }
 
   // What a wrong check found: the method's word for it (Level 7's borrow
@@ -459,34 +529,47 @@ export function createBoard(dom, scan) {
     return after?.what ?? method.cells.find(c => c.id === state.bad[0]).name;
   }
 
-  // Only the wrong cells shake and clear; the cursor is on the first of them.
+  // Only the wrong cells are struck through and clear; the cursor is on the
+  // first of them.
   function showWrong(state) {
+    stop();
+    const was = drawn(state.bad);
     render(state);
-    shake(state.bad);
+    strike(was);
     status.textContent = `Wrong: ${wrongWhat(state)}. ${livesBox.getAttribute('aria-label')}`;
   }
 
-  // Third miss: shake, then resolve true 0.45s later, when the level selector
-  // is due, unless the game was restarted or its run ended meanwhile.
+  // Third miss: the red-line, then resolve true once it has cleared (0.5s;
+  // 0.45s under reduced motion), when the level selector is due, unless the
+  // game was restarted or its run ended meanwhile.
   async function showOut(state) {
     const token = runToken;
+    stop();
+    const was = drawn(state.bad);
     render(state);
-    shake(state.bad);
+    strike(was);
     status.textContent = 'Out of lives';
-    await wait(450);
+    await wait(reducedMotion() ? 450 : RED_MS);
     return token === runToken && state.phase === 'out';
   }
 
-  // The run's last problem right: green for 0.35s, its segment filled at
-  // once, then resolve true when the finish screen is due, unless its run
-  // ended meanwhile. No slide: the screen gives way.
+  // The run's last problem right: inked over, its segment filled at once,
+  // then resolve true when the finish screen is due (0.24s), unless its run
+  // ended meanwhile. No fade: the screen gives way.
   async function showFinished(state) {
     const token = runToken;
-    render(state);
+    stop();
     status.textContent = 'Correct';
-    await wait(350);
+    ink(state);
+    await wait(TIMING.hold);
     return token === runToken && state.phase === 'finished';
   }
 
-  return { setLevel, layout, render, announceProblem, showStep, showCorrect, showWrong, showOut, showFinished, reset };
+  // A key (skip) jumps a red-line or a fade-in to its end at once; a new
+  // layout (settle) jumps every effect to its end, so none is left where
+  // the board was.
+  const skip = () => effects.skip();
+  const settle = () => effects.settle();
+
+  return { setLevel, layout, render, announceProblem, showStep, showCorrect, showWrong, showOut, showFinished, reset, skip, settle };
 }
