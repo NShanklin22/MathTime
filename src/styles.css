@@ -21,7 +21,7 @@
   --ink: #eef5ff;
   --muted: #b6cdee;
   --faint: #6f95cc;          /* the run bar's empty segments, 3:1 on the background */
-  --amber: #ffd66b;          /* the caret, and the level you came from */
+  --amber: #ffd66b;          /* the caret */
   --good: #8ff0c0;
   --redline: #ff8a7a;        /* a wrong answer's strike, warm red, 4.6:1 on the background */
   --heart-lost: #8fb0dd;
@@ -487,10 +487,8 @@ body.at-select .select { display: block; }
 .select .txt { display: flex; flex-direction: column; gap: 10px; }
 .select .title { font-size: 17px; font-weight: 600; letter-spacing: 0.02em; }
 .select .name { font-size: 13px; color: var(--muted); letter-spacing: 0.02em; }
-/* The level you came from. */
-.select .row.current::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--amber); }
 .select .row:active { background: var(--key-press); }
-/* White: amber means "current". */
+/* White: amber is the caret's. */
 .select .row:focus-visible { outline: 2px solid var(--ink); outline-offset: 4px; }
 /* A sample problem, set as the equation is: muted operators, and the whole
    moved onto its ink by selector.js (--ink-dx, --ink-dy): relative offsets,

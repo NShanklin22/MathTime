@@ -673,14 +673,11 @@ test('back from Level 5, at the foot of the second column, the list scrolls just
   expect(scrolled, 'the page itself never scrolls').toEqual([0, 0]);
 });
 
-test('the level you came from has a 4px amber bar on its left edge', async ({ page }) => {
+test('the level you came from has no bar: it is marked only for screen readers and the focus', async ({ page }) => {
   await home(page);
   await page.evaluate(() => document.querySelector('.select .row[data-level="1"]').classList.add('current'));
-  const bar = await page.evaluate(() => {
-    const cs = getComputedStyle(document.querySelector('.select .row[data-level="1"]'), '::before');
-    return { width: cs.width, color: cs.backgroundColor, left: cs.left, top: cs.top, bottom: cs.bottom };
-  });
-  expect(bar).toEqual({ width: '4px', color: 'rgb(255, 214, 107)', left: '0px', top: '0px', bottom: '0px' });
+  const before = await page.evaluate(() => getComputedStyle(document.querySelector('.select .row[data-level="1"]'), '::before').content);
+  expect(before).toBe('none');
 });
 
 test('rows are 80px tall with the key ring and 24px padding; pressed, they take the key-press fill', async ({ page }) => {
@@ -783,7 +780,7 @@ const apart = async page => 1 / await page.evaluate(() => devicePixelRatio) + 0.
 // - sample, digits, op: an unfinished row's sample whole, its digits and
 //   its operator (unset on a finished row, whose sample is hidden);
 // - tick, best: a finished row's check and time (unset on the others).
-// The areas keep clear of the key ring and the amber bar, and split the
+// The areas keep clear of the key ring, and split the
 // text block in its 10px gap: muted ink counts as ink against the brighter
 // colour, and white as ink against the green.
 async function rowInk(page, shot, i) {

@@ -76,7 +76,7 @@ export function columnsFor(heights, gap, room, most) {
 // The level selector (Level 2 spec §3): a row per built level, grouped by
 // topic (byTopic()), each a button that calls choose(level). The rows are
 // in the page in the order shown, so the keyboard follows them. The level
-// you came from is marked with an amber bar and gets the focus. layout()
+// you came from gets the focus (and aria-current). layout()
 // puts the groups in as many columns as the window needs (fit()), then
 // lines the labels, samples and finished rows' times up on their ink,
 // measured with `scan` (Level 2 spec §5), as layout.js does the equation;
@@ -143,8 +143,8 @@ export function createSelector(root, levels, choose, scan) {
     if (e.repeat && (e.key === 'Enter' || e.key === ' ')) e.preventDefault();
   });
 
-  // Mark the level you came from, or none: the amber bar, and aria-current
-  // for screen readers.
+  // Mark the level you came from, or none: aria-current for screen
+  // readers; it shows only by taking the focus.
   function mark(level) {
     for (const [l, row] of rows) {
       row.classList.toggle('current', l === level);
