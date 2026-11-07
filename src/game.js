@@ -34,12 +34,15 @@
 //   done   – one flag a column: right, and locked
 //   bad    – the cells the last check found wrong, in working order; none
 //            after a right one
+//   struck – what each of those held before the check cleared it: id → ''
+//            or a digit, for the board to strike (the digit that
+//            triggered a check is cleared before the board has drawn it)
 // A wrong check costs a life, and the last column right is the problem
 // right: lives, misses, timing, `solved` and the result are a fact level's.
 // `typed` stays empty. What a wrong check says (the first bad cell's name,
 // or method.afterWrong's `what`) is the board's to work out: afterWrong is
 // pure, so it can ask again.
-const COLUMN_STATE = ['x', 'cells', 'step', 'focus', 'done', 'bad'];   // what a column level's state adds
+const COLUMN_STATE = ['x', 'cells', 'step', 'focus', 'done', 'bad', 'struck'];   // what a column level's state adds
 const ARROWS = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight']);
 
 export function createGame(level, rng = Math.random, now = () => performance.now()) {
@@ -70,6 +73,7 @@ export function createGame(level, rng = Math.random, now = () => performance.now
       state.focus = method.steps[0].cells[0];
       state.done = method.steps.map(() => false);
       state.bad = [];
+      state.struck = {};
     } else {
       for (const key of COLUMN_STATE) delete state[key];
     }
@@ -133,7 +137,8 @@ export function createGame(level, rng = Math.random, now = () => performance.now
   const order = () => current.method.order(state.step, state.cells, state.focus);
 
   // The next empty cell of the column after `from`, in working order, or
-  // none (the column is written: the caret hides until Enter checks it).
+  // none (the column is written: on Level 7 the caret hides until Enter
+  // checks it; Level 6 checks it at once, method.checkWhenWritten).
   function nextEmpty(from) {
     const o = order(), i = o.indexOf(from);
     for (let j = 1; j <= o.length; j++) {
@@ -144,7 +149,9 @@ export function createGame(level, rng = Math.random, now = () => performance.now
   }
 
   // A key on a column level. A digit is written in the cell under the
-  // cursor, which moves on to the next empty one. Backspace clears that
+  // cursor, which moves on to the next empty one; with none left, a method
+  // that checks when written (Level 6) checks the column, as Enter does.
+  // Backspace clears that
   // cell, or, with it empty, the last written one before it in working
   // order, and goes there; with none, the method may take something back
   // (Level 7: the borrow). Enter checks the column. An arrow moves the
@@ -157,6 +164,7 @@ export function createGame(level, rng = Math.random, now = () => performance.now
       if (!state.focus) return 'ignored';
       cells[state.focus] = key;
       state.focus = nextEmpty(state.focus);
+      if (!state.focus && method.checkWhenWritten) return check();
       return 'typed';
     }
     if (key === 'Backspace') {
@@ -202,6 +210,7 @@ export function createGame(level, rng = Math.random, now = () => performance.now
     if (state.cells[step.cells[0]] === '' && !step.blankIsZero) return 'ignored';
     const bad = method.wrong(state.step, state.cells, state.x);
     state.bad = bad;
+    state.struck = Object.fromEntries(bad.map(id => [id, state.cells[id]]));
     if (!bad.length) {
       state.done[state.step] = true;
       state.step += 1;

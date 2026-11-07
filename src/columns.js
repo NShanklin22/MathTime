@@ -47,6 +47,10 @@ export const COLUMN_ADD = {
     { cells: ['T', 'H'], name: 'Tens', nav: { T: { ArrowLeft: 'H' }, H: { ArrowRight: 'T' } } },
   ],
   order: k => COLUMN_ADD.steps[k].cells,
+  // Writing a column's last cell, its carry, checks it: the cursor moves
+  // on to the next column without Enter. A column with nothing to carry
+  // is still checked with Enter.
+  checkWhenWritten: true,
   // A column is right when its digit and its carry both are (a skipped
   // carry is wrong). A 0 carry may be written or left out.
   wrong(k, v, x) {
