@@ -260,10 +260,10 @@ test.describe('the column board', () => {
   test('Level 6: a wrong digit is struck through, the carry left alone; a key clears it at once and is typed', async ({ page }) => {
     await open(page, 6);
     await setColumns(page, 47, 38);
-    await typeKeys(page, ['4', '1']);
+    await typeKeys(page, ['4']);
     const seen = await page.evaluate(PRESS => new Promise(resolve => {
       eval(PRESS);
-      window.pressKey('Enter');
+      window.pressKey('1');                 // the carry, the column's last cell: it checks the column
       const struck = [...document.querySelectorAll('.board svg.fx.redline')].map(s => s.dataset.cell);
       const ghost = document.querySelector('.board .cell[data-tap="O"] .ghost')?.textContent;
       // Its ends 4px or more inside the cell frame's inner edge, halo and all.
@@ -277,13 +277,13 @@ test.describe('the column board', () => {
         transforms.add(getComputedStyle(document.querySelector('.board')).transform);
         for (const c of document.querySelectorAll('.board .cell')) transforms.add(getComputedStyle(c).translate);
         if (performance.now() - t0 < 200) return requestAnimationFrame(frame);
-        window.pressKey('6');
+        window.pressKey('5');                 // the ones' last empty cell: typed, and it checks the column (right)
         resolve({ struck, ghost, inset: inset >= 4 - 0.01, transforms: [...transforms], overlays: document.querySelectorAll('.fx').length, ghosts: document.querySelectorAll('.board .ghost').length });
       };
       requestAnimationFrame(frame);
     }), PRESS);
     expect(seen).toEqual({ struck: ['O'], ghost: '4', inset: true, transforms: ['none'], overlays: 0, ghosts: 0 });
-    await expect(written(page, 'O')).toHaveText('6');
+    await expect(written(page, 'O')).toHaveText('5');
     await expect(written(page, 'C')).toHaveText('1');
     await expect(page.locator('.lives')).toHaveAttribute('aria-label', '2 lives left');
   });
@@ -365,11 +365,11 @@ test.describe('the column board', () => {
     test('Level 6: a wrong cell shows the strike still for 400ms', async ({ page }) => {
       await open(page, 6);
       await setColumns(page, 47, 38);
-      await typeKeys(page, ['4', '1']);
+      await typeKeys(page, ['4']);
       const log = await page.evaluate(PRESS => new Promise(resolve => {
         eval(PRESS);
         const t0 = performance.now();
-        window.pressKey('Enter');
+        window.pressKey('1');               // the carry checks the column
         const line = document.querySelector('.board svg.fx.redline');
         const log = { line: !!line, moving: line ? line.getAnimations().length : -1 };
         const frame = () => {
@@ -512,7 +512,7 @@ test.describe('races', () => {
   test('Esc mid-red-line on the board leaves nothing of it', async ({ page }) => {
     await open(page, 6);
     await setColumns(page, 47, 38);
-    await typeKeys(page, ['4', '1']);
+    await typeKeys(page, ['4']);                          // Enter then strikes the digit, the carry framed
     expect(await raceAfter(page, 200, ESC)).toMatchObject({ fx: 0, board: 'board', phase: 'left' });
   });
 

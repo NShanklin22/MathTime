@@ -382,10 +382,11 @@ export const setColumns = (page, a, b, s = {}) => page.evaluate(([a, b, s]) => {
 
 // The keys that work a column problem right, a column at a time, from its
 // working x: in each column the digit, then the carry where there is one
-// (Level 6); the borrow first where one is needed, Up and the new tens
-// digit (Level 7). playColumnsTo() spells the same out in the page.
+// (Level 6: writing the carry checks the column; one with nothing to
+// carry is checked with Enter); the borrow first where one is needed, Up
+// and the new tens digit (Level 7). playColumnsTo() spells the same out in the page.
 export const workKeys = (n, x) => n === 6
-  ? [String(x.O), ...(x.C ? ['1'] : []), 'Enter', String(x.T), ...(x.H ? ['1'] : []), 'Enter']
+  ? [String(x.O), x.C ? '1' : 'Enter', String(x.T), x.H ? '1' : 'Enter']
   : [...(x.need ? ['ArrowUp', String(x.B)] : []), String(x.O), 'Enter', String(x.T), 'Enter'];
 
 // Type the working of the column problem on screen, right, as the player does.
@@ -400,7 +401,7 @@ export async function work(page) {
 export const playColumnsTo = (page, n) => page.evaluate(n => {
   const { game, board } = window.mathtime;
   const keys = x => game.level.n === 6
-    ? [String(x.O), ...(x.C ? ['1'] : []), 'Enter', String(x.T), ...(x.H ? ['1'] : []), 'Enter']
+    ? [String(x.O), x.C ? '1' : 'Enter', String(x.T), x.H ? '1' : 'Enter']
     : [...(x.need ? ['ArrowUp', String(x.B)] : []), String(x.O), 'Enter', String(x.T), 'Enter'];
   while (game.state.question < n) {
     for (const key of keys(game.state.x)) game.press(key);

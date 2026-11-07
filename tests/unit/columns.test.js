@@ -38,13 +38,14 @@ const keys = (game, ...ks) => ks.map(k => game.press(k));
 
 // Write the working of the problem on screen, right, a column at a time:
 // in each column the digit, then the carry or borrow where there is one.
-// Returns what each Enter did.
+// Level 6 checks a column when its carry is written; one with nothing to
+// carry is checked with Enter. Returns what each check did.
 const work = (game) => {
   const { x } = game.state;
   if (game.level.method === COLUMN_ADD) {
     return [
-      ...keys(game, String(x.O), ...(x.C ? ['1'] : []), 'Enter'),
-      ...keys(game, String(x.T), ...(x.H ? ['1'] : []), 'Enter'),
+      ...keys(game, String(x.O), x.C ? '1' : 'Enter'),
+      ...keys(game, String(x.T), x.H ? '1' : 'Enter'),
     ].filter(r => r !== 'typed');
   }
   return [
@@ -204,23 +205,57 @@ test('a problem starts on the ones answer, every cell empty, nothing checked', (
   assert.equal(sub.state.focus, 'O');
 });
 
-test('Level 6: the ones digit, then the carry; once the column is written the cursor hides', () => {
+test('Level 6: the ones digit, then the carry; writing the carry checks the column, as Enter would', () => {
   const game = playing(LEVEL6, [47, 38]);
   assert.equal(game.press('5'), 'typed');
   assert.equal(game.state.cells.O, '5');
   assert.equal(game.state.focus, 'C');
-  assert.equal(game.press('1'), 'typed');
-  assert.equal(game.state.cells.C, '1');
-  assert.equal(game.state.focus, null);
-  // With no cell under the cursor, a digit goes nowhere.
-  assert.equal(game.press('7'), 'ignored');
-  assert.deepEqual(game.state.cells, { H: '', T: '', O: '5', C: '1' });
+  assert.equal(game.press('1'), 'step');
+  assert.deepEqual(game.state.done, [true, false]);
+  assert.equal(game.state.focus, 'T');
+  // A wrong carry is checked too: a life lost, the carry struck.
+  const wrong = playing(LEVEL6, [47, 38]);
+  assert.deepEqual(keys(wrong, '5', '2'), ['typed', 'wrong']);
+  assert.deepEqual(wrong.state.bad, ['C']);
+  assert.equal(wrong.state.lives, 2);
+  // The hundreds, the carry out of the tens, checks the tens the same way.
+  assert.equal(game.press('8'), 'typed');
+  assert.equal(game.press('0'), 'correct');
+  // Level 7 doesn't: its ones digit alone may write the column, before a borrow.
+  const sub = playing(LEVEL7, [52, 27]);
+  assert.equal(sub.press('5'), 'typed');
+  assert.equal(sub.state.focus, null);
+});
+
+// The board strikes what was written, but the check clears it before the
+// board has drawn the digit that triggered it: the game keeps it.
+test('a wrong check keeps what each wrong cell held, for the strike; a new problem has none', () => {
+  const game = playing(LEVEL6, [47, 38], [23, 41]);
+  assert.deepEqual(game.state.struck, {});
+  assert.equal(keys(game, '5', '0').at(-1), 'wrong');          // the carry written checks
+  assert.deepEqual(game.state.struck, { C: '0' });
+  assert.equal(game.state.cells.C, '');
+  assert.equal(keys(game, 'ArrowDown', '4', '1').at(-1), 'wrong');
+  assert.deepEqual(game.state.struck, { O: '4' });
+  assert.equal(game.press('3'), 'out');                       // the ones digit retyped, the carry kept: it checks
+  assert.deepEqual(game.state.struck, { O: '3' });
+  // A skipped carry held nothing.
+  const skipped = playing(LEVEL6, [47, 38]);
+  keys(skipped, '5', 'Enter');
+  assert.deepEqual(skipped.state.struck, { C: '' });
+  assert.equal(skipped.press('1'), 'step');
+  assert.deepEqual(skipped.state.struck, {});
+  const sub = playing(LEVEL7, [52, 27], [86, 34]);
+  keys(sub, '6', 'Enter');
+  assert.deepEqual(sub.state.struck, { B: '', O: '6' });
+  work(sub);
+  sub.next();
+  assert.deepEqual(sub.state.struck, {});
 });
 
 test('Level 6: a right column locks, and the cursor moves to the next column\'s digit', () => {
   const game = playing(LEVEL6, [47, 38]);
-  keys(game, '5', '1');
-  assert.equal(game.press('Enter'), 'step');
+  assert.deepEqual(keys(game, '5', '1'), ['typed', 'step']);
   assert.deepEqual(game.state.done, [true, false]);
   assert.equal(game.state.step, 1);
   assert.equal(game.state.focus, 'T');
@@ -249,17 +284,19 @@ test('a carry of 0 may be written or left out; a 0 in the hundreds too', () => {
   const left = playing(LEVEL6, [23, 41]);
   keys(left, '4');
   assert.equal(left.press('Enter'), 'step');
+  // Written, the 0 is the column's last cell: it checks the column.
   const written = playing(LEVEL6, [23, 41]);
-  keys(written, '4', '0');
-  assert.equal(written.press('Enter'), 'step');
-  keys(written, '6', '0');
-  assert.equal(written.press('Enter'), 'correct');
+  assert.deepEqual(keys(written, '4', '0'), ['typed', 'step']);
+  assert.deepEqual(keys(written, '6', '0'), ['typed', 'correct']);
 });
 
 test('Level 7: with no borrow, the ones digit alone writes the column', () => {
   const game = playing(LEVEL7, [86, 34]);
   assert.equal(game.press('2'), 'typed');
   assert.equal(game.state.focus, null);
+  // With no cell under the cursor, a digit goes nowhere.
+  assert.equal(game.press('7'), 'ignored');
+  assert.deepEqual(game.state.cells, { T: '', O: '2', B: '' });
   assert.equal(game.press('Enter'), 'step');
   assert.equal(game.state.focus, 'T');
   assert.equal(game.press('5'), 'typed');
@@ -304,7 +341,7 @@ test('Enter with the column\'s answer digit empty does nothing and costs no life
   assert.equal(sub.state.lives, 3);
   // Level 6's tens too, even where they are 0: 47 + 53 = 100.
   const hundred = playing(LEVEL6, [47, 53]);
-  assert.equal(keys(hundred, '0', '1', 'Enter').at(-1), 'step');
+  assert.equal(keys(hundred, '0', '1').at(-1), 'step');
   assert.equal(hundred.press('Enter'), 'ignored');
   assert.equal(hundred.state.lives, 3);
 });
@@ -360,21 +397,18 @@ test('a skipped carry is wrong: the right ones digit stays, and the cursor goes 
   assert.equal(game.state.step, 0);
   assert.deepEqual(game.state.done, [false, false]);
   assert.equal(game.state.phase, 'playing');
-  // Then the carry, and the column is right.
-  keys(game, '1');
-  assert.equal(game.press('Enter'), 'step');
+  // Then the carry, which checks the column: right.
+  assert.equal(game.press('1'), 'step');
   assert.deepEqual(game.state.bad, []);
 });
 
 test('a carry where there is none is wrong too; a wrong digit and carry both clear, the cursor on the digit', () => {
   const extra = playing(LEVEL6, [23, 41]);
-  keys(extra, '4', '1');
-  assert.equal(extra.press('Enter'), 'wrong');
+  assert.deepEqual(keys(extra, '4', '1'), ['typed', 'wrong']);
   assert.deepEqual(extra.state.bad, ['C']);
   assert.deepEqual(extra.state.cells, { H: '', T: '', O: '4', C: '' });
   const both = playing(LEVEL6, [47, 38]);
-  keys(both, '4', '0');
-  assert.equal(both.press('Enter'), 'wrong');
+  assert.deepEqual(keys(both, '4', '0'), ['typed', 'wrong']);
   assert.deepEqual(both.state.bad, ['O', 'C']);
   assert.deepEqual(both.state.cells, { H: '', T: '', O: '', C: '' });
   assert.equal(both.state.focus, 'O');
@@ -382,18 +416,16 @@ test('a carry where there is none is wrong too; a wrong digit and carry both cle
 
 test('a wrong tens digit clears it and keeps a right hundreds; a missed hundreds is wrong', () => {
   const game = playing(LEVEL6, [75, 38]);
-  keys(game, '3', '1', 'Enter', '2', '1');
-  assert.equal(game.press('Enter'), 'wrong');
+  assert.deepEqual(keys(game, '3', '1', '2', '1'), ['typed', 'step', 'typed', 'wrong']);
   assert.deepEqual(game.state.bad, ['T']);
   assert.deepEqual(game.state.cells, { H: '1', T: '', O: '3', C: '1' });
   assert.equal(game.state.focus, 'T');
   assert.equal(game.state.lives, 2);
-  keys(game, '1');
-  assert.equal(game.state.focus, null);
-  assert.equal(game.press('Enter'), 'correct');
+  // The tens digit is now the column's last empty cell: writing it checks.
+  assert.equal(game.press('1'), 'correct');
 
   const missed = playing(LEVEL6, [75, 38]);
-  keys(missed, '3', '1', 'Enter', '1');
+  keys(missed, '3', '1', '1');
   assert.equal(missed.press('Enter'), 'wrong');
   assert.deepEqual(missed.state.bad, ['H']);
   assert.equal(missed.state.cells.T, '1');
@@ -502,16 +534,12 @@ test('Backspace on an empty cell clears the cell before it in working order, and
   assert.equal(forward.state.cells.C, '1');
 });
 
-test('Backspace on a written column clears its last cell, then the one before; then there is nothing to clear', () => {
+// A Level 6 column is never left written and unchecked (its last cell
+// checks it); Level 7's written column is in the Level 7 Backspace tests.
+test('Backspace never clears a locked column: in the tens, it stops at the tens digit', () => {
   const game = playing(LEVEL6, [47, 38]);
-  keys(game, '5', '1');
-  assert.equal(game.press('Backspace'), 'typed');
-  assert.deepEqual([game.state.cells.C, game.state.focus], ['', 'C']);
-  assert.equal(game.press('Backspace'), 'typed');
-  assert.deepEqual([game.state.cells.O, game.state.focus], ['', 'O']);
-  assert.equal(game.press('Backspace'), 'ignored');
-  // A locked column is never cleared: in the tens, Backspace stops at its first cell.
-  keys(game, '5', '1', 'Enter', '8');
+  keys(game, '5', '1', '8');
+  assert.equal(game.state.focus, 'H');
   assert.equal(game.press('Backspace'), 'typed');
   assert.deepEqual([game.state.cells.T, game.state.focus], ['', 'T']);
   assert.equal(game.press('Backspace'), 'ignored');
@@ -568,10 +596,8 @@ test('Level 6: the arrows move between a column\'s digit and its carry, and nowh
   assert.deepEqual(at('ArrowLeft'), ['moved', 'C']);
   assert.deepEqual(at('ArrowRight'), ['moved', 'O']);
   assert.deepEqual(game.state.cells, { H: '', T: '', O: '', C: '' });
-  // With the column written, the arrows go from its digit.
+  // The ones written are checked; in the tens, the arrows go between the digit and the hundreds.
   keys(game, '5', '1');
-  assert.deepEqual(at('ArrowUp'), ['moved', 'C']);
-  keys(game, 'Enter');
   assert.deepEqual(at('ArrowLeft'), ['moved', 'H']);
   assert.deepEqual(at('ArrowRight'), ['moved', 'T']);
   assert.deepEqual(at('ArrowUp'), ['ignored', 'T']);
@@ -590,6 +616,11 @@ test('Level 7: Up goes into the borrow cell, Down or Right back to the ones; the
   assert.deepEqual(at('ArrowRight'), ['moved', 'O']);
   keys(game, 'ArrowUp', '4', '5', 'Enter');
   for (const key of ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight']) assert.deepEqual(at(key), ['ignored', 'T']);
+  // With the column written and the cursor hidden, the arrows go from its digit.
+  const hidden = playing(LEVEL7, [86, 34]);
+  keys(hidden, '2');
+  assert.equal(hidden.state.focus, null);
+  assert.deepEqual([hidden.press('ArrowUp'), hidden.state.focus], ['moved', 'B']);
 });
 
 test('tapping a cell of the column being worked moves the cursor there; any other is ignored', () => {
@@ -600,7 +631,7 @@ test('tapping a cell of the column being worked moves the cursor there; any othe
   assert.equal(game.state.focus, 'O');
   for (const id of ['T', 'H', 'B', 'X', '', 'constructor', undefined]) assert.equal(game.tap(id), 'ignored', String(id));
   assert.equal(game.state.focus, 'O');
-  keys(game, '5', '1', 'Enter');
+  keys(game, '5', '1');
   assert.equal(game.tap('C'), 'ignored');
   assert.equal(game.tap('H'), 'moved');
   assert.equal(game.state.focus, 'H');
@@ -632,9 +663,9 @@ test('the column levels ignore every other key', () => {
 test('a third wrong check is out of lives, and the game then takes no key or tap', () => {
   const game = playing(LEVEL6, [47, 38]);
   assert.equal(keys(game, '5', 'Enter').at(-1), 'wrong');
-  assert.equal(keys(game, '0', 'Enter').at(-1), 'wrong');
+  assert.equal(game.press('0'), 'wrong');            // the carry written checks
   assert.equal(game.state.lives, 1);
-  assert.equal(keys(game, '2', 'Enter').at(-1), 'out');
+  assert.equal(game.press('2'), 'out');
   assert.equal(game.state.lives, 0);
   assert.equal(game.state.phase, 'out');
   assert.deepEqual(game.state.bad, ['C']);
@@ -717,7 +748,7 @@ test('start() moves between column and fact levels, the one state object holding
   keys(game, '5', 'Enter');
   game.start(LEVEL1);
   assert.equal(game.state, state);
-  for (const key of ['x', 'cells', 'step', 'focus', 'done', 'bad']) assert.ok(!(key in state), key);
+  for (const key of ['x', 'cells', 'step', 'focus', 'done', 'bad', 'struck']) assert.ok(!(key in state), key);
   assert.deepEqual(Object.keys(state).sort(), ['lives', 'phase', 'problem', 'question', 'solved', 'typed']);
   assert.equal(game.tap('O'), 'ignored');
   assert.equal(game.press('ArrowUp'), 'ignored');

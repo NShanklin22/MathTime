@@ -271,6 +271,14 @@ export function createBoard(dom, scan) {
     [...run.children].forEach((seg, i) => seg.classList.toggle('done', i < state.solved));
   }
 
+  // What screen readers hear for a cell: its name, and, for a method that
+  // checks a column when it is written (Level 6), that typing the column's
+  // last cell (the carry, the hundreds) checks it.
+  function cellLabel(c) {
+    const last = method.checkWhenWritten && method.steps.some(s => s.cells.at(-1) === c.id);
+    return last ? `${c.name}: typing it checks the column` : c.name;
+  }
+
   // The state into the board: what is written, where the cursor is, what is checked.
   function update() {
     const playing = S.phase === 'playing';
@@ -288,9 +296,14 @@ export function createBoard(dom, scan) {
     for (const c of method.cells) for (const anim of E.cells[c.id].caret.getAnimations()) anim.currentTime = 0;
     hearts.forEach((h, i) => h.classList.toggle('lost', i >= S.lives));
     livesBox.setAttribute('aria-label', S.lives === 1 ? '1 life left' : `${S.lives} lives left`);
-    // Screen readers hear the cell the cursor is on, or that the column is written.
+    // Screen readers hear the cell the cursor is on (on Level 6, that a
+    // column's last cell checks it when typed), or, with the cursor hidden,
+    // that the column is written and Enter checks it; or, once the answer
+    // is right and inked over, just that it is written.
     const cell = method.cells.find(c => c.id === S.focus);
-    ans.setAttribute('aria-label', cell ? cell.name : `${method.steps[Math.min(S.step, method.steps.length - 1)].name} column written: Enter checks it`);
+    ans.setAttribute('aria-label', cell ? cellLabel(cell)
+      : playing && !method.checkWhenWritten ? `${method.steps[Math.min(S.step, method.steps.length - 1)].name} column written: Enter checks it`
+      : 'Answer written');
     renderRun(S);
   }
 
@@ -399,16 +412,27 @@ export function createBoard(dom, scan) {
   }
 
   // Red-line, on the board (fx.js): each wrong cell struck through, as the
-  // answer box is. `was` is what each held as drawn, before the check
-  // cleared it: a copy is laid over the cleared cell and struck on its
+  // answer box is. `was` is what each held before the check cleared
+  // it (drawn()): a copy is laid over the cleared cell and struck on its
   // ink's middle, the strike's ends (halo and all) 4px at least inside the
   // frame's inner edge, as the answer box's are (a small cell's, half that).
   // A wrong cell left empty (a carry skipped, a borrow not made, Level 7's
   // tens) has nothing to strike, and a lone dash would read as a minus: its
   // frame is drawn solid warm red instead, as heavy as a big cell's, on the
   // same timing.
-  function drawn(ids) {
-    return ids.map(id => ({ id, text: E.cells[id].v.textContent, copy: E.cells[id].v.cloneNode(true) }));
+  // What each was is the game's (state.struck), not the cell's as drawn: a
+  // digit that checked its column as it was typed (Level 6) was cleared
+  // before the board drew it. The copy is placed as the cell's digit is.
+  function drawn(state) {
+    return state.bad.map(id => {
+      const text = state.struck[id];
+      const copy = E.cells[id].v.cloneNode(true);
+      if (text) {
+        const big = method.cells.find(c => c.id === id).kind === 'big';
+        placeText(copy, text, big ? G.fs : G.fsS, G.style, (big ? G.W : G.Ws) / 2, big ? G.y3 - G.boxT : G.ySb);
+      }
+      return { id, text, copy };
+    });
   }
   function strike(was) {
     const dpr = G.dpr, br = board.getBoundingClientRect();
@@ -533,7 +557,7 @@ export function createBoard(dom, scan) {
   // first of them.
   function showWrong(state) {
     stop();
-    const was = drawn(state.bad);
+    const was = drawn(state);
     render(state);
     strike(was);
     status.textContent = `Wrong: ${wrongWhat(state)}. ${livesBox.getAttribute('aria-label')}`;
@@ -545,7 +569,7 @@ export function createBoard(dom, scan) {
   async function showOut(state) {
     const token = runToken;
     stop();
-    const was = drawn(state.bad);
+    const was = drawn(state);
     render(state);
     strike(was);
     status.textContent = 'Out of lives';
