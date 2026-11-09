@@ -136,12 +136,17 @@
     user-select: text;
     -webkit-user-select: text;
   }
-  .login input:focus-visible { outline: 2px solid var(--ink); outline-offset: 4px; }
+  /* Focused, a field's own border becomes solid white, 2px, in place: no
+     ring outside it (the user: a ring round the border read as a double
+     box). An inset shadow, so the field and its text never move. Buttons
+     and links keep the app's ring. */
+  .login input { --field-ring: var(--key-ring); box-shadow: var(--field-ring); }
+  .login input:focus { outline: none; --field-ring: inset 0 0 0 2px var(--ink); }
   .login input::selection { background: rgba(238, 245, 255, 0.3); color: var(--ink); }
   /* The browser's autofill keeps the field's own colours. */
   .login input:-webkit-autofill, .login input:-webkit-autofill:focus {
     -webkit-text-fill-color: var(--ink);
-    box-shadow: var(--key-ring), inset 0 0 0 100px var(--bg);
+    box-shadow: var(--field-ring), inset 0 0 0 100px var(--bg);
     transition: background-color 9999s;
   }
   /* The button: the finish screen's "Again", filled, as the one Enter presses. */
@@ -166,7 +171,7 @@
   .login .submit:active { background: var(--go-press); }
   .login .submit:focus-visible { outline: 2px solid var(--ink); outline-offset: 4px; }
   /* The error, in words, under the button: the strike's warm red (4.6:1). */
-  .login .error { margin: 16px 0 0; font-size: 14px; line-height: 1.5; color: var(--redline); text-wrap: balance; }
+  .login .error { margin: 16px 0 0; font-size: 14px; line-height: 1.5; color: var(--redline); text-wrap: pretty; }
   .login .error:empty { display: none; }
   .login .switch { margin: 24px 0 0; font-size: 14px; color: var(--muted); white-space: nowrap; }
   /* "Sign up" / "Log in": a link in the text's line, the way back's
@@ -195,16 +200,16 @@
      one above another, so they go in one row of three columns, each up to
      260px and 32px apart (so a hint is clear of the next label), the same
      columns in both modes, so switching never moves the form: Log in's two
-     fields take the first two. The button takes the first column, the other
-     link the end of its row; the error under them. */
+     fields take the first two. The button takes the first column, with the
+     error and then the other link under it, at the left, as upright. */
   @media (orientation: landscape) and (max-height: 560px) and (min-aspect-ratio: 3/2) {
     body.at-login .login { grid-area: stage; max-width: none; padding: 32px max(var(--gutter), env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(var(--gutter), env(safe-area-inset-left)); }
     .login form { --n: 3; max-width: calc(var(--n) * 260px + (var(--n) - 1) * 32px); margin: 0 auto; }
     .login .fields { display: grid; grid-template-columns: repeat(var(--n), minmax(0, 1fr)); gap: 32px; }
     .login .actions { display: grid; grid-template-columns: repeat(var(--n), minmax(0, 1fr)); column-gap: 32px; margin-top: 24px; align-items: center; }
     .login .submit { margin-top: 0; grid-column: 1; grid-row: 1; }
-    .login .switch { margin-top: 0; grid-column: var(--n); grid-row: 1; justify-self: end; }
     .login .error { grid-column: 1 / -1; grid-row: 2; }
+    .login .switch { grid-column: 1 / -1; grid-row: 3; justify-self: start; }
   }
 
   .scrollbars-take-room .login::-webkit-scrollbar { width: 8px; }
