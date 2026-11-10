@@ -2,6 +2,7 @@
 // this level different from the others lives here.
 export const LEVEL3 = {
   n: 3,
+  free: true,             // played signed out too (accounts spec §2)
   k: 2,                   // its number within its topic, as shown: "Subtraction 2"
   topic: 'Subtraction',
   name: 'Subtraction past 10',

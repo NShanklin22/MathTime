@@ -27,7 +27,7 @@ per-device key: an account is what lets the API store runs (2026-11-01-runs-desi
 - The daily challenge on the first four, open to everyone, is the next piece, designed on its own.
 
 ## 3. The log-in screen
-- One screen, opened from the header link or a locked row. Its breadcrumb is "Levels › Log in"; the
+- One screen, opened from the header link or a locked row. Its breadcrumb is "Levels › Log in", or "Levels › Sign up" in sign-up mode; the
   "Levels" link and Esc go back without logging in.
 - **Log in** (the default): Name, Password, a "Log in" button. Below it: "Have an invite? Sign up".
 - **Sign up:** Invite code, Name, Password, "Sign up". Below it: "Have an account? Log in".
@@ -55,7 +55,7 @@ backed up by `deploy.sh`), with:
 - `POST /api/signup {invite, name, password}`, `POST /api/login {name, password}`, `POST /api/logout`,
   `GET /api/me` (the name, or 401).
 - Runs and best times are per account; without a session they answer 401.
-- Login and sign-up are limited to 10 tries a minute per address and per name.
+- Login and sign-up are limited to 10 tries a minute per address, and failed log-ins to 10 a minute per name from one address, so no one can lock a player out.
 
 ## 7. Building it
 1. Mockup of the log-in screen, the header link and the locked rows, then a UI review, then the user's approval.

@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures.js';
 import { open, freeze, capture, ink } from './helpers.js';
 
 // Self-test of ink(): the pixel measurement every later layout test relies on.

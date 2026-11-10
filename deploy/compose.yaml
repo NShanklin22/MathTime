@@ -1,0 +1,27 @@
+# The MathTime API on mainframe (runs spec §6, accounts spec §6). deploy.sh builds the image and starts
+# it, and writes deploy/.env, which says which user the container runs as. So start or recreate it only
+# with deploy.sh. From this folder, by hand:
+#
+#   docker compose ps                             running, and (healthy)
+#   docker compose logs -f api                    follow its log
+#   docker compose restart api                    restart it as it is
+#   docker compose exec api node cli.mjs invite   make an invite code (deploy/README.md)
+#
+# Only nginx on this machine reaches it: the port is bound to 127.0.0.1, and nginx passes /api/ to it.
+name: mathtime
+
+services:
+  api:
+    build: ../server
+    image: mathtime-api:live
+    restart: unless-stopped
+    # The user that owns ~/apps/mathtime/data, so the files it writes there stay that user's.
+    user: "${APP_UID:?no deploy/.env yet, so run deploy/deploy.sh}:${APP_GID:?no deploy/.env yet, so run deploy/deploy.sh}"
+    environment:
+      PORT: "3006"
+      DB_PATH: /data/mathtime.db
+      TRUST_PROXY: "1"   # nginx's X-Real-IP is the caller's address, for the log-in rate limits
+    ports:
+      - "127.0.0.1:3006:3006"
+    volumes:
+      - ../data:/data   # ~/apps/mathtime/data: the database, and its backups in data/backups

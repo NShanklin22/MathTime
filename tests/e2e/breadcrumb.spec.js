@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures.js';
 import {
   open, levelRow, setProblem, playTo, answer, finishRun, rect, capture, ink, freeze, typeKeys, note, resize, TOL, MUTED, FAINT,
 } from './helpers.js';

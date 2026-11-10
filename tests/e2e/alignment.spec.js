@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, withAccount } from './fixtures.js';
 import { chromium } from 'playwright-core';
 import {
   open, freeze, resize, setProblem, rect, capture, ink, digitInk, digitBand, boxEdges,
@@ -361,6 +361,8 @@ test('the equation lands on whole device pixels at ratios that are not powers of
     const browser = await chromium.launch({ args: [`--force-device-scale-factor=${dpr}`, '--window-size=400,860', '--disable-lcd-text'] });
     try {
       const page = await browser.newPage({ viewport: null, deviceScaleFactor: undefined });   // not the project's
+
+      await withAccount(page.context());
       await page.goto(baseURL + '/');
       await page.waitForFunction(() => !document.documentElement.classList.contains('loading'));
       await page.locator('.select .row[data-level="1"]').click();
@@ -425,6 +427,8 @@ test('fonts that arrive after the load timeout are measured again', async ({ pag
   // fontsReady() has given up at 3s, so the selector, and then the play
   // screen once Level 1 is chosen, are first laid out in a fallback font.
   const context = await browser.newContext({ viewport, deviceScaleFactor, baseURL });
+
+  await withAccount(context);
   try {
     const late = await context.newPage();
     await late.route('https://fonts.gstatic.com/**', async route => {

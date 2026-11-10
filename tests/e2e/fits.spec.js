@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, withAccount } from './fixtures.js';
 import { levelRow, finishRun, finishColumnRun, settle, capture, rect } from './helpers.js';
 import { LEVELS, levelName } from '../../src/levels.js';
 
@@ -22,7 +22,7 @@ const PADDING_ONLY = [[1366, 400, 1], [1240, 610, 1], [1024, 620, 1], [1274, 636
 
 // Runs kept before the page loads, as the finish screen keeps them.
 const earlier = (level, totalMs) => ({
-  id: `earlier-${level}-${totalMs}`, level, finishedAt: '2026-11-01T09:30:00.000Z', totalMs, misses: 0, problems: [],
+  id: `earlier-${level}-${totalMs}`, level, finishedAt: '2026-11-01T09:30:00.000Z', totalMs, misses: 0, problems: [{ a: 1, b: 2, ms: totalMs, misses: 0 }],
 });
 const ALL_FINISHED = LEVELS.map(level => earlier(level.n, 72_400 + 11_100 * level.n));
 
@@ -30,6 +30,8 @@ const ALL_FINISHED = LEVELS.map(level => earlier(level.n, 72_400 + 11_100 * leve
 // `runs` kept. Real scrollbars, or this proves nothing: they must take room.
 async function at(browser, baseURL, [width, height, dpr], runs = null) {
   const context = await browser.newContext({ viewport: { width, height }, deviceScaleFactor: dpr, baseURL });
+
+  await withAccount(context);
   const page = await context.newPage();
   if (runs) await page.addInitScript(r => localStorage.setItem('mathtime.runs', JSON.stringify(r)), runs);
   await page.goto('/');
@@ -338,6 +340,8 @@ for (const size of [[1366, 320, 1], [375, 812, 2]]) test(`at ${size[0]}×${size[
 // no hover, and classic scrollbars.
 test('a touch screen whose system scrollbar takes room (no mouse) gets the theme\'s scrollbar', async ({ browser, baseURL }) => {
   const context = await browser.newContext({ viewport: { width: 1366, height: 320 }, deviceScaleFactor: 1, hasTouch: true, baseURL });
+
+  await withAccount(context);
   try {
     const page = await context.newPage();
     await page.goto('/');
@@ -357,6 +361,8 @@ test('a touch screen whose system scrollbar takes room (no mouse) gets the theme
 // less its padding.
 test('on a phone (mobile emulation, touch) the list scrolls with its own overlay scrollbar, the rows at their full width', async ({ browser, baseURL }) => {
   const context = await browser.newContext({ viewport: { width: 375, height: 812 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, baseURL });
+
+  await withAccount(context);
   try {
     const page = await context.newPage();
     await page.goto('/');

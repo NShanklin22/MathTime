@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures.js';
 import {
   open, levelRow, freeze, playTo, answer, finishRun, finishColumnRun, rect, capture, ink, note, typeKeys, resize, TOL, BG, INK, MUTED, GOOD,
 } from './helpers.js';
@@ -25,7 +25,7 @@ const runs = page => page.evaluate(() => JSON.parse(localStorage.getItem('mathti
 // Runs kept before the page loads.
 const keptBefore = (page, records) => page.addInitScript(r => localStorage.setItem('mathtime.runs', JSON.stringify(r)), records);
 const earlier = (level, totalMs) => ({
-  id: `earlier-${level}-${totalMs}`, level, finishedAt: '2026-11-01T09:30:00.000Z', totalMs, misses: 0, problems: [],
+  id: `earlier-${level}-${totalMs}`, level, finishedAt: '2026-11-01T09:30:00.000Z', totalMs, misses: 0, problems: [{ a: 1, b: 2, ms: totalMs, misses: 0 }],
 });
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const TIME = /^\d+:\d\d\.\d$/;
@@ -121,16 +121,21 @@ test('at 320px wide the longest title, "Multiplication 1 complete", fits on one 
   expect(fit.over, 'nothing cut off or scrolled').toEqual([0, 0]);
 });
 
-test('a run slower than the best shows the best, and screen readers hear it', async ({ page }) => {
-  await keptBefore(page, [earlier(1, 1)]);
-  await open(page);
-  await finishRun(page);
-  await expect(page.locator('.finish .done-best')).toHaveText('Best 0:00.0');
-  await expect(page.locator('.finish .done-best')).not.toHaveClass(/\bnew\b/);
-  await expect(page.locator('.finish .done-best')).toHaveCSS('color', 'rgb(182, 205, 238)');
-  const time = await page.locator('.finish .done-time').textContent();
-  await expect(page.locator('#status')).toHaveText(`Addition 1 complete. ${time}, best 0:00.0.`);
-  expect(await runs(page)).toHaveLength(2);
+// Signed out, so both runs stay in the browser: signed in, the slower is
+// dropped once the account has it (accounts spec §5, account.js).
+test.describe('signed out', () => {
+  test.use({ account: null });
+  test('a run slower than the best shows the best, and screen readers hear it', async ({ page }) => {
+    await keptBefore(page, [earlier(1, 1)]);
+    await open(page);
+    await finishRun(page);
+    await expect(page.locator('.finish .done-best')).toHaveText('Best 0:00.0');
+    await expect(page.locator('.finish .done-best')).not.toHaveClass(/\bnew\b/);
+    await expect(page.locator('.finish .done-best')).toHaveCSS('color', 'rgb(182, 205, 238)');
+    const time = await page.locator('.finish .done-time').textContent();
+    await expect(page.locator('#status')).toHaveText(`Addition 1 complete. ${time}, best 0:00.0.`);
+    expect(await runs(page)).toHaveLength(2);
+  });
 });
 
 test('a run faster than the best is a new best; other levels\' runs don\'t count', async ({ page }) => {

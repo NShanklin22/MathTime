@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures.js';
 import { open } from './helpers.js';
 
 test('the scanner keeps only the eight most recent font sizes', async ({ page }) => {

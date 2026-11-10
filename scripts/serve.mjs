@@ -1,5 +1,8 @@
 // Tiny static file server for development and the browser tests.
-import { createServer } from 'node:http';
+// With env API_URL (e.g. http://127.0.0.1:3006), /api/* is passed on to that API, as nginx does on
+// mainframe. Run the API with COOKIE_INSECURE=1 then, since this serves plain http.
+import { createServer, request as httpRequest } from 'node:http';
+import { request as httpsRequest } from 'node:https';
 import { readFile } from 'node:fs/promises';
 import { extname, join, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -16,10 +19,31 @@ const types = {
   '.svg': 'image/svg+xml',
 };
 
+const api = process.env.API_URL ? new URL(process.env.API_URL) : null;
+
+// Passes the request on to the API unchanged, with the caller's address as nginx sends it.
+function proxy(req, res) {
+  const send = api.protocol === 'https:' ? httpsRequest : httpRequest;
+  const headers = { ...req.headers, host: api.host, 'x-real-ip': req.socket.remoteAddress };
+  const upstream = send(new URL(req.url, api), { method: req.method, headers }, (answer) => {
+    res.writeHead(answer.statusCode, answer.headers);
+    answer.pipe(res);
+  });
+  upstream.on('error', (err) => {
+    if (!res.headersSent) res.writeHead(502, { 'Content-Type': 'text/plain' });
+    res.end(`API at ${api.origin} unreachable: ${err.message}`);
+  });
+  req.pipe(upstream);
+}
+
 const server = createServer(async (req, res) => {
   // Only answer to our own address, so DNS rebinding can't reach the files.
   if (!hosts.includes(String(req.headers.host).toLowerCase())) {
     res.writeHead(403).end();
+    return;
+  }
+  if (api && (req.url === '/api' || req.url.startsWith('/api/'))) {
+    proxy(req, res);
     return;
   }
   let path, file;
@@ -55,4 +79,5 @@ server.on('error', (err) => {
   process.exit(1);
 });
 
-server.listen(port, '127.0.0.1', () => console.log(`MathTime on http://127.0.0.1:${port}`));
+server.listen(port, '127.0.0.1', () =>
+  console.log(`MathTime on http://127.0.0.1:${port}${api ? `, /api/ passed to ${api.origin}` : ''}`));

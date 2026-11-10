@@ -246,3 +246,8 @@ test('Level 7\'s facts are a − b for every a and b from 10 to 99 with b at mos
   assert.deepEqual([facts[0], facts.at(-1)], [{ a: 10, b: 10, answer: 0 }, { a: 99, b: 99, answer: 0 }]);
   assert.equal(facts.filter(f => f.a % 10 < f.b % 10).length, 1620);
 });
+
+test('Levels 1–4 in build order are free; the rest are not (accounts spec §2)', () => {
+  assert.deepEqual(LEVELS.filter(l => l.free === true).map(l => l.n), [1, 2, 3, 4]);
+  assert.ok(LEVELS.every(l => l.free === true || l.free === undefined));
+});

@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, withAccount } from './fixtures.js';
 import { open, levelRow, setProblem, rect, resize, settle, capture, ink, freeze, note, typeKeys, TOL, MUTED, GOOD } from './helpers.js';
 import { LEVELS, levelName } from '../../src/levels.js';
 
@@ -173,8 +173,10 @@ for (const n of [1, 2, 3, 4, 5]) test(`choosing Level ${n} starts it at question
   await expect(page.locator('#status')).toHaveText(new RegExp(`^Question 1 of 20: \\d+ ${WORD[n]} \\d$`));
 });
 
-test('the rows are buttons in the tab order', async ({ page }) => {
+test('the header link, then the rows, are in the tab order', async ({ page }) => {
   await home(page);
+  await page.keyboard.press('Tab');                       // the header's account link first (accounts spec §4)
+  await expect(page.locator('.top .acct')).toBeFocused();
   await page.keyboard.press('Tab');
   await expect(levelRow(page, 1)).toBeFocused();
   await page.keyboard.press('Tab');
@@ -188,6 +190,8 @@ test('the rows are buttons in the tab order', async ({ page }) => {
 // The keyboard follows the rows as shown, down the groups and back up.
 test('Tab and Shift+Tab go through the rows as shown: 1, 6, 2, 3, 7, 4, 5', async ({ page }) => {
   await home(page);
+  await page.keyboard.press('Tab');                       // the header's account link first (accounts spec §4)
+  await expect(page.locator('.top .acct')).toBeFocused();
   for (const n of SHOWN) {
     await page.keyboard.press('Tab');
     await expect(levelRow(page, n)).toBeFocused();
@@ -228,6 +232,7 @@ for (const [width, height] of [[844, 390], [320, 640]]) test(`at ${width}×${hei
   // In the order shown (the rows are grouped by topic, not by number).
   const n = await rows(page);
   expect(n).toBe(SHOWN.length);
+  await page.keyboard.press('Tab');                       // the header's account link first (accounts spec §4)
   for (const i of SHOWN) {
     await page.keyboard.press('Tab');
     await expect(levelRow(page, i)).toBeFocused();
@@ -313,9 +318,11 @@ test('on a short screen the list scrolls just far enough to show the marked row 
   expect(row.bottom + RING, 'ring bottom').toBeLessThanOrEqual(view.bottom + 0.01);
   expect(row.left - RING, 'ring left').toBeGreaterThanOrEqual(view.left - 0.01);
   expect(row.right + RING, 'ring right').toBeLessThanOrEqual(view.right + 0.01);
-  // No further than needed: the ring ends at the list's bottom edge, give or
-  // take the scroll position's rounding to a whole pixel.
-  expect(view.bottom - (row.bottom + RING), 'scrolled just far enough').toBeLessThan(1);
+  // No further than needed: the ring ends 6px inside the list's bottom
+  // edge (never flush with it: the UI review), give or take the scroll
+  // position's rounding to a whole pixel.
+  expect(view.bottom - (row.bottom + RING), 'scrolled just far enough').toBeGreaterThanOrEqual(6 - 0.01);
+  expect(view.bottom - (row.bottom + RING), 'scrolled just far enough').toBeLessThan(7);
   expect(scrolled, 'the page itself never scrolls').toEqual([0, 0]);
 });
 
@@ -510,6 +517,8 @@ test('the topics go into columns, as the mockup has them, at each window', async
   for (const [width, height, dpr, want, scrolling] of WINDOWS) {
     const at = `${width}×${height}@${dpr}`;
     const context = await browser.newContext({ viewport: { width, height }, deviceScaleFactor: dpr, baseURL });
+
+    await withAccount(context);
     try {
       const page = await context.newPage();
       await home(page);
@@ -612,6 +621,8 @@ test('a grid that scrolls counts its tiles beside the scrollbar, never below 288
 for (const dpr of [1.1, 0.9]) test(`at ${dpr}x the columns' edges are on device pixels`, async ({ browser, baseURL }, info) => {
   test.skip(info.project.name !== 'desktop', 'each window is a context at its own pixel ratio');
   const context = await browser.newContext({ viewport: { width: 1366, height: 657 }, deviceScaleFactor: dpr, baseURL });
+
+  await withAccount(context);
   try {
     const page = await context.newPage();
     await home(page);
@@ -656,6 +667,8 @@ for (const [topics, extra] of [['6', FAKE], ['6tall', [...FAKE, ...TALL]]]) test
   for (const [width, height, dpr] of [[1366, 657, 1], [1920, 1080, 1], [1536, 730, 1.25], [1280, 610, 1.5]]) {
     const at = `${width}×${height}@${dpr}`;
     const context = await browser.newContext({ viewport: { width, height }, deviceScaleFactor: dpr, baseURL });
+
+    await withAccount(context);
     try {
       const page = await context.newPage();
       await home(page);
@@ -745,8 +758,9 @@ test('where only the padding would overflow, top and bottom give way alike, and 
   pad = await listPadding(page);
   expect(await scrolls(page), '1366×400: the list doesn\'t scroll').toBe(false);
   alike(pad, '1366×400');
-  // The foot of the tallest column, Level 7, focused: its ring shows whole.
-  for (let i = 0; i < 5; i++) await page.keyboard.press('Tab');
+  // The foot of the tallest column, Level 7, focused: its ring shows whole
+  // (the header link, then 1, 6, 2, 3, 7).
+  for (let i = 0; i < 6; i++) await page.keyboard.press('Tab');
   await expect(levelRow(page, 7)).toBeFocused();
   const { ring, bottom, scrollTop } = await page.evaluate(() => {
     const list = document.querySelector('.select');
@@ -812,7 +826,7 @@ test('back from Level 5 at 1366×657, resized to 375×812 (one column), its row 
 // window goes from one number of columns to another.
 test('a focused row keeps the focus, and shows whole, as the window resizes across column counts', async ({ page }) => {
   await home(page);
-  for (let i = 0; i < 5; i++) await page.keyboard.press('Tab');
+  for (let i = 0; i < 6; i++) await page.keyboard.press('Tab');   // the header link, 1, 6, 2, 3, 7
   await expect(levelRow(page, 7)).toBeFocused();
   for (const [width, height, want] of [[1366, 657, FOUR], [1024, 620, TWO_BY_TWO], [375, 812, ONE], [844, 390, TWO_BY_TWO], [1920, 330, FOUR], [1920, 950, FOUR]]) {
     const at = `${width}×${height}`;
@@ -863,6 +877,8 @@ for (const [width, height, want] of [[1366, 657, FOUR], [1024, 620, TWO_BY_TWO]]
   const left = async n => (await levelRow(page, n).boundingBox()).x;
   expect(await left(6), 'Level 6 under Level 1').toBeCloseTo(await left(1), 2);
   expect(await left(2), 'Level 2 in the second column').toBeGreaterThan(found[0].right);
+  await page.keyboard.press('Tab');                       // the header's account link first (accounts spec §4)
+  await expect(page.locator('.top .acct')).toBeFocused();
   for (const n of SHOWN) {
     await page.keyboard.press('Tab');
     await expect(levelRow(page, n)).toBeFocused();
@@ -908,7 +924,8 @@ test('back from Level 5, in the second band, the list scrolls just far enough to
   expect(row.bottom + RING, 'ring bottom').toBeLessThanOrEqual(view.bottom + 0.01);
   expect(row.left - RING, 'ring left').toBeGreaterThanOrEqual(view.left - 0.01);
   expect(row.right + RING, 'ring right').toBeLessThanOrEqual(view.right + 0.01);
-  expect(view.bottom - (row.bottom + RING), 'scrolled just far enough').toBeLessThan(1);
+  expect(view.bottom - (row.bottom + RING), 'its ring 6px clear of the bottom').toBeGreaterThanOrEqual(6 - 0.01);
+  expect(view.bottom - (row.bottom + RING), 'scrolled just far enough').toBeLessThan(7);
   expect(scrolled, 'the page itself never scrolls').toEqual([0, 0]);
 });
 
@@ -1040,7 +1057,7 @@ test('where the one column scrolls, the scrollbar is at the window\'s right edge
 // Runs kept before the page loads, as the finish screen keeps them.
 const keptBefore = (page, records) => page.addInitScript(r => localStorage.setItem('mathtime.runs', JSON.stringify(r)), records);
 const earlier = (level, totalMs) => ({
-  id: `earlier-${level}-${totalMs}`, level, finishedAt: '2026-11-01T09:30:00.000Z', totalMs, misses: 0, problems: [],
+  id: `earlier-${level}-${totalMs}`, level, finishedAt: '2026-11-01T09:30:00.000Z', totalMs, misses: 0, problems: [{ a: 1, b: 2, ms: totalMs, misses: 0 }],
 });
 const rows = page => page.locator('.select .row').count();
 
@@ -1387,7 +1404,7 @@ for (const size of [null, [1366, 657]]) test.describe(size ? `ink alignment, fin
 test('rows in a group are 12px apart, and a focused row\'s ring stays 6px clear of the next', async ({ page }) => {
   await home(page);
   await freeze(page);
-  for (let i = 0; i < 3; i++) await page.keyboard.press('Tab');   // 1, 6, then 2
+  for (let i = 0; i < 4; i++) await page.keyboard.press('Tab');   // the header link, 1, 6, then 2
   await expect(levelRow(page, 2)).toBeFocused();
   const [upper, lower] = [await rect(page, '.select .row[data-level="2"]'), await rect(page, '.select .row[data-level="3"]')];
   note('row to row', lower.top - upper.bottom);

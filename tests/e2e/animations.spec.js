@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures.js';
 import { open, setProblem, setColumns, typeKeys, boardCell, written, note } from './helpers.js';
 
 // The feedback animations (docs/superpowers/specs/2026-11-06-animations-mockup.html,

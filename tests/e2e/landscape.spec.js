@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures.js';
 import {
   open, freeze, resize, setProblem, rect, capture, ink, digitBand, boxEdges, groupOffset,
   equalsGap, clearances, keyLabelOffsets, labelInk, note, fontSize, cssFontSize, TOL, MUTED,

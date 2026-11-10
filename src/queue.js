@@ -1,7 +1,7 @@
 // Finished runs, kept in this browser (runs spec §6). A run goes in here as
-// soon as it finishes. Part 2 sends the queue to the API and takes each run
-// out once it is stored; until then every finished run stays here, and the
-// best time comes from them.
+// soon as it finishes, and stays: signed out, the best time comes from them.
+// Signed in, account.js sends them to the account (its outbox, accounts
+// spec §5), and the best comes from the account.
 //
 // Storage can be missing, blocked or full (Safari's private mode, cleared
 // site data). Then nothing is kept, and the game plays on regardless.
@@ -43,5 +43,16 @@ export function createQueue(storage = browserStorage()) {
     return times.length ? Math.min(...times) : null;
   }
 
-  return { add, best };
+  // Keep `runs` in place of those kept (account.js drops the runs the API
+  // has). Returns whether they were kept.
+  function replace(runs) {
+    try {
+      storage.setItem(KEY, JSON.stringify(runs));
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  return { add, best, runs: read, replace };
 }

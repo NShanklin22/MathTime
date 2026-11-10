@@ -7,8 +7,9 @@
 const KEYS = new Set(['Enter', 'Backspace', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight']);
 
 export function bindInput({ ans, pad, slot }, onKey, answer) {
-  // Playing: neither the level selector nor the finish screen shows.
-  const playing = () => !document.body.matches('.at-select, .at-finish');
+  // Playing: neither the level selector, the finish screen nor the log-in
+  // screen shows.
+  const playing = () => !document.body.matches('.at-select, .at-finish, .at-login');
   const keep = () => ans.focus({ preventScroll: true });
 
   // One flash timer per key, restarted by each press, so a quick second

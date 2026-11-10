@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures.js';
 import { open, levelRow, finishRun, rect, resize, setProblem, typeKeys, GOOD, INK } from './helpers.js';
 
 // The finished-level mark (finished-mark spec): a finished level's row
@@ -7,7 +7,7 @@ import { open, levelRow, finishRun, rect, resize, setProblem, typeKeys, GOOD, IN
 // Runs kept before the page loads, as the finish screen keeps them.
 const keptBefore = (page, records) => page.addInitScript(r => localStorage.setItem('mathtime.runs', JSON.stringify(r)), records);
 const earlier = (level, totalMs) => ({
-  id: `earlier-${level}-${totalMs}`, level, finishedAt: '2026-11-01T09:30:00.000Z', totalMs, misses: 0, problems: [],
+  id: `earlier-${level}-${totalMs}`, level, finishedAt: '2026-11-01T09:30:00.000Z', totalMs, misses: 0, problems: [{ a: 1, b: 2, ms: totalMs, misses: 0 }],
 });
 async function home(page) {
   await page.goto('/');

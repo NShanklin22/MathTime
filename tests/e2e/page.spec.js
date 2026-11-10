@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures.js';
 import { open, levelRow, settle } from './helpers.js';
 
 test('the page loads in IBM Plex Mono with the Blueprint background', async ({ page }) => {
