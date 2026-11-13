@@ -1,0 +1,578 @@
+<!doctype html>
+<html lang="en" class="loading">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Accounts mockup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<!-- Accounts (2026-11-09-accounts-design.md §2–§4): the header's log-in link,
+     the locks on Levels 5–7 and the log-in screen. On the game's own styles
+     (src/styles.css) and its own selector (src/selector.js). Served by the
+     dev server (scripts/serve.mjs), from the site root:
+       /docs/superpowers/specs/2026-11-09-accounts-mockup.html
+       ?state=out           the selector, signed out: "Log in", locks on 5–7 (default)
+       ?state=in            the selector, signed in as "sam": no locks
+       ?state=in-logout     the same, the name tapped: "Log out" in its place
+       ?state=login         the log-in screen, Log in mode, opened from the header
+       ?state=signup        the log-in screen, Sign up mode
+       ?state=error         Log in, "sam" typed, the password wrong
+       ?state=signup-error  Sign up, the invite code wrong
+       ?level=5             with login/signup/error: opened from that locked row
+       ?server=down         every request fails: "Can't reach the server"
+     The fake server: name sam, password password1, invite TEST-INVITE.
+     Anything else gives the spec's errors.
+     Done from a locked row: this mockup shows the selector signed in with
+     that row focused; the game will start the level (spec §3, "Done").
+     The phone keyboard: the page never reflows for it. The viewport keeps
+     the default interactive-widget (resizes-visual), so 100dvh, and the
+     layout, stay put and the browser pans the focused field into view.
+     The screen has no keypad (body.at-login hides it), so nothing of the
+     game's is under the keyboard. Held sideways (844×390) the fields go in
+     one row, 71px tall, so the field being typed in and its label show in
+     the ~150px the keyboard leaves; the button may be under the keyboard,
+     but its Go key (enterkeyhint) submits. -->
+<link rel="stylesheet" href="/src/styles.css">
+<style>
+  /* ---------- The header's account link (spec §4) ---------- */
+  /* At the right of the header, on the selector only, in the crumbs' type
+     and line, so it is on the title's baseline: muted, with the way back's
+     faint underline 4px below the baseline, from its first ink to its last.
+     The script moves it so its ink ends at the header's edge, as the
+     hearts' does. Its hit area runs from the top of the screen to the
+     header's foot and from 8px before the word to the window's edge. */
+  .acct { display: none; }
+  body.at-select .acct {
+    display: block;
+    position: relative;
+    left: var(--ink-dx, 0px);
+    flex: none;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: none;
+    font: 400 14px/var(--crumb-line) var(--font);
+    letter-spacing: 0.04em;
+    color: var(--muted);
+    white-space: nowrap;
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+  .acct::before {
+    content: "";
+    position: absolute;
+    left: var(--ul-left, 0px);
+    right: var(--ul-right, 0px);
+    top: var(--ul-top, 19px);
+    height: 1px;
+    background: var(--faint);
+  }
+  .acct::after {
+    content: "";
+    position: absolute;
+    top: calc(-1 * var(--top-safe));
+    bottom: calc(-1 * var(--top-foot));
+    left: -8px;
+    right: calc(var(--ink-dx, 0px) - max(var(--gutter), env(safe-area-inset-right)));
+  }
+  @media (hover: hover) { .acct:hover::before { background: currentColor; } }
+  .acct:focus-visible { outline: 2px solid var(--ink); outline-offset: 4px; }
+
+  /* ---------- A locked row (spec §2) ---------- */
+  /* The lock in place of the sample (or the check and time):
+     a little taller than the sample's digits (0.8em, to an even pixel so it is
+     centred on whole pixels, as the digits' band is), its stroke the
+     digits' at weight 500, in the digits' colour. It shrinks with the
+     sample: 20px for 24px samples (topic columns, below 360px), 18px below
+     340px. Its viewBox is cropped to its ink, so its box's right edge is
+     the row's padding edge, where the samples' ink ends. */
+  .select .lock { display: none; height: 24px; width: auto; aspect-ratio: 16.7 / 20.7; overflow: visible; color: var(--ink); flex: none; }
+  .select .lock path, .select .lock rect { fill: none; stroke: currentColor; stroke-width: 2.7; stroke-linecap: round; stroke-linejoin: round; }
+  .select .row.locked .lock { display: block; }
+  .select .row.locked .sample, .select .row.locked .result { display: none; }
+  .select.cols .lock { height: 20px; }
+  @media (max-width: 359.98px) { .select .lock { height: 20px; } }
+  @media (max-width: 339.98px) { .select .lock { height: 18px; } }
+
+  /* ---------- The log-in screen (spec §3) ---------- */
+  /* The finish screen's column: as wide as the keypad, its first ink 40px
+     below the header. No keypad and no hearts here: the phone's own
+     keyboard types (spec §3). It never scrolls at any size we check; on a
+     window shorter still it scrolls rather than cut a field off. */
+  body.at-login .stage, body.at-login .run, body.at-login .pad, body.at-login .lives, body.at-login .select { display: none; }
+  .login { display: none; }
+  body.at-login .login {
+    display: block;
+    width: 100%;
+    max-width: 420px;
+    min-height: 0;
+    justify-self: center;
+    overflow-y: auto;
+    padding: 40px 16px max(32px, env(safe-area-inset-bottom));
+  }
+  .login .fields { display: flex; flex-direction: column; gap: 20px; }
+  .login [hidden] { display: none !important; }
+  .login .labels { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 10px; }
+  .login label, .login .hint, .login .error, .login .switch { display: block; text-box: trim-both cap alphabetic; letter-spacing: 0.02em; }
+  .login label { font-size: 13px; font-weight: 500; color: var(--ink); white-space: nowrap; }
+  .login .hint { font-size: 13px; color: var(--muted); white-space: nowrap; }
+  /* A field: the keypad's ring round the blueprint's ground (the grid would
+     run through the letters), the equation's weight, the amber caret, and
+     16px or more so a phone never zooms in. */
+  .login input {
+    display: block;
+    width: 100%;
+    height: 48px;
+    margin: 0;
+    padding: 0 16px;
+    border: 0;
+    border-radius: 0;
+    background: var(--bg);
+    box-shadow: var(--key-ring);
+    color: var(--ink);
+    caret-color: var(--amber);
+    font: 500 17px/1 var(--font);
+    letter-spacing: 0.02em;
+    user-select: text;
+    -webkit-user-select: text;
+  }
+  /* Focused, a field's own border becomes solid white, 2px, in place: no
+     ring outside it (the user: a ring round the border read as a double
+     box). An inset shadow, so the field and its text never move. Buttons
+     and links keep the app's ring. */
+  .login input { --field-ring: var(--key-ring); box-shadow: var(--field-ring); }
+  .login input:focus { outline: none; --field-ring: inset 0 0 0 2px var(--ink); }
+  .login input::selection { background: rgba(238, 245, 255, 0.3); color: var(--ink); }
+  /* The browser's autofill keeps the field's own colours. */
+  .login input:-webkit-autofill, .login input:-webkit-autofill:focus {
+    -webkit-text-fill-color: var(--ink);
+    box-shadow: var(--field-ring), inset 0 0 0 100px var(--bg);
+    transition: background-color 9999s;
+  }
+  /* The button: the finish screen's "Again", filled, as the one Enter presses. */
+  .login .submit {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 56px;
+    margin-top: 28px;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: var(--ink);
+    color: var(--bg);
+    font: 600 17px/1 var(--font);
+    letter-spacing: 0.02em;
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+  .login .submit .line { position: relative; left: var(--ink-dx, 0px); display: block; text-box: trim-both cap alphabetic; }
+  .login .submit:active { background: var(--go-press); }
+  .login .submit:focus-visible { outline: 2px solid var(--ink); outline-offset: 4px; }
+  /* The error, in words, under the button: the strike's warm red (4.6:1). */
+  .login .error { margin: 16px 0 0; font-size: 14px; line-height: 1.5; color: var(--redline); text-wrap: pretty; }
+  .login .error:empty { display: none; }
+  .login .switch { margin: 24px 0 0; font-size: 14px; color: var(--muted); white-space: nowrap; }
+  /* "Sign up" / "Log in": a link in the text's line, the way back's
+     underline, a 44px tap target round it. */
+  .login .swap {
+    position: relative;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: none;
+    font: 600 14px/1 var(--font);
+    letter-spacing: 0.02em;
+    color: var(--ink);
+    text-decoration: underline;
+    text-decoration-color: var(--faint);
+    text-decoration-thickness: 1px;
+    text-underline-offset: 4px;
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+  .login .swap::after { content: ""; position: absolute; inset: -15px -8px; }
+  @media (hover: hover) { .login .swap:hover { text-decoration-color: currentColor; } }
+  .login .swap:focus-visible { outline: 2px solid var(--ink); outline-offset: 4px; }
+
+  /* Held sideways (the game's landscape rule): too short for the fields
+     one above another, so they go in one row of three columns, each up to
+     260px and 32px apart (so a hint is clear of the next label), the same
+     columns in both modes, so switching never moves the form: Log in's two
+     fields take the first two. The button takes the first column, with the
+     error and then the other link under it, at the left, as upright. */
+  @media (orientation: landscape) and (max-height: 560px) and (min-aspect-ratio: 3/2) {
+    body.at-login .login { grid-area: stage; max-width: none; padding: 32px max(var(--gutter), env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(var(--gutter), env(safe-area-inset-left)); }
+    .login form { --n: 3; max-width: calc(var(--n) * 260px + (var(--n) - 1) * 32px); margin: 0 auto; }
+    .login .fields { display: grid; grid-template-columns: repeat(var(--n), minmax(0, 1fr)); gap: 32px; }
+    .login .actions { display: grid; grid-template-columns: repeat(var(--n), minmax(0, 1fr)); column-gap: 32px; margin-top: 24px; align-items: center; }
+    .login .submit { margin-top: 0; grid-column: 1; grid-row: 1; }
+    .login .error { grid-column: 1 / -1; grid-row: 2; }
+    .login .switch { grid-column: 1 / -1; grid-row: 3; justify-self: start; }
+  }
+
+  .scrollbars-take-room .login::-webkit-scrollbar { width: 8px; }
+  .scrollbars-take-room .login::-webkit-scrollbar-track { background: transparent; }
+  .scrollbars-take-room .login::-webkit-scrollbar-thumb { background: var(--faint); border-radius: 0; }
+</style>
+</head>
+<body class="at-select">
+  <header class="top">
+    <div class="where">
+      <nav class="crumbs" aria-label="Breadcrumb">
+        <a class="back" href="#" aria-label="Levels" aria-keyshortcuts="Escape" tabindex="-1"><span class="word">Levels</span><svg class="chevron" viewBox="0 0 12 12" aria-hidden="true"><path d="M7.25 2.5L3.75 6l3.5 3.5"/></svg></a>
+        <svg class="sep" viewBox="0 0 12 12" aria-hidden="true"><path d="M4.5 2.5L8 6l-3.5 3.5"/></svg>
+        <span class="here" aria-current="step">Log in</span>
+        <span class="home" aria-current="page">Levels</span>
+      </nav>
+    </div>
+    <div class="lives" role="img" aria-label="3 lives left">
+      <svg viewBox="2 3 20 18" aria-hidden="true"><path d="M19.5 12.572l-7.5 7.428l-7.5 -7.428a5 5 0 1 1 7.5 -6.566a5 5 0 1 1 7.5 6.572"/></svg>
+      <svg viewBox="2 3 20 18" aria-hidden="true"><path d="M19.5 12.572l-7.5 7.428l-7.5 -7.428a5 5 0 1 1 7.5 -6.566a5 5 0 1 1 7.5 6.572"/></svg>
+      <svg viewBox="2 3 20 18" aria-hidden="true"><path d="M19.5 12.572l-7.5 7.428l-7.5 -7.428a5 5 0 1 1 7.5 -6.566a5 5 0 1 1 7.5 6.572"/></svg>
+    </div>
+    <button class="acct" type="button">Log in</button>
+  </header>
+
+  <p class="sr-only" role="status" id="status"></p>
+
+  <div class="select" role="region" aria-label="Levels"></div>
+
+  <div class="login" role="region" aria-labelledby="login-title">
+    <h1 class="sr-only" id="login-title">Log in</h1>
+    <form novalidate>
+      <div class="fields">
+        <div class="field" data-for="signup">
+          <div class="labels"><label for="f-invite">Invite code</label></div>
+          <input id="f-invite" name="invite" type="text" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" enterkeyhint="next" aria-describedby="f-error">
+        </div>
+        <div class="field">
+          <div class="labels"><label for="f-name">Name</label><span class="hint" id="h-name" data-for="signup">3–20 letters, digits, _ -</span></div>
+          <input id="f-name" name="username" type="text" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" maxlength="20" enterkeyhint="next" aria-describedby="f-error">
+        </div>
+        <div class="field">
+          <div class="labels"><label for="f-pass">Password</label><span class="hint" id="h-pass" data-for="signup">8 or more characters</span></div>
+          <input id="f-pass" name="password" type="password" autocomplete="current-password" enterkeyhint="go" aria-describedby="f-error">
+        </div>
+      </div>
+      <div class="actions">
+        <button class="submit" type="submit"><span class="line">Log in</span></button>
+        <p class="error" id="f-error" role="alert"></p>
+        <p class="switch"><span class="ask">Have an invite?</span> <button class="swap" type="button">Sign up</button></p>
+      </div>
+    </form>
+  </div>
+
+<script type="module">
+  import { LEVELS, levelName } from '/src/levels.js';
+  import { fontsReady } from '/src/fonts.js';
+  import { createScanner } from '/src/scanner.js';
+  import { fitHeader } from '/src/header.js';
+  import { createSelector, rowLabel } from '/src/selector.js';
+  import { snap, onLayoutGrid } from '/src/ink.js';
+
+  const params = new URLSearchParams(location.search);
+  const $ = sel => document.querySelector(sel);
+  const body = document.body, topBar = $('.top'), acct = $('.acct'), status = $('#status');
+  const scan = createScanner();
+
+  // Scrollbars take room here as in the game (main.js markScrollbars()).
+  {
+    const probe = document.createElement('div');
+    probe.style.cssText = 'position:absolute;top:0;left:0;width:100px;height:100px;overflow:scroll;visibility:hidden';
+    document.body.append(probe);
+    document.documentElement.classList.toggle('scrollbars-take-room', probe.offsetWidth - probe.clientWidth > 0);
+    probe.remove();
+  }
+
+  // ---------- The account, and a fake server ----------
+  // Levels 1–4 in build order are free (spec §2; the build marks them free: true).
+  const free = level => level.n <= 4;
+  let user = null;                                   // the name signed in, as typed at sign-up
+  const down = params.get('server') === 'down';
+  const NAME = /^[A-Za-z0-9_-]{3,20}$/;
+  const taken = new Map([['sam', 'sam']]);           // lower-cased → as typed
+  const pause = () => new Promise(r => setTimeout(r, 350));
+  async function api(path, data) {
+    await pause();
+    if (down) throw new Error('offline');
+    const name = data.name.trim().toLowerCase();
+    if (path === 'login') return name === 'sam' && data.password === 'password1' ? { name: taken.get(name) } : { error: 'match' };
+    if (data.invite.trim().toUpperCase() !== 'TEST-INVITE') return { error: 'invite' };
+    if (taken.has(name)) return { error: 'taken' };
+    return { name: data.name.trim() };
+  }
+  const ERRORS = {
+    match: "That name and password don't match",
+    invite: "That invite code isn't valid or has been used",
+    taken: 'That name is taken',
+    offline: "Can't reach the server: try again",
+    name: 'A name is 3–20 letters, digits, _ or -',
+    short: 'A password is 8 or more characters',
+  };
+
+  // ---------- The selector, the game's own ----------
+  const root = $('.select');
+  const BEST = { 1: 72_400 };                       // Addition 1 finished
+  const selector = createSelector(root, LEVELS, choose, scan);
+  const rowOf = level => root.querySelector(`.row[data-level="${level.n}"]`);
+  // A lock, its viewBox cropped to its ink, stroke included: a shackle
+  // over a body, and a keyhole.
+  const LOCK = '<svg class="lock" viewBox="-0.35 -0.35 16.7 20.7" aria-hidden="true"><path d="M4 9V5a4 4 0 0 1 8 0v4"/><rect x="1" y="9" width="14" height="10" rx="1"/><path d="M8 13v2"/></svg>';
+  for (const level of LEVELS) rowOf(level).insertAdjacentHTML('beforeend', LOCK);
+
+  function showAccount() {
+    selector.showBests(n => BEST[n] ?? null);
+    for (const level of LEVELS) {
+      const row = rowOf(level), locked = !user && !free(level);
+      row.classList.toggle('locked', locked);
+      if (locked) row.setAttribute('aria-label', `${rowLabel(level, null)}, locked: log in to play`);
+    }
+    showName();
+  }
+
+  // ---------- The header link (spec §4) ----------
+  // Signed out: "Log in". Signed in: the name; a tap shows "Log out" in its
+  // place for 4s or until the focus leaves, and a tap on that logs out.
+  let armed = false, disarm = 0;
+  function showName() {
+    clearTimeout(disarm);
+    acct.textContent = !user ? 'Log in' : armed ? 'Log out' : user;
+    if (user && !armed) acct.setAttribute('aria-label', `Signed in as ${user}`);
+    else acct.removeAttribute('aria-label');
+    if (armed) disarm = setTimeout(() => { armed = false; showName(); }, 4000);
+    placeAcct();
+  }
+  acct.addEventListener('click', () => {
+    if (!user) return openLogin({ from: acct });
+    if (!armed) { armed = true; return showName(); }
+    armed = false;
+    user = null;
+    showAccount();
+    selector.layout();
+    status.textContent = 'Logged out';
+  });
+  acct.addEventListener('focusout', () => { if (armed) { armed = false; showName(); } });
+
+  // Its ink ends at the header's edge (where the hearts' does), its start on
+  // a whole device pixel; the underline from its first ink to its last,
+  // 4px below the baseline, as the way back's (header.js).
+  function font(node) {
+    const cs = getComputedStyle(node);
+    const fs = parseFloat(cs.fontSize);
+    return { fs, style: { weight: cs.fontWeight, family: cs.fontFamily, color: cs.color, spacing: (parseFloat(cs.letterSpacing) || 0) / fs } };
+  }
+  let ready = false;                                  // the fonts are in: measure only then
+  function placeAcct() {
+    if (!ready || !acct.getClientRects().length) return;
+    const dpr = devicePixelRatio;
+    acct.style.removeProperty('--ink-dx');
+    const { fs, style } = font(acct);
+    const m = scan(acct.textContent, style, fs * dpr);
+    const box = acct.getBoundingClientRect();
+    const edge = topBar.getBoundingClientRect().right - parseFloat(getComputedStyle(topBar).paddingRight);
+    const at = snap(edge - m.abr * fs, dpr);
+    const dx = onLayoutGrid(at - box.left, dpr);
+    acct.style.setProperty('--ink-dx', dx + 'px');
+    const left = box.left + dx;
+    const probe = document.createElement('span');
+    probe.style.cssText = 'display:inline-block;width:0;height:0;vertical-align:baseline';
+    acct.appendChild(probe);
+    const baseline = snap(probe.getBoundingClientRect().top, dpr);
+    probe.remove();
+    const width = box.width;
+    acct.style.setProperty('--ul-left', onLayoutGrid(snap(left - m.abl * fs, dpr) - left, dpr) + 'px');
+    acct.style.setProperty('--ul-right', onLayoutGrid(left + width - snap(left + m.abr * fs, dpr), dpr) + 'px');
+    acct.style.setProperty('--ul-top', onLayoutGrid(baseline + 4 - box.top, dpr) + 'px');
+  }
+
+  // ---------- Rows ----------
+  // A locked row opens log in; once in, back to the selector with that row
+  // focused (the game will start the level). A free one would start.
+  function choose(level) {
+    if (!user && !free(level)) return openLogin({ from: rowOf(level), level });
+    status.textContent = `Starting ${levelName(level)} (not in this mockup)`;
+  }
+
+  // ---------- The log-in screen (spec §3) ----------
+  const form = $('.login form'), err = $('#f-error'), here = $('.crumbs .here');
+  const f = { invite: $('#f-invite'), name: $('#f-name'), pass: $('#f-pass') };
+  let mode = 'login', origin = null, busy = false;
+
+  function setMode(next) {
+    mode = next;
+    const up = mode === 'signup';
+    form.classList.toggle('signup', up);
+    for (const node of form.querySelectorAll('[data-for="signup"]')) node.hidden = !up;
+    f.pass.autocomplete = up ? 'new-password' : 'current-password';
+    f.name.setAttribute('aria-describedby', up ? 'h-name f-error' : 'f-error');
+    f.pass.setAttribute('aria-describedby', up ? 'h-pass f-error' : 'f-error');
+    const word = up ? 'Sign up' : 'Log in';
+    form.querySelector('.submit .line').textContent = word;
+    $('#login-title').textContent = word;
+    form.querySelector('.ask').textContent = up ? 'Have an account?' : 'Have an invite?';
+    form.querySelector('.swap').textContent = up ? 'Log in' : 'Sign up';
+    f.pass.value = '';
+    err.textContent = '';
+  }
+  form.querySelector('.swap').addEventListener('click', () => {
+    setMode(mode === 'login' ? 'signup' : 'login');
+    placeLogin();
+    firstEmpty()?.focus();
+  });
+
+  const shown = () => [f.invite, f.name, f.pass].filter(i => i.closest('.field').hidden === false);
+  const firstEmpty = () => shown().find(i => !i.value);
+
+  function openLogin(o) {
+    origin = o;
+    setMode('login');
+    f.invite.value = f.name.value = '';
+    toLogin();
+    f.name.focus();
+  }
+  function toLogin() {
+    armed = false;
+    body.classList.replace('at-select', 'at-login');
+    here.textContent = 'Log in';
+    fitHeader(topBar, scan);
+    placeLogin();
+  }
+  // Back to the selector, with the focus where you came from.
+  function back() {
+    body.classList.replace('at-login', 'at-select');
+    fitHeader(topBar, scan);
+    showAccount();
+    selector.layout();
+    if (origin?.level) { selector.mark(origin.level); selector.focus(); }
+    else acct.focus({ preventScroll: true });
+  }
+  $('.crumbs .back').addEventListener('click', e => { e.preventDefault(); back(); });
+  addEventListener('keydown', e => {
+    if (e.key !== 'Escape' || e.isComposing || e.keyCode === 229 || !body.classList.contains('at-login')) return;
+    e.preventDefault();
+    back();
+  });
+
+  // Enter submits (the form's own submit). A field left empty takes the
+  // focus instead, with no error: Enter in Name goes on to Password.
+  form.addEventListener('submit', async e => {
+    e.preventDefault();
+    if (busy) return;
+    const empty = firstEmpty();
+    if (empty) return empty.focus();
+    let error = null;
+    if (mode === 'signup' && !NAME.test(f.name.value.trim())) error = 'name';
+    else if (mode === 'signup' && f.pass.value.length < 8) error = 'short';
+    let result = null;
+    if (!error) {
+      busy = true;
+      form.setAttribute('aria-busy', 'true');
+      try {
+        result = await api(mode, { invite: f.invite.value, name: f.name.value, password: f.pass.value });
+        error = result.error ?? null;
+      } catch {
+        error = 'offline';
+      }
+      busy = false;
+      form.removeAttribute('aria-busy');
+    }
+    if (error) return showError(error);
+    user = result.name;
+    if (mode === 'signup') taken.set(user.toLowerCase(), user);
+    back();
+    status.textContent = `Signed in as ${user}`;
+  });
+
+  // The error under the button; what was typed stays, but the password, and
+  // the focus goes to the field to fix.
+  function showError(code) {
+    err.textContent = ERRORS[code];
+    const fix = { match: f.pass, invite: f.invite, taken: f.name, name: f.name, short: f.pass, offline: null }[code];
+    if (code !== 'offline' && code !== 'name') f.pass.value = '';
+    placeLogin();
+    if (fix) fix.focus();
+    else form.querySelector('.submit').focus();
+  }
+
+  // ---------- On its ink ----------
+  // Labels, hints, the error and the other link start their ink at the
+  // field's edge (or end it there, the hints); the button's word is
+  // centred on its ink.
+  function textOf(node) {
+    const { fs, style } = font(node);
+    return { fs, style, text: node.textContent };
+  }
+  function inkLeft(node) {
+    const dpr = devicePixelRatio;
+    node.style.marginLeft = '';
+    const { fs, style, text } = textOf(node);
+    const left = node.getBoundingClientRect().left;
+    const at = snap(left + scan(text.split('\n')[0], style, fs * dpr).abl * fs, dpr);
+    node.style.marginLeft = onLayoutGrid(at - left, dpr) + 'px';
+  }
+  function inkRight(node) {
+    const dpr = devicePixelRatio;
+    node.style.marginRight = '';
+    const { fs, style, text } = textOf(node);
+    const r = node.getBoundingClientRect();
+    const m = scan(text, style, fs * dpr);
+    const at = snap(r.right - m.abr * fs, dpr);                // where its box should start
+    node.style.marginRight = onLayoutGrid(r.left - at, dpr) + 'px';
+  }
+  function centreInk(line) {
+    const dpr = devicePixelRatio;
+    line.style.removeProperty('--ink-dx');
+    const { fs, style, text } = textOf(line);
+    const m = scan(text, style, fs * dpr);
+    const box = line.getBoundingClientRect(), outer = line.parentElement.getBoundingClientRect();
+    const inkMid = box.left + (m.abr - m.abl) * fs / 2;
+    const want = outer.left + outer.width / 2;
+    line.style.setProperty('--ink-dx', onLayoutGrid(snap(box.left + want - inkMid, dpr) - box.left, dpr) + 'px');
+  }
+  function placeLogin() {
+    if (!ready || !body.classList.contains('at-login')) return;
+    const visible = n => n.getClientRects().length > 0;
+    for (const node of form.querySelectorAll('label, .error, .switch')) if (visible(node)) inkLeft(node);
+    for (const node of form.querySelectorAll('.hint')) if (visible(node)) inkRight(node);
+    centreInk(form.querySelector('.submit .line'));
+  }
+
+  // ---------- The state asked for ----------
+  const state = params.get('state') ?? 'out';
+  const from = params.has('level') ? LEVELS.find(l => l.n === Number(params.get('level'))) : null;
+  if (state === 'in' || state === 'in-logout') user = 'sam';
+  showAccount();
+
+  function layout() {
+    fitHeader(topBar, scan);
+    if (body.classList.contains('at-select')) selector.layout();
+    placeAcct();
+    placeLogin();
+  }
+  let queued = false;
+  const relayout = () => {
+    if (queued) return;
+    queued = true;
+    requestAnimationFrame(() => { queued = false; layout(); });
+  };
+
+  fontsReady().then(() => {
+    ready = true;
+    layout();
+    document.documentElement.classList.remove('loading');
+    addEventListener('resize', relayout);
+    if (state === 'in-logout') { acct.focus(); acct.click(); }
+    const login = ['login', 'signup', 'error', 'signup-error'].includes(state);
+    if (!login) return;
+    origin = from ? { from: rowOf(from), level: from } : { from: acct };
+    setMode(state.startsWith('signup') ? 'signup' : 'login');
+    toLogin();
+    if (state === 'error') { f.name.value = 'sam'; showError('match'); }
+    else if (state === 'signup-error') { f.invite.value = 'OLD-CODE'; f.name.value = 'alex'; showError('invite'); }
+    else firstEmpty()?.focus();
+  });
+</script>
+</body>
+</html>

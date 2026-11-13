@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { rowLabel, byTopic, gridFor, tileFor } from '../../src/selector.js';
+import { rowLabel, lockedLabel, byTopic, gridFor, tileFor } from '../../src/selector.js';
 import { LEVEL1 } from '../../src/level1.js';
 import { LEVEL2 } from '../../src/level2.js';
 import { LEVEL4 } from '../../src/level4.js';
@@ -96,4 +96,8 @@ test('a tile is its share of the width, down to a whole device pixel, at most 32
   assert.equal(tileFor(1233, 4, 24, 320, 1.5), 290);               // 435.375 device px → 435
   assert.equal(tileFor(1232, 4, 24, 320, 1.25), 289.6);            // 362.5 device px → 362
   assert.equal(tileFor(624, 2, 24, 320, 3), 300);
+});
+
+test("a locked row's name says it is locked, and how to open it (accounts spec §2)", () => {
+  assert.equal(lockedLabel(LEVEL6), 'Addition, Level 2: Column addition, locked: log in to play');
 });

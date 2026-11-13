@@ -608,18 +608,18 @@ body.at-finish .finish { display: block; }
    main.js at the start: a desktop's classic bar, with a mouse or a touch
    screen alike). Phones keep their own overlay scrollbars, which take no
    room, where a ::-webkit-scrollbar one would take its 8px. */
-.scrollbars-take-room .select::-webkit-scrollbar, .scrollbars-take-room .finish::-webkit-scrollbar { width: 8px; height: 8px; }
-.scrollbars-take-room .select::-webkit-scrollbar-track, .scrollbars-take-room .finish::-webkit-scrollbar-track,
-.scrollbars-take-room .select::-webkit-scrollbar-corner, .scrollbars-take-room .finish::-webkit-scrollbar-corner { background: transparent; }
-.scrollbars-take-room .select::-webkit-scrollbar-button, .scrollbars-take-room .finish::-webkit-scrollbar-button { display: none; width: 0; height: 0; }
-.scrollbars-take-room .select::-webkit-scrollbar-thumb, .scrollbars-take-room .finish::-webkit-scrollbar-thumb { background: var(--faint); border-radius: 0; }
-.scrollbars-take-room .select::-webkit-scrollbar-thumb:hover, .scrollbars-take-room .finish::-webkit-scrollbar-thumb:hover { background: var(--muted); }
-.scrollbars-take-room .select::-webkit-scrollbar-thumb:active, .scrollbars-take-room .finish::-webkit-scrollbar-thumb:active { background: var(--ink); }
+.scrollbars-take-room .select::-webkit-scrollbar, .scrollbars-take-room .finish::-webkit-scrollbar, .scrollbars-take-room .login::-webkit-scrollbar { width: 8px; height: 8px; }
+.scrollbars-take-room .select::-webkit-scrollbar-track, .scrollbars-take-room .finish::-webkit-scrollbar-track, .scrollbars-take-room .login::-webkit-scrollbar-track,
+.scrollbars-take-room .select::-webkit-scrollbar-corner, .scrollbars-take-room .finish::-webkit-scrollbar-corner, .scrollbars-take-room .login::-webkit-scrollbar-corner { background: transparent; }
+.scrollbars-take-room .select::-webkit-scrollbar-button, .scrollbars-take-room .finish::-webkit-scrollbar-button, .scrollbars-take-room .login::-webkit-scrollbar-button { display: none; width: 0; height: 0; }
+.scrollbars-take-room .select::-webkit-scrollbar-thumb, .scrollbars-take-room .finish::-webkit-scrollbar-thumb, .scrollbars-take-room .login::-webkit-scrollbar-thumb { background: var(--faint); border-radius: 0; }
+.scrollbars-take-room .select::-webkit-scrollbar-thumb:hover, .scrollbars-take-room .finish::-webkit-scrollbar-thumb:hover, .scrollbars-take-room .login::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+.scrollbars-take-room .select::-webkit-scrollbar-thumb:active, .scrollbars-take-room .finish::-webkit-scrollbar-thumb:active, .scrollbars-take-room .login::-webkit-scrollbar-thumb:active { background: var(--ink); }
 /* Elsewhere, the standard properties, as near as they come. Chrome ignores
    ::-webkit-scrollbar while these are set, so they go only to browsers
    without it. */
 @supports not selector(::-webkit-scrollbar) {
-  .select, .finish { scrollbar-width: thin; scrollbar-color: var(--faint) transparent; }
+  .select, .finish, .login { scrollbar-width: thin; scrollbar-color: var(--faint) transparent; }
 }
 
 /* Narrow screens and phones held sideways (§3.4): 16px gutters and a tighter
@@ -667,4 +667,183 @@ body.at-finish .finish { display: block; }
   @supports not (height: 1dvh) {
     .pad { --key-h: min(64px, (100vh - var(--top-h) - 2 * var(--pad-bottom) - var(--run-row) - 3 * var(--key-gap)) / 4); }
   }
+}
+
+/* ---------- Accounts (2026-11-09-accounts-design.md §2–§4, the accounts mockup) ---------- */
+/* ---------- The header's account link (spec §4) ---------- */
+/* At the right of the header, on the selector only, in the crumbs' type
+   and line, so it is on the title's baseline: muted, with the way back's
+   faint underline 4px below the baseline, from its first ink to its last.
+   The script moves it so its ink ends at the header's edge, as the
+   hearts' does. Its hit area runs from the top of the screen to the
+   header's foot and from 8px before the word to the window's edge. */
+.acct { display: none; }
+body.at-select .acct {
+  display: block;
+  position: relative;
+  left: var(--ink-dx, 0px);
+  flex: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: 400 14px/var(--crumb-line) var(--font);
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  white-space: nowrap;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.acct::before {
+  content: "";
+  position: absolute;
+  left: var(--ul-left, 0px);
+  right: var(--ul-right, 0px);
+  top: var(--ul-top, 19px);
+  height: 1px;
+  background: var(--faint);
+}
+.acct::after {
+  content: "";
+  position: absolute;
+  top: calc(-1 * var(--top-safe));
+  bottom: calc(-1 * var(--top-foot));
+  left: -8px;
+  right: calc(var(--ink-dx, 0px) - max(var(--gutter), env(safe-area-inset-right)));
+}
+@media (hover: hover) { .acct:hover::before { background: currentColor; } }
+.acct:focus-visible { outline: 2px solid var(--ink); outline-offset: 4px; }
+
+/* ---------- A locked row (spec §2) ---------- */
+/* The lock in place of the sample (or the check and time):
+   a little taller than the sample's digits (0.8em, to an even pixel so it is
+   centred on whole pixels, as the digits' band is), its stroke the
+   digits' at weight 500, in the digits' colour. It shrinks with the
+   sample: 20px for 24px samples (topic columns, below 360px), 18px below
+   340px. Its viewBox is cropped to its ink, so its box's right edge is
+   the row's padding edge, where the samples' ink ends. */
+.select .lock { display: none; height: 24px; width: auto; aspect-ratio: 16.7 / 20.7; overflow: visible; color: var(--ink); flex: none; }
+.select .lock path, .select .lock rect { fill: none; stroke: currentColor; stroke-width: 2.7; stroke-linecap: round; stroke-linejoin: round; }
+.select .row.locked .lock { display: block; }
+.select .row.locked .sample, .select .row.locked .result { display: none; }
+.select.cols .lock { height: 20px; }
+@media (max-width: 359.98px) { .select .lock { height: 20px; } }
+@media (max-width: 339.98px) { .select .lock { height: 18px; } }
+
+/* ---------- The log-in screen (spec §3) ---------- */
+/* The finish screen's column: as wide as the keypad, its first ink 40px
+   below the header. No keypad and no hearts here: the phone's own
+   keyboard types (spec §3). It never scrolls at any size we check; on a
+   window shorter still it scrolls rather than cut a field off. */
+body.at-login .stage, body.at-login .run, body.at-login .pad, body.at-login .lives, body.at-login .select { display: none; }
+.login { display: none; }
+body.at-login .login {
+  display: block;
+  width: 100%;
+  max-width: 420px;
+  min-height: 0;
+  justify-self: center;
+  overflow-y: auto;
+  padding: 40px 16px max(32px, env(safe-area-inset-bottom));
+}
+.login .fields { display: flex; flex-direction: column; gap: 20px; }
+.login [hidden] { display: none !important; }
+.login .labels { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 10px; }
+.login label, .login .hint, .login .error, .login .switch { display: block; text-box: trim-both cap alphabetic; letter-spacing: 0.02em; }
+.login label { font-size: 13px; font-weight: 500; color: var(--ink); white-space: nowrap; }
+.login .hint { font-size: 13px; color: var(--muted); white-space: nowrap; }
+/* A field: the keypad's ring round the blueprint's ground (the grid would
+   run through the letters), the equation's weight, the amber caret, and
+   16px or more so a phone never zooms in. */
+.login input {
+  display: block;
+  width: 100%;
+  height: 48px;
+  margin: 0;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 0;
+  background: var(--bg);
+  box-shadow: var(--key-ring);
+  color: var(--ink);
+  caret-color: var(--amber);
+  font: 500 17px/1 var(--font);
+  letter-spacing: 0.02em;
+  user-select: text;
+  -webkit-user-select: text;
+}
+/* Focused, a field's own border becomes solid white, 2px, in place: no
+   ring outside it (the user: a ring round the border read as a double
+   box). An inset shadow, so the field and its text never move. Buttons
+   and links keep the app's ring. */
+.login input { --field-ring: var(--key-ring); box-shadow: var(--field-ring); }
+.login input:focus { outline: none; --field-ring: inset 0 0 0 2px var(--ink); }
+.login input::selection { background: rgba(238, 245, 255, 0.3); color: var(--ink); }
+/* The browser's autofill keeps the field's own colours. */
+.login input:-webkit-autofill, .login input:-webkit-autofill:focus {
+  -webkit-text-fill-color: var(--ink);
+  box-shadow: var(--field-ring), inset 0 0 0 100px var(--bg);
+  transition: background-color 9999s;
+}
+/* The button: the finish screen's "Again", filled, as the one Enter presses. */
+.login .submit {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 56px;
+  margin-top: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: var(--ink);
+  color: var(--bg);
+  font: 600 17px/1 var(--font);
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.login .submit .line { position: relative; left: var(--ink-dx, 0px); display: block; text-box: trim-both cap alphabetic; }
+.login .submit:active { background: var(--go-press); }
+.login .submit:focus-visible { outline: 2px solid var(--ink); outline-offset: 4px; }
+/* The error, in words, under the button: the strike's warm red (4.6:1). */
+.login .error { margin: 16px 0 0; font-size: 14px; line-height: 1.5; color: var(--redline); text-wrap: pretty; }
+.login .error:empty { display: none; }
+.login .switch { margin: 24px 0 0; font-size: 14px; color: var(--muted); white-space: nowrap; }
+/* "Sign up" / "Log in": a link in the text's line, the way back's
+   underline, a 44px tap target round it. */
+.login .swap {
+  position: relative;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: 600 14px/1 var(--font);
+  letter-spacing: 0.02em;
+  color: var(--ink);
+  text-decoration: underline;
+  text-decoration-color: var(--faint);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 4px;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.login .swap::after { content: ""; position: absolute; inset: -15px -8px; }
+@media (hover: hover) { .login .swap:hover { text-decoration-color: currentColor; } }
+.login .swap:focus-visible { outline: 2px solid var(--ink); outline-offset: 4px; }
+
+/* Held sideways (the game's landscape rule): too short for the fields
+   one above another, so they go in one row of three columns, each up to
+   260px and 32px apart (so a hint is clear of the next label), the same
+   columns in both modes, so switching never moves the form: Log in's two
+   fields take the first two. The button takes the first column, with the
+   error and then the other link under it, at the left, as upright. */
+@media (orientation: landscape) and (max-height: 560px) and (min-aspect-ratio: 3/2) {
+  body.at-login .login { grid-area: stage; max-width: none; padding: 32px max(var(--gutter), env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(var(--gutter), env(safe-area-inset-left)); }
+  .login form { --n: 3; max-width: calc(var(--n) * 260px + (var(--n) - 1) * 32px); margin: 0 auto; }
+  .login .fields { display: grid; grid-template-columns: repeat(var(--n), minmax(0, 1fr)); gap: 32px; }
+  .login .actions { display: grid; grid-template-columns: repeat(var(--n), minmax(0, 1fr)); column-gap: 32px; margin-top: 24px; align-items: center; }
+  .login .submit { margin-top: 0; grid-column: 1; grid-row: 1; }
+  .login .error { grid-column: 1 / -1; grid-row: 2; }
+  .login .switch { grid-column: 1 / -1; grid-row: 3; justify-self: start; }
 }

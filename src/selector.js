@@ -4,6 +4,10 @@ import { band, snap, onLayoutGrid } from './ink.js';
 
 const DIGITS = [...'0123456789'];
 
+// Room a row's focus ring keeps from the list's edge when the list scrolls
+// to it (reveal.js): the least bottom padding's 6px.
+const CLEAR = 6;
+
 // How long after a tap its double tap can still come.
 const DOUBLE_TAP_MS = 400;
 
@@ -16,8 +20,16 @@ export function rowLabel(level, bestMs) {
   return bestMs == null ? label : `${label}. Finished, best ${formatTime(bestMs)}.`;
 }
 
+// A locked row's name (accounts spec §2): signed out, a level that isn't
+// free says so in place of its best.
+export const lockedLabel = level => `${rowLabel(level, null)}, locked: log in to play`;
+
 // The keypad's check (index.html), its viewBox cropped to its ink.
 const CHECK = '<svg class="tick" viewBox="2 5 20 14.5"><path d="M3.5 12.5l5.5 5.5l11.5-11.5"/></svg>';
+// A locked row's lock (the accounts mockup), in place of its sample or its
+// result: a shackle over a body, and a keyhole, its viewBox cropped to its
+// ink, stroke included.
+const LOCK = '<svg class="lock" viewBox="-0.35 -0.35 16.7 20.7" aria-hidden="true"><path d="M4 9V5a4 4 0 0 1 8 0v4"/><rect x="1" y="9" width="14" height="10" rx="1"/><path d="M8 13v2"/></svg>';
 
 // The levels in the order the selector shows them (Levels 6–7 batch plan):
 // grouped by topic, the topics in the order each first comes in `levels`
@@ -125,6 +137,7 @@ export function createSelector(root, levels, choose, scan) {
     result.innerHTML = CHECK;
     result.append(el('span', 'best'));
     row.append(txt, sample, result);
+    row.insertAdjacentHTML('beforeend', LOCK);
     row.addEventListener('click', e => {
       const startedAt = e.detail && downAt != null ? downAt : e.timeStamp;
       downAt = null;
@@ -157,6 +170,7 @@ export function createSelector(root, levels, choose, scan) {
     downAt = null;
   }
 
+  const bests = new Map();                   // level → its best as last shown
   // Show each level's result: a level with a best time, `best(n)` in ms
   // (null if none), is finished. Its row shows the check and that time,
   // and its name says so (finished-mark spec).
@@ -165,15 +179,29 @@ export function createSelector(root, levels, choose, scan) {
       const ms = best(level.n);
       row.classList.toggle('finished', ms != null);
       row.querySelector('.best').textContent = ms == null ? '' : formatTime(ms);
-      row.setAttribute('aria-label', rowLabel(level, ms));
+      bests.set(level, ms);
+      name(level, row);
     }
+  }
+
+  // Lock the levels `locked(level)` says (accounts spec §2): the lock in
+  // place of the row's sample or result, and its name says so.
+  function showLocks(locked) {
+    for (const [level, row] of rows) {
+      row.classList.toggle('locked', !!locked(level));
+      name(level, row);
+    }
+  }
+  function name(level, row) {
+    const locked = row.classList.contains('locked');
+    row.setAttribute('aria-label', locked ? lockedLabel(level) : rowLabel(level, bests.get(level)));
   }
 
   // A row reached by the keyboard shows with its whole ring too: the
   // browser's own focus scroll leaves no room for it.
   root.addEventListener('focusin', e => {
     const row = e.target.closest?.('.row');
-    if (row && row.matches(':focus-visible')) reveal(root, row);
+    if (row && row.matches(':focus-visible')) reveal(root, row, CLEAR);
   });
 
   // Focus the marked row, so the keyboard carries on from there, and show
@@ -182,7 +210,7 @@ export function createSelector(root, levels, choose, scan) {
     const row = root.querySelector('.row.current');
     if (!row) return;
     row.focus({ preventScroll: true });
-    reveal(root, row);
+    reveal(root, row, CLEAR);
   }
 
   // ---------- In topic columns (the topic-columns mockup, 2026-11-07) ----------
@@ -298,7 +326,7 @@ export function createSelector(root, levels, choose, scan) {
     pad();
     if (n !== laidOut) {
       laidOut = n;
-      if (root.contains(document.activeElement)) reveal(root, document.activeElement);
+      if (root.contains(document.activeElement)) reveal(root, document.activeElement, CLEAR);
     }
   }
 
@@ -397,5 +425,5 @@ export function createSelector(root, levels, choose, scan) {
     }
   }
 
-  return { mark, cameFrom, showBests, focus, layout };
+  return { mark, cameFrom, showBests, showLocks, focus, layout };
 }

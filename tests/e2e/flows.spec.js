@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures.js';
 import { open, levelRow, setProblem, rect, typeKeys } from './helpers.js';
 
 const answerText = page => page.locator('#shown').textContent();

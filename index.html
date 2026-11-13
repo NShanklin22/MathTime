@@ -36,6 +36,9 @@
       <svg viewBox="2 3 20 18" aria-hidden="true"><path d="M19.5 12.572l-7.5 7.428l-7.5 -7.428a5 5 0 1 1 7.5 -6.566a5 5 0 1 1 7.5 6.572"/></svg>
       <svg viewBox="2 3 20 18" aria-hidden="true"><path d="M19.5 12.572l-7.5 7.428l-7.5 -7.428a5 5 0 1 1 7.5 -6.566a5 5 0 1 1 7.5 6.572"/></svg>
     </div>
+    <!-- The account link (accounts spec §4), on the level selector only:
+         "Log in", or your name, which a tap turns to "Log out" (login.js). -->
+    <button class="acct" type="button">Log in</button>
   </header>
 
   <main class="stage">
@@ -79,6 +82,34 @@
       <button class="again"><span class="line">Again</span></button>
       <button class="levels"><span class="line">Levels</span></button>
     </div>
+  </div>
+
+  <!-- The log-in screen (accounts spec §3), run by login.js: Log in, or
+       Sign up with the invite code shown too. No keypad: the system's own
+       keyboard types here. -->
+  <div class="login" role="region" aria-labelledby="login-title">
+    <h1 class="sr-only" id="login-title">Log in</h1>
+    <form novalidate>
+      <div class="fields">
+        <div class="field" data-for="signup" hidden>
+          <div class="labels"><label for="f-invite">Invite code</label></div>
+          <input id="f-invite" name="invite" type="text" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" enterkeyhint="next" aria-describedby="f-error">
+        </div>
+        <div class="field">
+          <div class="labels"><label for="f-name">Name</label><span class="hint" id="h-name" data-for="signup" hidden>3–20 letters, digits, _&nbsp;-</span></div>
+          <input id="f-name" name="username" type="text" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" maxlength="20" enterkeyhint="next" aria-describedby="f-error">
+        </div>
+        <div class="field">
+          <div class="labels"><label for="f-pass">Password</label><span class="hint" id="h-pass" data-for="signup" hidden>8 or more characters</span></div>
+          <input id="f-pass" name="password" type="password" autocomplete="current-password" enterkeyhint="go" aria-describedby="f-error">
+        </div>
+      </div>
+      <div class="actions">
+        <button class="submit" type="submit"><span class="line">Log in</span></button>
+        <p class="error" id="f-error" role="alert"></p>
+        <p class="switch"><span class="ask">Have an invite?</span> <button class="swap" type="button">Sign up</button></p>
+      </div>
+    </form>
   </div>
 
   <div class="pad" role="group" aria-label="Keypad">

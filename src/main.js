@@ -10,13 +10,15 @@ import { createSelector } from './selector.js';
 import { buildRecord } from './record.js';
 import { createQueue } from './queue.js';
 import { createFinish, finishText } from './finish.js';
+import { createAccount } from './account.js';
+import { createLogin, createAccountLink } from './login.js';
 
 const $ = sel => document.querySelector(sel);
 const dom = {
   eq: $('#eq'), slot: $('#slot'), shown: $('#shown'), caret: $('.caret'), qnum: $('#qnum'),
   a: $('#a'), b: $('#b'), op: $('#eq .op'), ans: $('#ans'), pad: $('.pad'), stage: $('.stage'), topBar: $('.top'),
   run: $('.run'), select: $('.select'), finish: $('.finish'), board: $('#board'), check: $('.pad .go'),
-  here: $('.crumbs .here'), back: $('.crumbs .back'),
+  here: $('.crumbs .here'), back: $('.crumbs .back'), acct: $('.acct'), login: $('.login'),
   livesBox: $('.lives'), hearts: [...document.querySelectorAll('.lives svg')], status: $('#status'),
 };
 
@@ -45,11 +47,103 @@ layout.afterMeasure = () => view.render(game.state);
 // in for the view and the layout behind the view's interface.
 const board = createBoard(dom, scan);
 let screen = view;                   // the one for the level being played
-const selector = createSelector(dom.select, LEVELS, play, scan);
+const selector = createSelector(dom.select, LEVELS, choose, scan);
 const queue = createQueue();
-// Each finished level's best, from the runs kept (finished-mark spec §2).
-selector.showBests(queue.best);
+// Who is signed in, and the upload of finished runs (accounts spec §5).
+const account = createAccount({ queue });
 const finish = createFinish(dom.finish, scan, { again: () => play(game.level), levels: toSelector });
+const acctLink = createAccountLink(dom.acct, dom.topBar, scan, { login: () => openLogin(), logout, edge: tilesEdge });
+// Where the list's tiles end, while it has a scrollbar that takes room (a
+// desktop's, on a short or narrow window): the rows narrow beside it, and
+// the header link's ink ends with them (the UI review). Else null: the
+// header's edge, where the rows end too.
+function tilesEdge() {
+  const list = dom.select;
+  if (!list.getClientRects().length || list.offsetWidth - list.clientWidth - 2 * list.clientLeft <= 0) return null;
+  const rows = [...list.querySelectorAll('.row')].map(row => row.getBoundingClientRect().right);
+  return rows.length ? Math.max(...rows) : null;
+}
+// Its breadcrumb is "Levels › Log in", or "› Sign up" in that mode.
+const login = createLogin(dom.login, scan, { enter: account.enter, done: loggedIn, onMode: word => { dom.here.textContent = word; } });
+
+// ---------- The account (accounts spec §2–§5) ----------
+
+// Signed out, a level that isn't free is locked (spec §2).
+const locked = level => !account.name && !level.free;
+
+// The selector and the header link as the account stands: the locks, the
+// name, and each finished level's best (finished-mark spec §2), the
+// account's signed in, this browser's runs signed out.
+function showAccount() {
+  selector.showBests(account.bests());
+  selector.showLocks(locked);
+  acctLink.show(account.name);
+  // Laid out only once the fonts are in: ink measured in a fallback font
+  // would be kept (the scanner caches it).
+  if (fontsIn && document.body.classList.contains('at-select')) {
+    try {
+      selector.layout();
+    } catch (err) {
+      console.error(err);
+    }
+  }
+}
+// The cached state at once, so the locks never flash; then the API's.
+let fontsIn = false;
+showAccount();
+account.onChange(showAccount);
+account.check().catch(err => console.error(err));
+
+// A row of the selector: a locked one opens log in, and once in, the level
+// starts (spec §3).
+function choose(level) {
+  if (locked(level)) return openLogin({ level });
+  play(level);
+}
+
+// The log-in screen, from the header link or a locked row (`origin`).
+let origin = null;
+function openLogin(from = {}) {
+  origin = from;
+  acctLink.disarm();
+  document.body.classList.replace('at-select', 'at-login');
+  dom.status.textContent = '';
+  login.open();                      // "Log in" in the breadcrumb
+  safeLayout();
+}
+
+// Back where you came from without logging in (Esc, the "Levels" link):
+// the selector, the focus on the row you tapped or the header link.
+function leaveLogin() {
+  document.body.classList.replace('at-login', 'at-select');
+  showAccount();
+  safeLayout();
+  if (origin?.level) {
+    selector.mark(origin.level);
+    selector.focus();
+  } else {
+    acctLink.focus();
+  }
+}
+
+// In: the level tapped starts, or back to the selector (spec §3, "Done").
+function loggedIn(name) {
+  if (!document.body.classList.contains('at-login')) return;
+  if (origin?.level) {
+    document.body.classList.replace('at-login', 'at-select');
+    play(origin.level);
+    return;
+  }
+  leaveLogin();
+  dom.status.textContent = `Signed in as ${name}`;
+}
+
+// The header link's "Log out": the runs stay, the upload stops.
+function logout() {
+  account.logout().catch(err => console.error(err));
+  showAccount();
+  dom.status.textContent = 'Logged out';
+}
 
 // Start a run of `level` at question 1 with full lives, focus on the answer.
 // Feedback still playing out for the run before stops first (reset()): its
@@ -62,7 +156,7 @@ function play(level) {
   screen = showScreenFor(level);
   if (screen === view) layout.possibleAnswers = level.possibleAnswers;
   screen.setLevel(level);
-  document.body.classList.remove('at-select', 'at-finish');
+  document.body.classList.remove('at-select', 'at-finish', 'at-login');
   safeLayout();
   // The equation is drawn even if the layout failed; the board, which
   // places everything it draws, only once it has been measured.
@@ -99,7 +193,7 @@ function toSelector(press) {
   board.reset();
   dom.status.textContent = '';
   selector.mark(game.level);
-  selector.showBests(queue.best);    // with the run just finished, if any
+  selector.showBests(account.bests());   // with the run just finished, if any
   selector.cameFrom(press);
   document.body.classList.remove('at-finish');
   document.body.classList.add('at-select');
@@ -119,8 +213,9 @@ function keepRun() {
   const { level, totalMs, misses } = game.result;
   let best = null;
   try {
-    best = queue.best(level);
-    queue.add(buildRecord(game.result));
+    best = account.best(level);
+    // Kept, and signed in, sent to the account (accounts spec §5).
+    account.keep(buildRecord(game.result)).catch(err => console.error(err));
   } catch (err) {
     console.error(err);
   }
@@ -143,19 +238,21 @@ function toFinish(text) {
 // "Levels" does.
 dom.back.addEventListener('click', e => {
   e.preventDefault();
-  toSelector(e);
+  if (document.body.classList.contains('at-login')) leaveLogin();
+  else toSelector(e);
 });
 addEventListener('keydown', e => {
   // keyCode 229: Safari can send the keydown that ends a composition with
   // isComposing false.
   if (e.key !== 'Escape' || e.isComposing || e.keyCode === 229 || document.body.classList.contains('at-select')) return;
   e.preventDefault();
-  toSelector();
+  if (document.body.classList.contains('at-login')) leaveLogin();
+  else toSelector();
 });
 
 // Handle for the browser tests (tests/e2e) to put a known problem, level or
 // finish screen on screen, or lay the screen out again as a resize does (relayout).
-window.mathtime = { game, view, layout, board, selector, finish, levels: LEVELS, play, relayout };
+window.mathtime = { game, view, layout, board, selector, finish, levels: LEVELS, play, relayout, account, login, openLogin };
 
 // The game locks input itself during the correct, out-of-lives and finished
 // transitions (spec §2), so every key just goes to game.press(). On the
@@ -213,6 +310,8 @@ function safeLayout() {
   }
   try {
     selector.layout();
+    acctLink.place();
+    login.place();
   } catch (err) {
     console.error(err);
   }
@@ -249,6 +348,9 @@ function watchPixelRatio() {
 }
 
 fontsReady().then(() => {
+  fontsIn = true;
+  acctLink.start();
+  login.start();
   safeLayout();
   document.documentElement.classList.remove('loading');
   // The header too: on the level selector and the finish screen the stage
@@ -266,6 +368,7 @@ fontsReady().then(() => {
   resized.observe(dom.topBar);
   resized.observe(dom.finish);
   resized.observe(dom.select);
+  resized.observe(dom.login);
   document.fonts.addEventListener('loadingdone', onFontsLoaded);
   watchPixelRatio();
 });

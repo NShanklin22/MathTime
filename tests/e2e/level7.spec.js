@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures.js';
 import {
   open, levelRow, typeKeys, setColumns, work, finishColumnRun, boardCell, written, againstMockup, expectSame,
   shaken, strikes, listen, flashFor, rect,
