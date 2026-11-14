@@ -1,0 +1,482 @@
+<!doctype html>
+<html lang="en" class="loading">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Daily challenge mockup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<!-- The daily challenge (2026-11-14-daily-challenge-design.md §2–§4): the
+     tile above the levels, the play screen and the board. It runs the
+     game itself (src/main.js, on index.html's own page), with its storage
+     kept in memory and a fake server, so it never touches this browser's
+     runs or account. Served by the dev server (scripts/serve.mjs), from
+     the site root:
+       /docs/superpowers/specs/2026-11-14-daily-mockup.html
+       ?state=tile-before             the selector, signed in as "sam": the tile before today's try (default)
+       ?state=tile-before-signedout   the same, signed out: Levels 5–7 locked
+       ?state=tile-after              after the try, finished: "1:04.2 · 3rd of 7"
+       ?state=tile-after-signedout    the same, signed out: the time alone (no place: you're not on the board)
+       ?state=tile-out                after the try, out: "Out at 12 of 20 · 6th of 7"
+       ?state=tile-out-signedout      the same, signed out: "Out at 12 of 20"
+       ?state=play                    the play screen: Question 7, a multiplication
+       ?state=board-in                the board, signed in: your row marked
+       ?state=board-out               the board, signed out: your score above it, "Log in to get on the board"
+       ?state=board-offline           signed in, offline: your score, "The board will show when you're back online"
+       ?state=board-long              30 players: the rows scroll, the title and buttons stay
+
+     Where the board scrolls: only its rows. The date above them and
+     Practice and Levels below stay put, so the buttons are always in reach
+     however many play; the list opens scrolled to show your row. A list
+     that scrolls has a faint rule at its top and bottom edge (a phone's
+     overlay scrollbar shows only while it moves), and where the system's
+     scrollbar takes room it is the theme's, in the column's right padding,
+     so the rows keep the buttons' width.
+
+     The tile in the selector's list: it sits in the list's top padding
+     (the list's top padding is the tile's 80px and the 32px group gap
+     more), so the game's own selector, which fits the topic columns to the
+     room, counts it without knowing it is there. In topic columns it is as
+     wide as the grid; in the one stacked column, as wide as the column. -->
+<link rel="stylesheet" href="/src/styles.css">
+<style>
+  /* ---------- The tile (spec §3) ---------- */
+  /* A level row's tile (.row: 80px, the keypad's ring), full width, above
+     the topic columns, 32px (the group gap) above the first headings. */
+  .select { --daily-room: calc(80px + var(--group-gap)); --select-top: calc(40px + var(--daily-room)); --select-top-least: calc(16px + var(--daily-room)); }
+  .select .row.daily { margin: calc(-1 * var(--daily-room)) 0 var(--group-gap); }
+  .select.cols .row.daily { width: var(--daily-w, 100%); margin-left: var(--daily-x, 0px); }
+  /* Before the try: the problem kinds, set as the samples are, in place of a
+     sample. After: a finished row's result column, the check (finished) or
+     a lost heart (out) on the title's line. */
+  .select .daily .kinds { position: relative; left: var(--ink-dx, 0px); top: var(--ink-dy, 0px); }
+  .select .daily .kinds > span { color: var(--ink); }
+  .select .daily .result .heart { display: block; height: 16px; width: auto; aspect-ratio: 20 / 18; overflow: visible; }
+  .select .daily .result .heart path { fill: none; stroke: var(--muted); stroke-width: 2; stroke-dasharray: 2.5 2; stroke-linejoin: round; }
+  /* After the try the line under the title is the result, in the time's
+     white, as a finished row's time is. */
+  .select .daily.finished .name { color: var(--ink); }
+  .select .daily .result .best { visibility: hidden; }
+
+  /* ---------- The board (spec §4) ---------- */
+  /* The finish screen's column: as wide as the keypad, its first ink 40px
+     below the header; the hearts keep their room, unseen, as there. */
+  .dboard { display: none; }
+  body.at-daily .stage, body.at-daily .run, body.at-daily .pad, body.at-daily .select { display: none; }
+  body.at-daily .lives { visibility: hidden; }
+  body.at-daily .dboard {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    max-width: 420px;
+    min-height: 0;
+    justify-self: center;
+    overflow: hidden;
+    padding: 40px 16px max(32px, env(safe-area-inset-bottom));
+  }
+  .dboard .head, .dboard .done-buttons { flex: none; }
+  .dboard .line { display: block; width: fit-content; margin: 0 auto; text-box: trim-both cap alphabetic; white-space: nowrap; }
+  .dboard .title { font-size: 17px; font-weight: 600; letter-spacing: 0.02em; }
+  .dboard .head { padding-bottom: 28px; }
+  .dboard.no-rows .head { padding-bottom: 0; }
+  .dboard .note { margin: 20px auto 0; font-size: 14px; letter-spacing: 0.02em; color: var(--muted); }
+  .dboard .note.wrap { white-space: normal; width: auto; text-align: center; text-wrap: balance; line-height: 1.5; text-box: trim-both cap alphabetic; }
+  /* "Log in to get on the board": the log-in screen's link. */
+  .dboard .swap {
+    position: relative; display: block; margin: 20px auto 0; padding: 0; border: 0; background: none;
+    font: 600 14px/1 var(--font); letter-spacing: 0.02em; color: var(--ink);
+    text-decoration: underline; text-decoration-color: var(--faint); text-decoration-thickness: 1px; text-underline-offset: 4px;
+    cursor: pointer; touch-action: manipulation;
+  }
+  .dboard .swap::after { content: ""; position: absolute; inset: -15px -8px; }
+  @media (hover: hover) { .dboard .swap:hover { text-decoration-color: currentColor; } }
+  .dboard .swap:focus-visible { outline: 2px solid var(--ink); outline-offset: 4px; }
+
+  /* The rows: place, name, score, 40px each. The place in the muted
+     colour, right-aligned; a name too long for its room ends in "…"; the
+     score right-aligned, an out's in the muted colour. Your row is
+     marked with a tile's ring, its name and score at the title's weight. */
+  .dboard .rows { list-style: none; margin: 0; padding: 0; flex: 0 1 auto; min-height: 0; overflow-y: auto; scroll-snap-type: y mandatory; }
+  .dboard .rows > li { scroll-snap-align: start; }
+  .dboard .r {
+    display: grid; grid-template-columns: 2ch minmax(0, 1fr) auto; column-gap: 16px; align-items: center;
+    height: 40px; padding: 0 16px 0 10px; font-size: 15px; letter-spacing: 0.02em; white-space: nowrap;
+  }
+  .dboard .r .place { text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .dboard .r .who { overflow: hidden; text-overflow: ellipsis; }
+  .dboard .r .score { text-align: right; font-variant-numeric: tabular-nums; }
+  .dboard .r.out .score { color: var(--muted); }
+  .dboard .r.you { box-shadow: var(--key-ring); font-weight: 600; }
+  .dboard .r.you .place { font-weight: 400; }
+  /* Scrolling: a faint rule at the top and bottom edge, the buttons'
+     width; the list is a whole number of rows tall and snaps to rows, so
+     no row is ever cut by a rule. The scrollbar inside that width, the
+     rows 12px clear of it (8px of the theme's bar and 4px; a phone's
+     overlay bar in the 12px). */
+  .dboard .rows.scrolls { border-top: 1px solid var(--faint); border-bottom: 1px solid var(--faint); padding-right: 12px; }
+  .scrollbars-take-room .dboard .rows.scrolls { padding-right: 4px; }
+  .scrollbars-take-room .dboard .rows::-webkit-scrollbar { width: 8px; }
+  .scrollbars-take-room .dboard .rows::-webkit-scrollbar-track { background: transparent; }
+  .scrollbars-take-room .dboard .rows::-webkit-scrollbar-button { display: none; width: 0; height: 0; }
+  .scrollbars-take-room .dboard .rows::-webkit-scrollbar-thumb { background: var(--faint); border-radius: 0; }
+  .scrollbars-take-room .dboard .rows::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+
+  /* Practice and Levels: the finish screen's buttons, Practice filled as
+     "Again" is. */
+  .dboard .done-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 32px; }
+  .dboard .done-buttons button {
+    display: flex; align-items: center; justify-content: center; height: 56px; padding: 0; border: 0; border-radius: 0;
+    background: transparent; box-shadow: var(--key-ring); color: var(--ink); font: 600 17px/1 var(--font); letter-spacing: 0.02em;
+    cursor: pointer; touch-action: manipulation;
+  }
+  .dboard .done-buttons .line { margin: 0; }
+  .dboard .practice { background: var(--ink) !important; color: var(--bg) !important; box-shadow: none !important; }
+  .dboard .done-buttons button:active { background: var(--key-press); }
+  .dboard .done-buttons button:focus-visible { outline: 2px solid var(--ink); outline-offset: 4px; }
+
+  /* Held sideways: the date, your score and the buttons on the left, the
+     rows on the right, scrolling there. Offline, with no rows, the one
+     column, as upright. */
+  @media (orientation: landscape) and (max-height: 560px) and (min-aspect-ratio: 3/2) {
+    body.at-daily .dboard.no-rows { grid-area: stage; max-width: 420px; padding-top: 32px; }
+    body.at-daily .dboard:not(.no-rows) {
+      grid-area: stage; max-width: 840px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      grid-template-rows: auto auto 1fr; column-gap: 40px; align-content: start;
+      padding: 32px max(var(--gutter), env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(var(--gutter), env(safe-area-inset-left));
+    }
+    .dboard:not(.no-rows) .head { grid-column: 1; grid-row: 1; padding-bottom: 0; }
+    .dboard:not(.no-rows) .done-buttons { grid-column: 1; grid-row: 2; margin-top: 32px; }
+    .dboard .rows { grid-column: 2; grid-row: 1 / -1; align-self: start; max-height: 100%; }
+    .dboard .note.away { grid-column: 2; }
+    .dboard:not(.no-rows) .head { padding-top: 15px; }
+  }
+</style>
+</head>
+<body class="at-select" data-kind="fact">
+  <header class="top">
+    <div class="where">
+      <nav class="crumbs" aria-label="Breadcrumb">
+        <a class="back" href="#" aria-label="Levels" aria-keyshortcuts="Escape" tabindex="-1"><span class="word">Levels</span><svg class="chevron" viewBox="0 0 12 12" aria-hidden="true"><path d="M7.25 2.5L3.75 6l3.5 3.5"/></svg></a>
+        <svg class="sep" viewBox="0 0 12 12" aria-hidden="true"><path d="M4.5 2.5L8 6l-3.5 3.5"/></svg>
+        <span class="here" aria-current="step">Daily challenge</span>
+        <span class="home" aria-current="page">Levels</span>
+      </nav>
+    </div>
+    <div class="lives" role="img" aria-label="3 lives left">
+      <svg viewBox="2 3 20 18" aria-hidden="true"><path d="M19.5 12.572l-7.5 7.428l-7.5 -7.428a5 5 0 1 1 7.5 -6.566a5 5 0 1 1 7.5 6.572"/></svg>
+      <svg viewBox="2 3 20 18" aria-hidden="true"><path d="M19.5 12.572l-7.5 7.428l-7.5 -7.428a5 5 0 1 1 7.5 -6.566a5 5 0 1 1 7.5 6.572"/></svg>
+      <svg viewBox="2 3 20 18" aria-hidden="true"><path d="M19.5 12.572l-7.5 7.428l-7.5 -7.428a5 5 0 1 1 7.5 -6.566a5 5 0 1 1 7.5 6.572"/></svg>
+    </div>
+    <button class="acct" type="button">Log in</button>
+  </header>
+
+  <main class="stage">
+    <div class="eq" id="eq">
+      <span class="qnum" id="qnum">Question 1 of 20</span>
+      <span id="a">7</span>
+      <span class="op">+</span>
+      <span id="b">5</span>
+      <span class="op">=</span>
+      <span class="slot empty" id="slot">
+        <span class="shown" aria-hidden="true"><span id="shown"></span><span class="caret"></span></span>
+        <input id="ans" inputmode="none" maxlength="2" autocomplete="off" aria-label="Answer">
+      </span>
+    </div>
+    <div class="board" id="board" aria-hidden="true"></div>
+  </main>
+
+  <div class="run" aria-hidden="true"></div>
+
+  <p class="sr-only" role="status" id="status"></p>
+
+  <div class="select" role="region" aria-label="Levels"></div>
+
+  <div class="finish" role="region" aria-labelledby="done-title">
+    <h1 class="line done-title" id="done-title"></h1>
+    <p class="line done-time"></p>
+    <p class="line done-best"></p>
+    <p class="line done-misses"></p>
+    <div class="done-buttons">
+      <button class="again"><span class="line">Again</span></button>
+      <button class="levels"><span class="line">Levels</span></button>
+    </div>
+  </div>
+
+  <!-- The board (spec §4). -->
+  <div class="dboard" role="region" aria-labelledby="db-title">
+    <div class="head">
+      <h1 class="line title" id="db-title"></h1>
+      <div class="mine"></div>
+    </div>
+    <ol class="rows" aria-label="Today's board"></ol>
+    <div class="done-buttons">
+      <button class="practice"><span class="line">Practice</span></button>
+      <button class="levels"><span class="line">Levels</span></button>
+    </div>
+  </div>
+
+  <div class="login" role="region" aria-labelledby="login-title">
+    <h1 class="sr-only" id="login-title">Log in</h1>
+    <form novalidate>
+      <div class="fields">
+        <div class="field" data-for="signup" hidden>
+          <div class="labels"><label for="f-invite">Invite code</label></div>
+          <input id="f-invite" name="invite" type="text" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" enterkeyhint="next" aria-describedby="f-error">
+        </div>
+        <div class="field">
+          <div class="labels"><label for="f-name">Name</label><span class="hint" id="h-name" data-for="signup" hidden>3–20 letters, digits, _&nbsp;-</span></div>
+          <input id="f-name" name="username" type="text" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" maxlength="20" enterkeyhint="next" aria-describedby="f-error">
+        </div>
+        <div class="field">
+          <div class="labels"><label for="f-pass">Password</label><span class="hint" id="h-pass" data-for="signup" hidden>8 or more characters</span></div>
+          <input id="f-pass" name="password" type="password" autocomplete="current-password" enterkeyhint="go" aria-describedby="f-error">
+        </div>
+      </div>
+      <div class="actions">
+        <button class="submit" type="submit"><span class="line">Log in</span></button>
+        <p class="error" id="f-error" role="alert"></p>
+        <p class="switch"><span class="ask">Have an invite?</span> <button class="swap" type="button">Sign up</button></p>
+      </div>
+    </form>
+  </div>
+
+  <div class="pad" role="group" aria-label="Keypad">
+    <button tabindex="-1" data-k="1"><span class="kl">1</span></button>
+    <button tabindex="-1" data-k="2"><span class="kl">2</span></button>
+    <button tabindex="-1" data-k="3"><span class="kl">3</span></button>
+    <button tabindex="-1" data-k="4"><span class="kl">4</span></button>
+    <button tabindex="-1" data-k="5"><span class="kl">5</span></button>
+    <button tabindex="-1" data-k="6"><span class="kl">6</span></button>
+    <button tabindex="-1" data-k="7"><span class="kl">7</span></button>
+    <button tabindex="-1" data-k="8"><span class="kl">8</span></button>
+    <button tabindex="-1" data-k="9"><span class="kl">9</span></button>
+    <button tabindex="-1" data-k="Backspace" aria-label="Delete"><svg viewBox="0 0 24 24" aria-hidden="true"><g transform="translate(-0.5 0)"><path d="M20 6H9l-5 6l5 6h11a1 1 0 0 0 1-1V7a1 1 0 0 0-1-1z"/><path d="M12.25 10.25l3.5 3.5m0-3.5l-3.5 3.5"/></g></svg></button>
+    <button tabindex="-1" data-k="0"><span class="kl">0</span></button>
+    <button tabindex="-1" data-k="Enter" class="go" aria-label="Check answer"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 12.5l5.5 5.5l11.5-11.5"/></svg></button>
+  </div>
+
+<script type="module">
+  const params = new URLSearchParams(location.search);
+  const state = params.get('state') ?? 'tile-before';
+  const signedOut = state.endsWith('-signedout') || state === 'board-out';
+  const ME = 'sam';
+
+  // ---------- The game's storage, in memory, and a fake server ----------
+  // Signed in as "sam" unless the state is signed out; Addition 1 finished
+  // (1:12.4), so a finished row shows beside the tile.
+  const mem = new Map();
+  const shim = {
+    getItem: k => (mem.has(k) ? mem.get(k) : null),
+    setItem: (k, v) => { mem.set(k, String(v)); },
+    removeItem: k => { mem.delete(k); },
+    clear: () => mem.clear(),
+    key: i => [...mem.keys()][i] ?? null,
+    get length() { return mem.size; },
+  };
+  Object.defineProperty(window, 'localStorage', { value: shim, configurable: true });
+  const run1 = { id: 'r1', level: 1, totalMs: 72_400, misses: 0, problems: [] };
+  shim.setItem('mathtime.runs', JSON.stringify([run1]));
+  shim.setItem('mathtime.outbox', '[]');
+  if (!signedOut) {
+    shim.setItem('mathtime.account', JSON.stringify({ name: ME }));
+    shim.setItem('mathtime.best', JSON.stringify({ name: ME, best: { 1: 72_400 } }));
+  }
+  const json = (status, body) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
+  window.fetch = async (url) => {
+    const path = new URL(url, location.href).pathname;
+    if (path === '/api/me') return signedOut ? json(401, { error: 'signed out' }) : json(200, { name: ME });
+    if (path === '/api/best') return json(200, { 1: 72_400 });
+    return json(404, {});
+  };
+
+  // ---------- The game itself ----------
+  await import('/src/main.js');
+  const { fontsReady } = await import('/src/fonts.js');
+  const { createScanner } = await import('/src/scanner.js');
+  const { snap, onLayoutGrid } = await import('/src/ink.js');
+  const { formatTime } = await import('/src/finish.js');
+  const mt = window.mathtime;
+  const $ = sel => document.querySelector(sel);
+  const body = document.body, scan = createScanner();
+
+  // ---------- The day (spec §1) ----------
+  // 2026-11-14 in the player's own calendar. Its 20: 5 from each of Levels
+  // 1–4, drawn by a generator seeded with the date, shuffled; Question 7 is
+  // put to 7 × 8 for this mockup.
+  const DATE = new Date(2026, 10, 14);
+  const DAY = DATE.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }).replace(',', '');
+  function seeded(text) {
+    let h = 1779033703 ^ text.length;
+    for (const c of text) { h = Math.imul(h ^ c.charCodeAt(0), 3432918353); h = (h << 13) | (h >>> 19); }
+    return () => {
+      h = Math.imul(h ^ (h >>> 16), 2246822507); h = Math.imul(h ^ (h >>> 13), 3266489909);
+      return ((h ^= h >>> 16) >>> 0) / 4294967296;
+    };
+  }
+  const rng = seeded('2026-11-14');
+  const twenty = [];
+  for (const level of mt.levels.slice(0, 4)) {
+    const left = [...level.facts];
+    for (let i = 0; i < 5; i++) twenty.push({ ...left.splice(Math.floor(rng() * left.length), 1)[0], level });
+  }
+  for (let i = twenty.length - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); [twenty[i], twenty[j]] = [twenty[j], twenty[i]]; }
+  const L4 = mt.levels[3];
+  const times = twenty.findIndex(p => p.level === L4);
+  [twenty[6], twenty[times]] = [twenty[times], twenty[6]];
+  twenty[6] = { a: 7, b: 8, answer: 56, level: L4 };
+  // The challenge as the game plays it: its breadcrumb "Daily challenge",
+  // the answer box sized for the widest of the day's answers.
+  const DAILY = {
+    ...L4, n: 0, topic: 'Daily', k: 'challenge', name: 'Daily challenge',
+    facts: twenty.map(({ a, b, answer }) => ({ a, b, answer })),
+    possibleAnswers: [...new Set(twenty.map(p => String(p.answer)))],
+    maxAnswerLength: Math.max(...twenty.map(p => String(p.answer).length)),
+  };
+
+  // ---------- The board's players ----------
+  const SEVEN = [
+    { name: 'maya', totalMs: 58_700 },
+    { name: 'jonah', totalMs: 61_900 },
+    { name: ME, totalMs: 64_200 },
+    { name: 'priya', totalMs: 72_000 },
+    { name: 'alexandra-whitfield', totalMs: 79_600 },
+    { name: 'kit', totalMs: null, reached: 12 },
+    { name: 'rowan', totalMs: null, reached: 5 },
+  ];
+  const NAMES = ['maya', 'jonah', 'priya', 'theo', 'alexandra-whitfield', 'kit', 'rowan', 'bea', 'ollie', 'nadia', 'finn', 'zara',
+    'sol', 'ivy', 'marcus', 'lena', 'oscar', 'ruth', 'dev', 'ana_b', 'hugo', 'mei', 'tomasz', 'june', 'ezra', 'cleo', 'ravi', 'noor', 'pip'];
+  const THIRTY = [];
+  for (let i = 0; i < 25; i++) THIRTY.push({ name: i === 16 ? ME : NAMES[i < 16 ? i : i - 1], totalMs: 52_300 + i * 3_100 + (i * 977) % 1_400 });
+  [16, 14, 9, 6, 2].forEach((reached, i) => THIRTY.push({ name: NAMES[24 + i], totalMs: null, reached }));
+
+  const ordinal = n => n + ({ 1: 'st', 2: 'nd', 3: 'rd' }[(n % 100 > 10 && n % 100 < 14) ? 0 : n % 10] ?? 'th');
+  const scoreOf = p => (p.totalMs == null ? `Out at ${p.reached}` : formatTime(p.totalMs));
+
+  // ---------- The tile (spec §3) ----------
+  const select = $('.select');
+  const tile = document.createElement('button');
+  tile.className = 'row daily';
+  tile.type = 'button';
+  tile.innerHTML = '<span class="txt"><span class="title">Daily challenge</span><span class="name"></span></span>'
+    + '<span class="sample kinds" aria-hidden="true"><span>+</span><span>−</span><span>×</span></span>'
+    + '<span class="result" aria-hidden="true"></span>';
+  select.prepend(tile);
+  const TICK = '<svg class="tick" viewBox="2 5 20 14.5"><path d="M3.5 12.5l5.5 5.5l11.5-11.5"/></svg>';
+  const HEART = '<svg class="heart" viewBox="2 3 20 18"><path d="M19.5 12.572l-7.5 7.428l-7.5 -7.428a5 5 0 1 1 7.5 -6.566a5 5 0 1 1 7.5 6.572"/></svg>';
+  function showTile() {
+    const after = state.startsWith('tile-after'), out = state.startsWith('tile-out');
+    let line = DAY, label = `Daily challenge, ${DAY}: 20 problems, one try`;
+    if (after) line = signedOut ? '1:04.2' : '1:04.2 · 3rd of 7';
+    if (out) line = signedOut ? 'Out at 12 of 20' : 'Out at 12 of 20 · 6th of 7';
+    if (after || out) label = `Daily challenge: ${line}. Show the board`;
+    tile.querySelector('.name').textContent = line;
+    tile.classList.toggle('finished', after || out);
+    tile.querySelector('.result').innerHTML = after ? TICK : out ? HEART : '';
+    if (after || out) tile.querySelector('.result').insertAdjacentHTML('beforeend', '<span class="best"> </span>');
+    tile.setAttribute('aria-label', label);
+  }
+  tile.addEventListener('click', () => {
+    if (state.startsWith('tile-before')) toPlay();
+    else toBoard(signedOut ? 'out' : 'in', SEVEN);
+  });
+
+  // In topic columns, as wide as the grid and where it starts; the kinds'
+  // last ink on the row's padding edge, their band on its middle.
+  const layoutSelector = mt.selector.layout;
+  mt.selector.layout = () => {
+    layoutSelector();
+    placeTile();
+  };
+  function placeTile() {
+    if (!tile.getClientRects().length) return;
+    const groups = select.querySelector('.groups');
+    if (select.classList.contains('cols')) {
+      const cs = getComputedStyle(select), n = Number(cs.getPropertyValue('--cols'));
+      const w = n * parseFloat(cs.getPropertyValue('--tile')) + (n - 1) * parseFloat(cs.getPropertyValue('--col-gap'));
+      select.style.setProperty('--daily-w', w + 'px');
+      select.style.setProperty('--daily-x', groups.style.marginLeft || '0px');
+    }
+    const kinds = tile.querySelector('.kinds');
+    if (!kinds.getClientRects().length) return;
+    const dpr = devicePixelRatio;
+    kinds.style.removeProperty('--ink-dx');
+    kinds.style.removeProperty('--ink-dy');
+    const cs = getComputedStyle(kinds), fs = parseFloat(cs.fontSize);
+    const style = { weight: cs.fontWeight, family: cs.fontFamily, color: cs.color, spacing: 0 };
+    const last = kinds.lastElementChild, m = scan(last.textContent, style, fs * dpr);
+    const r = tile.getBoundingClientRect(), edge = r.right - parseFloat(getComputedStyle(tile).paddingRight);
+    kinds.style.setProperty('--ink-dx', onLayoutGrid(snap(edge - m.abr * fs, dpr) - last.getBoundingClientRect().left, dpr) + 'px');
+    const each = [...kinds.children].map(s => scan(s.textContent, style, fs * dpr));
+    const top = Math.min(...each.map(e => -e.asc)), bottom = Math.max(...each.map(e => e.desc));
+    const probe = document.createElement('span');
+    probe.style.cssText = 'display:inline-block;width:0;height:0;vertical-align:baseline';
+    last.appendChild(probe);
+    const baseline = probe.getBoundingClientRect().top;
+    probe.remove();
+    const mid = baseline + (top + bottom) / 2 * fs;
+    kinds.style.setProperty('--ink-dy', onLayoutGrid(snap(r.top + r.height / 2 - mid + baseline, dpr) - baseline, dpr) + 'px');
+  }
+
+  // ---------- The play screen (spec §2) ----------
+  // The game's own, playing the day's 20: Question 7, 7 × 8.
+  function toPlay() {
+    mt.play(DAILY);
+    Object.assign(mt.game.state, { question: 7, solved: 6, problem: { a: 7, b: 8, answer: 56 }, lives: 3, typed: '' });
+    mt.view.render(mt.game.state);
+    mt.view.announceProblem(mt.game.state);
+    mt.relayout();
+  }
+
+  // ---------- The board (spec §4) ----------
+  const board = $('.dboard'), rows = board.querySelector('.rows'), mine = board.querySelector('.head .mine');
+  const rowHtml = (p, place, you) => `<li class="r${p.totalMs == null ? ' out' : ''}${you ? ' you' : ''}"${you ? ' aria-current="true"' : ''}>`
+    + `<span class="place">${place}</span><span class="who">${p.name}</span><span class="score">${scoreOf(p)}</span></li>`;
+  function toBoard(kind, players) {
+    body.classList.remove('at-select', 'at-finish');
+    body.classList.add('at-daily');
+    $('.crumbs .here').textContent = 'Daily challenge';
+    board.querySelector('.title').textContent = DAY;
+    mine.innerHTML = '';
+    const own = { name: kind === 'out' ? 'You' : ME, totalMs: kind === 'out' ? 68_900 : 64_200 };
+    if (kind === 'out' || kind === 'offline') {
+      mine.innerHTML = `<div class="r you" style="margin-top:28px">${rowHtml(own, '–', false).replace(/^<li[^>]*>|<\/li>$/g, '')}</div>`;
+      if (kind === 'out') mine.insertAdjacentHTML('beforeend', '<button class="swap" type="button">Log in to get on the board</button>');
+      else mine.insertAdjacentHTML('beforeend', '<p class="note line wrap">The board will show when you’re back online</p>');
+    }
+    rows.hidden = kind === 'offline';
+    board.classList.toggle('no-rows', kind === 'offline');
+    rows.innerHTML = kind === 'offline' ? '' : players.map((p, i) => rowHtml(p, i + 1, kind !== 'out' && p.name === ME)).join('');
+    mt.relayout();
+    requestAnimationFrame(placeBoard);
+  }
+  // A list too long for its room scrolls, a whole number of rows tall,
+  // opened with your row in the middle.
+  const ROW = 40;
+  function placeBoard() {
+    rows.classList.remove('scrolls');
+    rows.style.height = '';
+    if (rows.hidden || rows.scrollHeight <= rows.clientHeight + 1) return;
+    rows.classList.add('scrolls');
+    const fit = Math.max(1, Math.floor(rows.clientHeight / ROW));
+    rows.style.height = fit * ROW + 2 + 'px';
+    const you = rows.querySelector('.you');
+    if (you) rows.scrollTop = Math.max(0, Math.round((you.offsetTop - rows.querySelector('li').offsetTop) / ROW - (fit - 1) / 2)) * ROW;
+  }
+  board.querySelector('.levels').addEventListener('click', () => { body.classList.replace('at-daily', 'at-select'); mt.relayout(); });
+  board.querySelector('.practice').addEventListener('click', () => { $('#status').textContent = 'Practice: the same 20, unscored (not in this mockup)'; });
+  addEventListener('resize', () => requestAnimationFrame(placeBoard));
+
+  // ---------- The state asked for ----------
+  showTile();
+  await fontsReady();
+  await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+  mt.selector.layout();
+  if (state === 'play') toPlay();
+  else if (state === 'board-in') toBoard('in', SEVEN);
+  else if (state === 'board-out') toBoard('out', SEVEN);
+  else if (state === 'board-offline') toBoard('offline', []);
+  else if (state === 'board-long') toBoard('in', THIRTY);
+  document.documentElement.dataset.ready = '1';
+</script>
+</body>
+</html>
