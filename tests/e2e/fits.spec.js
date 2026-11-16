@@ -18,7 +18,10 @@ const SIZES = [[1366, 657, 1], [1536, 730, 1.25], [1280, 610, 1.5], [1440, 900, 
 
 // Windows where the selector's rows fit and only its padding would not, as
 // it did before the padding gave way (the UI review): it must not scroll.
-const PADDING_ONLY = [[1366, 400, 1], [1240, 610, 1], [1024, 620, 1], [1274, 636, 1], [800, 890, 1], [600, 905, 1]];
+// 1366×512 and 600×1017 are 1366×400 and 600×905 with the daily
+// challenge's tile's 112px more (it is in the top padding); at those two
+// the list now scrolls, as the design falls back (selector.spec.js).
+const PADDING_ONLY = [[1366, 512, 1], [1240, 610, 1], [1024, 620, 1], [1274, 636, 1], [800, 890, 1], [600, 1017, 1]];
 
 // Runs kept before the page loads, as the finish screen keeps them.
 const earlier = (level, totalMs) => ({

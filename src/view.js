@@ -62,7 +62,7 @@ export function createView(dom, layout, level) {
     ans.value = typed;                   // so screen readers hear the answer
     caret.style.left = at.caret;
     slot.classList.toggle('empty', typed === '');
-    slot.classList.toggle('full', typed.length >= level.maxAnswerLength);
+    slot.classList.toggle('full', typed.length >= cap);
   }
 
   // The run bar (runs spec §2): a segment filled for each correct answer.
@@ -72,7 +72,19 @@ export function createView(dom, layout, level) {
     [...run.children].forEach((seg, i) => seg.classList.toggle('done', i < state.solved));
   }
 
+  // The problem's own level: the daily challenge's each have theirs (its
+  // operator, its answer's length, its word), the others the level's.
+  // Its operator, if it changes, is measured again (layout.measureOps).
+  let cap = level.maxAnswerLength;
+  const ownLevel = state => state.problem?.level ?? level;
   function render(state) {
+    const own = ownLevel(state);
+    cap = Math.min(level.maxAnswerLength, own.maxAnswerLength);
+    ans.maxLength = cap;
+    if (op.textContent !== own.op) {
+      op.textContent = own.op;
+      layout.measureOps();
+    }
     renderDigits(a, String(state.problem.a));
     renderDigits(b, String(state.problem.b));
     renderAnswer(state.typed);
@@ -87,14 +99,14 @@ export function createView(dom, layout, level) {
   function setLevel(next) {
     level = next;
     op.textContent = level.op;
-    ans.maxLength = level.maxAnswerLength;
+    ans.maxLength = cap = level.maxAnswerLength;
     here.textContent = levelName(level);
     run?.replaceChildren(...Array.from({ length: level.problemsPerRun }, () => document.createElement('span')));
   }
 
   // Tell screen readers which problem is now on screen.
   function announceProblem(state) {
-    status.textContent = `Question ${state.question} of ${level.problemsPerRun}: ${state.problem.a} ${level.word} ${state.problem.b}`;
+    status.textContent = `Question ${state.question} of ${level.problemsPerRun}: ${state.problem.a} ${ownLevel(state).word} ${state.problem.b}`;
   }
 
   // Inked over (fx.js): the pen round the box's frame (slot::after, from

@@ -847,3 +847,210 @@ body.at-login .login {
   .login .error { grid-column: 1 / -1; grid-row: 2; }
   .login .switch { grid-column: 1 / -1; grid-row: 3; justify-self: start; }
 }
+
+/* ---------- The daily challenge (2026-11-14-daily-challenge-design.md §3–§4, the daily mockup) ---------- */
+/* The tile at the top of the level selector (dailyview.js places it) and
+   the board after the try. Where the board scrolls: only its rows. The date
+   above them and Practice and Levels below stay put, so the buttons are
+   always in reach however many play; the list opens scrolled to show your
+   row. A list that scrolls has a faint rule at its top and bottom edge (a
+   phone's overlay scrollbar shows only while it moves), and where the
+   system's scrollbar takes room it is the theme's, in the column's right
+   padding, so the rows keep the buttons' width.
+   The tile sits in the list's top padding (the list's top padding is the
+   tile's 80px and the 32px group gap more), so the selector, which fits the
+   topic columns to the room, counts it without knowing it is there. In
+   topic columns it is as wide as the grid; in the one stacked column, as
+   wide as the column. */
+html.loading .dboard { visibility: hidden; }
+/* ---------- The tile (spec §3) ---------- */
+/* A level row's tile (.row: 80px, the keypad's ring), full width, above
+   the topic columns, 32px (the group gap) above the first headings. */
+.select { --daily-room: calc(80px + var(--group-gap)); --select-top: calc(40px + var(--daily-room)); --select-top-least: calc(16px + var(--daily-room)); }
+.select .row.daily { margin: calc(-1 * var(--daily-room)) 0 var(--group-gap); }
+.select.cols .row.daily { width: var(--daily-w, 100%); margin-left: var(--daily-x, 0px); }
+/* Before the try: the problem kinds, set as the samples are, in place of a
+   sample. After, as a finished level row (the UI review): its result
+   column, the check on the title's line and the score under it on the
+   name's, where a row's best time is (dailyview.js ends its ink on the
+   padding edge). Out, the check is a heart lost, drawn as the play
+   screen's header draws one, at its size (its 18px, from the cap's top,
+   hanging 6px below it, so the score stays on the name's line), in the
+   muted colour, a step brighter than the header's. */
+.select .daily .kinds { position: relative; left: var(--ink-dx, 0px); top: var(--ink-dy, 0px); }
+.select .daily .kinds > span { color: var(--ink); }
+.select .daily .result .heart { display: block; height: 18px; width: auto; aspect-ratio: 20 / 18; overflow: visible; margin-bottom: -6px; }
+.select .daily .result .heart path { fill: none; stroke: var(--muted); stroke-width: 2; stroke-dasharray: 2.5 2; stroke-linejoin: round; }
+
+/* ---------- The board (spec §4) ---------- */
+/* The finish screen's column: as wide as the keypad, its first ink 40px
+   below the header; the hearts keep their room, unseen, as there. */
+.dboard { display: none; }
+body.at-daily .stage, body.at-daily .run, body.at-daily .pad, body.at-daily .select { display: none; }
+body.at-daily .lives { visibility: hidden; }
+/* The result over the board after a try or a practice, as the finish
+   screen's lines (daily.js resultParts): the title, the big time, the
+   muted place; 40px above the date, as the finish screen's buttons are
+   below its lines. */
+.dboard .outcome { flex: none; padding-bottom: 40px; }
+.dboard .outcome[hidden], .dboard .outcome .line[hidden] { display: none; }
+.dboard .o-title { font-size: 17px; font-weight: 600; letter-spacing: 0.02em; }
+.dboard .o-time { font-size: 64px; font-weight: 500; }
+.dboard .outcome .o-title:not([hidden]) + .o-time { margin: 28px auto 0; }
+/* Out, how it went out, at the finish screen's "New best" weight, in ink. */
+.dboard .outcome .o-detail { margin: 28px auto 0; font-size: 15px; font-weight: 600; letter-spacing: 0.02em; color: var(--ink); }
+.dboard .outcome .o-detail:not([hidden]) + .o-place { margin-top: 12px; }
+.dboard .outcome .o-place { margin: 24px auto 0; font-size: 15px; font-weight: 600; letter-spacing: 0.02em; color: var(--muted); }
+body.at-daily .dboard {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 420px;
+  min-height: 0;
+  justify-self: center;
+  overflow: hidden;
+  padding: 40px 16px max(32px, env(safe-area-inset-bottom));
+}
+.dboard .head, .dboard .done-buttons { flex: none; }
+.dboard .line { display: block; width: fit-content; margin: 0 auto; text-box: trim-both cap alphabetic; white-space: nowrap; }
+.dboard .title { font-size: 17px; font-weight: 600; letter-spacing: 0.02em; }
+.dboard .head { padding-bottom: 28px; }
+.dboard.no-rows .head { padding-bottom: 0; }
+.dboard .note { margin: 20px auto 0; font-size: 14px; letter-spacing: 0.02em; color: var(--muted); }
+.dboard .note.wrap { white-space: normal; width: auto; text-align: center; text-wrap: balance; line-height: 1.5; text-box: trim-both cap alphabetic; }
+/* "Log in to be on tomorrow's board": the log-in screen's link. */
+.dboard .swap {
+  position: relative; display: block; margin: 20px auto 0; padding: 0; border: 0; background: none;
+  font: 600 14px/1 var(--font); letter-spacing: 0.02em; color: var(--ink);
+  text-decoration: underline; text-decoration-color: var(--faint); text-decoration-thickness: 1px; text-underline-offset: 4px;
+  cursor: pointer; touch-action: manipulation;
+}
+.dboard .swap::after { content: ""; position: absolute; inset: -15px -8px; }
+@media (hover: hover) { .dboard .swap:hover { text-decoration-color: currentColor; } }
+.dboard .swap:focus-visible { outline: 2px solid var(--ink); outline-offset: 4px; }
+
+/* The rows: place, name, score, 40px each. The place in the muted
+   colour, right-aligned; a name too long for its room ends in "…"; the
+   score right-aligned, an out's in the muted colour. Your row is
+   marked with a tile's ring, its name and score at the title's weight. */
+.dboard .rows { list-style: none; margin: 0; padding: 0; flex: 0 1 auto; min-height: 0; overflow-y: auto; scroll-snap-type: y mandatory; }
+.dboard .rows > li { scroll-snap-align: start; }
+.dboard .r {
+  display: grid; grid-template-columns: var(--place-w, 2ch) minmax(0, 1fr) auto; column-gap: 16px; align-items: center;
+  height: 40px; padding: 0 16px 0 10px; font-size: 15px; letter-spacing: 0.02em; white-space: nowrap;
+}
+.dboard .r .place { text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; }
+.dboard .r .who { overflow: hidden; text-overflow: ellipsis; }
+.dboard .r .score { text-align: right; font-variant-numeric: tabular-nums; }
+.dboard .r.out .score { color: var(--muted); }
+.dboard .r.you { box-shadow: var(--key-ring); font-weight: 600; }
+.dboard .r.you .place { font-weight: 400; }
+/* Your score above the rows, where you aren't on them: a row of its own. */
+.dboard .mine > .r { margin-top: 28px; }
+/* The scrollbar's room is kept whether the rows scroll or not (the UI
+   review: a time never moves between a short board and a long one), in
+   the column's right padding, so the rows always keep the buttons' width:
+   the list reaches 12px past them, 12px it keeps clear (the theme's 8px
+   bar, where scrollbars take room, and 4px; a phone's overlay bar in the
+   12px). Scrolling: a faint rule at the top and bottom edge, the buttons'
+   width; the list is a whole number of rows tall and snaps to rows, so no
+   row is ever cut by a rule. */
+.dboard .rows { margin-right: -12px; padding-right: 12px; }
+.scrollbars-take-room .dboard .rows { padding-right: 4px; scrollbar-gutter: stable; }
+.dboard .rows.scrolls {
+  padding-top: 1px; padding-bottom: 1px; scroll-padding-top: 1px;
+  background: linear-gradient(var(--faint), var(--faint)) 0 0 / calc(100% - 12px) 1px no-repeat,
+    linear-gradient(var(--faint), var(--faint)) 0 100% / calc(100% - 12px) 1px no-repeat;
+}
+.scrollbars-take-room .dboard .rows.scrolls { background-size: calc(100% - 4px) 1px; }
+.scrollbars-take-room .dboard .rows::-webkit-scrollbar { width: 8px; }
+.scrollbars-take-room .dboard .rows::-webkit-scrollbar-track { background: transparent; }
+.scrollbars-take-room .dboard .rows::-webkit-scrollbar-button { display: none; width: 0; height: 0; }
+.scrollbars-take-room .dboard .rows::-webkit-scrollbar-thumb { background: var(--faint); border-radius: 0; }
+.scrollbars-take-room .dboard .rows::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+
+/* Practice and Levels: the finish screen's buttons, Practice filled as
+   "Again" is. */
+.dboard .done-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 32px; }
+.dboard .done-buttons button {
+  display: flex; align-items: center; justify-content: center; height: 56px; padding: 0; border: 0; border-radius: 0;
+  background: transparent; box-shadow: var(--key-ring); color: var(--ink); font: 600 17px/1 var(--font); letter-spacing: 0.02em;
+  cursor: pointer; touch-action: manipulation;
+}
+.dboard .done-buttons .line { margin: 0; }
+.dboard .practice { background: var(--ink) !important; color: var(--bg) !important; box-shadow: none !important; }
+.dboard .done-buttons button:active { background: var(--key-press); }
+.dboard .done-buttons button:focus-visible { outline: 2px solid var(--ink); outline-offset: 4px; }
+
+/* Held sideways: the date, your score and the buttons on the left, the
+   rows on the right, scrolling there. Offline, with no rows, the one
+   column, as upright. */
+@media (orientation: landscape) and (max-height: 560px) and (min-aspect-ratio: 3/2) {
+  body.at-daily .dboard.no-rows { grid-area: stage; max-width: 420px; padding-top: 32px; }
+  body.at-daily .dboard:not(.no-rows) {
+    grid-area: stage; max-width: 840px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-rows: auto auto auto 1fr; column-gap: 40px; align-content: start;
+    padding: 32px max(var(--gutter), env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(var(--gutter), env(safe-area-inset-left));
+  }
+  .dboard:not(.no-rows) .outcome { grid-column: 1; grid-row: 1; padding-bottom: 32px; }
+  .dboard:not(.no-rows) .head { grid-column: 1; grid-row: 2; padding-bottom: 0; }
+  .dboard:not(.no-rows) .done-buttons { grid-column: 1; grid-row: 3; margin-top: 32px; }
+  .dboard .rows { grid-column: 2; grid-row: 1 / -1; align-self: start; max-height: 100%; }
+  .dboard .note.away { grid-column: 2; }
+  .dboard:not(.no-rows):not(.has-outcome) .head { padding-top: 15px; }
+}
+
+/* Side by side on a wide, short window (dailyview.js sets .side where the
+   board stacked can't show all its rows and two columns fit): the result,
+   the date and the buttons on the left, the rows on the right with the
+   whole height, as a phone held sideways has them. */
+body.at-daily .dboard.side:not(.no-rows) {
+  max-width: 840px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-rows: auto auto auto 1fr; column-gap: 40px; align-content: start;
+  padding: 40px max(var(--gutter), env(safe-area-inset-right)) max(32px, env(safe-area-inset-bottom)) max(var(--gutter), env(safe-area-inset-left));
+}
+.dboard.side:not(.no-rows) .outcome { grid-column: 1; grid-row: 1; padding-bottom: 32px; }
+.dboard.side:not(.no-rows) .head { grid-column: 1; grid-row: 2; padding-bottom: 0; }
+.dboard.side:not(.no-rows) .done-buttons { grid-column: 1; grid-row: 3; margin-top: 32px; }
+.dboard.side .rows { grid-column: 2; grid-row: 1 / -1; align-self: start; max-height: 100%; }
+
+/* ---------- Practice in the breadcrumb (the UI review) ---------- */
+/* "Levels › Daily challenge › Practice": the challenge muted, Practice
+   the level crumb's weight. Where it doesn't fit beside the hearts, the
+   way back is its chevron, as for every level (.tight); where it still
+   doesn't, the challenge is "Daily" (header.js). */
+.crumbs .sub { display: none; }
+body.practice:not(.at-select) .crumbs .sub { display: block; }
+body.practice:not(.at-select) .top.tight .crumbs .sep.sub { display: block; }
+.crumbs span.sub { color: var(--ink); font-weight: 600; }
+body.practice .crumbs .here { color: var(--muted); font-weight: 400; }
+
+/* ---------- Leaving a scored daily try (the UI review) ---------- */
+/* "Leave? This counts as Out at N", Stay (filled: the default, focused)
+   and Leave: a panel in the finish screen's style, centred in the window
+   over a shade of the page, as wide as the keypad's column at most. Its
+   line may wrap, balanced. */
+.leave {
+  position: fixed; left: 50%; top: 50%; z-index: 10; translate: -50% -50%;
+  width: min(388px, calc(100vw - 32px)); padding: 32px 24px 24px;
+  background: var(--bg); box-shadow: var(--key-ring);
+}
+/* The shade over the page, which takes every tap outside the question. */
+.leave::before { content: ""; position: absolute; inset: -200vmax; z-index: -1; background: rgba(18, 64, 126, 0.78); }
+.leave[hidden] { display: none; }
+/* "Leave?" its heading, at the title's size; "This counts as Out at N."
+   its own line under it, 16px down, never broken. */
+.leave .l-head, .leave .l-text { display: block; width: fit-content; margin: 0 auto; text-box: trim-both cap alphabetic; white-space: nowrap; letter-spacing: 0.02em; }
+.leave .l-head { font-size: 17px; font-weight: 600; }
+.leave .l-text { margin-top: 16px; font-size: 15px; font-weight: 400; }
+.leave .done-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 32px; }
+.leave button {
+  display: flex; align-items: center; justify-content: center; height: 56px; padding: 0; border: 0; border-radius: 0;
+  background: transparent; box-shadow: var(--key-ring); color: var(--ink); font: 600 17px/1 var(--font); letter-spacing: 0.02em;
+  cursor: pointer; touch-action: manipulation;
+}
+.leave .stay { background: var(--ink); color: var(--bg); box-shadow: none; }
+.leave button:active { background: var(--key-press); }
+.leave .stay:active { background: var(--go-press); }
+.leave button:focus-visible { outline: 2px solid var(--ink); outline-offset: 4px; }
+.leave button .line { margin: 0; font-size: 17px; line-height: 1; }

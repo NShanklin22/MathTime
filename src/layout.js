@@ -44,7 +44,7 @@ export function placeRun(run) {
 export function createLayout(dom, scan, possibleAnswers) {
   const { eq, a, slot, caret, qnum, stage, topBar, pad, run } = dom;
   const geo = { fs: 0, style: null, base: 0.8, mid: 0.5, inkH: 0.72, boxW: 1.2, wide: 0.6 };
-  const api = { geo, possibleAnswers, inkOf, leadIndent, answerAt, layout, place, afterMeasure: null };
+  const api = { geo, possibleAnswers, inkOf, leadIndent, answerAt, layout, place, measureOps, afterMeasure: null, fitFor: null };
 
   // Ink geometry of `text` centred across `width` em, at the current size
   // (all zeros before the first measurement).
@@ -125,20 +125,8 @@ export function createLayout(dom, scan, possibleAnswers) {
     // out the same on all four sides.
     const pad = parseFloat(cs.getPropertyValue('--box-pad')) * geo.fs;
     eq.style.setProperty('--pad', px(snap(pad, devicePixelRatio)));
-    const ops = [...eq.querySelectorAll('.op')].map(op => {
-      const m = scan(op.textContent, { ...geo.style, color: getComputedStyle(op).color }, size);
-      op.style.top = (digits.mid - band(m, geo.base).mid).toFixed(4) + 'em';
-      return m;
-    });
-    // Even spacing (spec §3.2): the flex gap sits between side bearings, and
-    // the box has none, so it gets a margin. With it, the ink gap from "=" to
-    // the box is the mean of the ink gaps either side of the second number,
-    // the operator → digit and digit → "=", over all ten digits. A digit is
-    // ink-centred in its cell, so its bearing is half the cell's spare width.
-    const op = ops[0], equals = ops[ops.length - 1];
-    const bearing = each.reduce((sum, m) => sum + (geo.wide - m.abl - m.abr) / 2, 0) / each.length;
-    const around = bearing + (op.adv - op.abr - equals.abl) / 2;
-    eq.style.setProperty('--slot-gap', (around - (equals.adv - equals.abr)).toFixed(4));
+    geo.bearing = each.reduce((sum, m) => sum + (geo.wide - m.abl - m.abr) / 2, 0) / each.length;
+    measureOps();
     // Centre the digits' ink, not the line box, in the problem area.
     eq.style.marginTop = ((0.5 - digits.mid) * 2).toFixed(4) + 'em';
     // The caret spans the digit ink, snapped outward to whole device pixels
@@ -149,6 +137,29 @@ export function createLayout(dom, scan, possibleAnswers) {
     // A whole number of device pixels wide, so it is drawn the same wherever it goes.
     geo.caretW = snap(Math.max(0.05 * geo.fs, 2), devicePixelRatio);
     caret.style.width = px(geo.caretW);
+  }
+
+  // The operators, each moved onto the digits' band, and the box's margin
+  // from them. Measured again on its own when the operator changes between
+  // problems (the daily challenge mixes four levels'): the font and the box
+  // stay as they are.
+  // Even spacing (spec §3.2): the flex gap sits between side bearings, and
+  // the box has none, so it gets a margin. With it, the ink gap from "=" to
+  // the box is the mean of the ink gaps either side of the second number,
+  // the operator → digit and digit → "=", over all ten digits. A digit is
+  // ink-centred in its cell, so its bearing (geo.bearing) is half the
+  // cell's spare width.
+  function measureOps() {
+    if (!geo.style) return;
+    const size = geo.fs * devicePixelRatio;
+    const ops = [...eq.querySelectorAll('.op')].map(op => {
+      const m = scan(op.textContent, { ...geo.style, color: getComputedStyle(op).color }, size);
+      op.style.top = (geo.mid - band(m, geo.base).mid).toFixed(4) + 'em';
+      return m;
+    });
+    const op = ops[0], equals = ops[ops.length - 1];
+    const around = geo.bearing + (op.adv - op.abr - equals.abl) / 2;
+    eq.style.setProperty('--slot-gap', (around - (equals.adv - equals.abr)).toFixed(4));
   }
 
   // The equation's box without any live transform. No feedback moves #eq
@@ -265,8 +276,10 @@ export function createLayout(dom, scan, possibleAnswers) {
     measure();
     // Draw the problem first: the fit is for its width, and what was drawn
     // last can be another level's, with a first number of one digit where
-    // this one has two (Level 3), or two where it has one.
-    api.afterMeasure?.();
+    // this one has two (Level 3), or two where it has one. The daily
+    // challenge, whose problems differ, is fitted for its widest (fitFor),
+    // so its font and box never change between them.
+    (api.fitFor ?? api.afterMeasure)?.();
     fitSize();
     // Draw the problem and answer with the final geometry, then place them.
     api.afterMeasure?.();

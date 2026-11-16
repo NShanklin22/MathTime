@@ -28,6 +28,9 @@
         <a class="back" href="#" aria-label="Levels" aria-keyshortcuts="Escape" tabindex="-1"><span class="word">Levels</span><svg class="chevron" viewBox="0 0 12 12" aria-hidden="true"><path d="M7.25 2.5L3.75 6l3.5 3.5"/></svg></a>
         <svg class="sep" viewBox="0 0 12 12" aria-hidden="true"><path d="M4.5 2.5L8 6l-3.5 3.5"/></svg>
         <span class="here" aria-current="step">Addition 1</span>
+        <!-- Practice of the daily challenge: "Levels › Daily challenge › Practice" (main.js). -->
+        <svg class="sep sub" viewBox="0 0 12 12" aria-hidden="true"><path d="M4.5 2.5L8 6l-3.5 3.5"/></svg>
+        <span class="sub">Practice</span>
         <span class="home" aria-current="page">Levels</span>
       </nav>
     </div>
@@ -84,9 +87,39 @@
     </div>
   </div>
 
+  <!-- The daily challenge's board (daily spec §4), filled in by
+       dailyview.js: the date, your score above the rows where you aren't
+       on them, the rows, and Practice and Levels. Only the rows scroll. -->
+  <div class="dboard" role="region" aria-labelledby="db-title">
+    <!-- The try's result, or the practice's, as the finish screen's lines. -->
+    <div class="outcome" hidden>
+      <p class="line o-title"></p>
+      <p class="line o-time"></p>
+      <p class="line o-detail"></p>
+      <p class="line o-place"></p>
+    </div>
+    <div class="head">
+      <h1 class="line title" id="db-title"></h1>
+      <div class="mine"></div>
+    </div>
+    <ol class="rows" aria-label="Today's board"></ol>
+    <div class="done-buttons">
+      <button class="practice"><span class="line">Practice</span></button>
+      <button class="levels"><span class="line">Levels</span></button>
+    </div>
+  </div>
   <!-- The log-in screen (accounts spec §3), run by login.js: Log in, or
        Sign up with the invite code shown too. No keypad: the system's own
        keyboard types here. -->
+  <!-- Leaving a scored daily try partway asks first (main.js): it counts as out. -->
+  <div class="leave" role="alertdialog" aria-modal="true" aria-labelledby="leave-head" aria-describedby="leave-text" hidden>
+    <h2 class="line l-head" id="leave-head">Leave?</h2>
+    <p class="line l-text" id="leave-text"></p>
+    <div class="done-buttons">
+      <button class="stay"><span class="line">Stay</span></button>
+      <button class="go-leave"><span class="line">Leave</span></button>
+    </div>
+  </div>
   <div class="login" role="region" aria-labelledby="login-title">
     <h1 class="sr-only" id="login-title">Log in</h1>
     <form novalidate>

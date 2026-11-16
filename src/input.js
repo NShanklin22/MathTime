@@ -9,7 +9,8 @@ const KEYS = new Set(['Enter', 'Backspace', 'ArrowUp', 'ArrowDown', 'ArrowLeft',
 export function bindInput({ ans, pad, slot }, onKey, answer) {
   // Playing: neither the level selector, the finish screen nor the log-in
   // screen shows.
-  const playing = () => !document.body.matches('.at-select, .at-finish, .at-login');
+  // Nor while a daily try asks whether to leave (main.js): its buttons take the focus.
+  const playing = () => !document.body.matches('.at-select, .at-finish, .at-login, .leaving');
   const keep = () => ans.focus({ preventScroll: true });
 
   // One flash timer per key, restarted by each press, so a quick second

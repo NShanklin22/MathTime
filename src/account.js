@@ -11,6 +11,12 @@
 //   signed out. A run goes up only to its own account; one finished signed
 //   out, to the account signed in here next, once. It leaves the outbox
 //   when the API stores it (200 or 201), or refuses it (400).
+//   A daily challenge's try (daily spec §5) waits here too, as
+//   {id, name, daily: {date, record}}, its record with it (it is not one of
+//   the runs, and never counts toward a level's best). It is put here only
+//   if it ended signed in, so it goes up only to that account, as
+//   POST /api/daily, and leaves on 200, 201, 409 (the API keeps the
+//   first) or 400.
 // - mathtime.best: {name, best: {n: ms}}, the account's bests, from GET
 //   /api/best and each run stored since, kept for offline use.
 // - mathtime.logoutPending: a log out the server hasn't confirmed. Until it
@@ -93,10 +99,12 @@ export function pruneRuns(runs, waiting) {
   return runs.filter(r => keep.has(r) || waiting.has(r?.id));
 }
 
-// The outbox as stored: {id, name} entries; anything else is skipped.
+// The outbox as stored: {id, name} entries, and daily tries'
+// {id, name, daily: {date, record}}; anything else is skipped.
 export function outboxEntries(list) {
   if (!Array.isArray(list)) return [];
-  return list.filter(e => typeof e?.id === 'string' && (e.name === null || typeof e.name === 'string'));
+  const daily = d => d === undefined || (typeof d?.date === 'string' && typeof d.record === 'object' && d.record !== null);
+  return list.filter(e => typeof e?.id === 'string' && (e.name === null || typeof e.name === 'string') && daily(e.daily));
 }
 
 function browserStorage() {
@@ -132,7 +140,8 @@ export function createAccount({ queue, storage = browserStorage(), fetch = (...a
   const outbox = () => outboxEntries(read(OUTBOX, []));
 
   // Runs that couldn't be written (storage full): kept here for this page's
-  // life, and sent as the outbox's are. {record, name}.
+  // life, and sent as the outbox's are. {record, name}, and a daily try's
+  // date too.
   const memory = [];
   // Once an outbox write has failed, the outbox no longer says which runs
   // still wait, so for the rest of the page's life prune() drops only runs
@@ -304,6 +313,17 @@ export function createAccount({ queue, storage = browserStorage(), fetch = (...a
     return name ? flush() : Promise.resolve();
   }
 
+  // Keep a daily try that just ended (daily spec §5): in the outbox, as the
+  // account signed in now, and sent at once. Ended signed out, it is never
+  // sent. Resolves once the upload is done or has stopped.
+  // `owner` is whoever it belongs to, if not the account signed in now: a
+  // try cut off in another tab is the account it was played in.
+  function keepDaily(date, record, owner = name) {
+    if (!owner) return Promise.resolve();
+    if (!write(OUTBOX, [...outbox(), { id: record.id, name: owner, daily: { date, record } }])) memory.push({ record, name: owner, date });
+    return owner === name ? flush() : Promise.resolve();
+  }
+
   // Send what waits for this account, oldest first, one at a time: the
   // runs finished in it, and those finished signed out. A run leaves on
   // 200 or 201, its time merged into the account's bests, or on 400 (the
@@ -333,11 +353,12 @@ export function createAccount({ queue, storage = browserStorage(), fetch = (...a
     for (;;) {
       if (name !== who || gen !== g) return;
       let item = memory.find(m => mine(m.name) && !tried.has(m.record.id));
-      let record = item?.record;
+      let record = item?.record, date = item?.date;
       if (!item) {
         const entry = outbox().find(e => mine(e.name) && !tried.has(e.id));
         if (!entry) break;
-        record = queue.runs().find(r => r?.id === entry.id);
+        if (entry.daily) ({ date, record } = entry.daily);
+        else record = queue.runs().find(r => r?.id === entry.id);
         if (!record) {
           dropWaiting(entry.id);
           continue;
@@ -346,14 +367,18 @@ export function createAccount({ queue, storage = browserStorage(), fetch = (...a
       tried.add(record.id);
       let status;
       try {
-        ({ status } = await call('POST', '/api/runs', record));
+        // Each says whose it is (`name`): another tab may have signed this
+        // browser in as someone else, and the API then refuses it (403).
+        ({ status } = date ? await call('POST', '/api/daily', { date, record, name: who }) : await call('POST', '/api/runs', { ...record, name: who }));
       } catch {
         return;
       }
       if (name !== who || gen !== g) return;
-      if (status === 200 || status === 201) {
-        storedHere.add(record.id);
-        storeBest(who, { [record.level]: record.totalMs });
+      if (status === 200 || status === 201 || (date && status === 409)) {
+        if (!date) {
+          storedHere.add(record.id);
+          storeBest(who, { [record.level]: record.totalMs });
+        }
         dropWaiting(record.id);
       } else if (status === 400) {
         dropWaiting(record.id);
@@ -361,6 +386,9 @@ export function createAccount({ queue, storage = browserStorage(), fetch = (...a
         setName(null);
         return;
       } else {
+        // 403 {error: 'owner'}: the session is another account's. The run
+        // stays for its own, and nothing more goes this round. Anything
+        // else (no answer, a 5xx), as before: it is sent again later.
         return;
       }
     }
@@ -422,7 +450,7 @@ export function createAccount({ queue, storage = browserStorage(), fetch = (...a
   // finished signed out); signed out, this browser's runs, as before
   // accounts. Read once, for a whole selector.
   function bests() {
-    const runs = [...queue.runs(), ...memory.map(m => m.record)];
+    const runs = [...queue.runs(), ...memory.filter(m => !m.date).map(m => m.record)];
     if (!name) {
       const best = fastest(runs);
       return n => best[n] ?? null;
@@ -439,7 +467,7 @@ export function createAccount({ queue, storage = browserStorage(), fetch = (...a
     get name() { return name; },
     // f(name) after the name changes, or the bests do.
     onChange: f => listeners.add(f),
-    check, enter, logout, keep, flush, bests,
+    check, enter, logout, keep, keepDaily, flush, bests,
     best: n => bests()(n),
     // Settles once the upload and bests that follow a log in are done (tests).
     settled: () => Promise.all([done, sending]),

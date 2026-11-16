@@ -100,6 +100,10 @@ export function createGame(level, rng = Math.random, now = () => performance.now
     return 'finished';
   }
 
+  // How many digits the answer takes: the level's; on the daily challenge,
+  // the problem's own level's, and never more than the day's box holds.
+  const answerCap = () => Math.min(current.maxAnswerLength, state.problem.level?.maxAnswerLength ?? Infinity);
+
   // One key from the keypad or keyboard: a digit, 'Backspace' or 'Enter',
   // and on a column level the arrows too (pressColumn).
   // Returns 'typed' | 'ignored' | 'correct' | 'finished' | 'wrong' | 'out',
@@ -110,7 +114,7 @@ export function createGame(level, rng = Math.random, now = () => performance.now
     if (state.phase !== 'playing') return 'ignored';
     if (current.kind === 'column') return pressColumn(key);
     if (/^\d$/.test(key)) {
-      if (state.typed.length >= current.maxAnswerLength) return 'ignored';
+      if (state.typed.length >= answerCap()) return 'ignored';
       state.typed += key;
       return 'typed';
     }
@@ -242,6 +246,17 @@ export function createGame(level, rng = Math.random, now = () => performance.now
     return 'moved';
   }
 
+  // The run so far, for a daily try that ends before its last answer
+  // (daily spec §2): the problems answered, and the one on screen, with its
+  // time and misses until now.
+  function sofar() {
+    const { a, b } = state.problem;
+    return {
+      problems: asked.map(p => ({ ...p })),
+      current: { a, b, ms: now() - shownAt, misses: current.livesPerProblem - state.lives },
+    };
+  }
+
   // Only a correct answer moves on; next() in any other phase does nothing.
   function next() {
     if (state.phase !== 'correct') return;
@@ -280,5 +295,5 @@ export function createGame(level, rng = Math.random, now = () => performance.now
   }
 
   start(level);
-  return { state, press, tap, next, start, restart, leave, get level() { return current; }, get result() { return result; } };
+  return { state, press, tap, next, start, restart, leave, sofar, get level() { return current; }, get result() { return result; } };
 }

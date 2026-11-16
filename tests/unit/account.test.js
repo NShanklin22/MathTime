@@ -502,3 +502,76 @@ test('the log out resent on load is waited for too', async () => {
   assert.equal(order[1], '/api/login');
   assert.equal(account.name, 'sam');                        // the late /api/me is ignored
 });
+
+// ---------- The daily challenge's tries (daily spec §5) ----------
+
+const dailyTry = (id, extra = {}) => ({ id, finishedAt: '2026-11-14T10:00:00.000Z', misses: 0, problems: [{ a: 1, b: 2, ms: 900, misses: 0 }], daily: true, out: false, reached: 20, totalMs: 64_200, ...extra });
+
+test('a daily try ended signed in goes up as POST /api/daily {date, record}, and leaves on 201', async () => {
+  const { storage, account, log } = setup({ 'mathtime.account': { name: 'sam' }, 'mathtime.outbox': [] }, { '/api/daily': 201 });
+  await account.keepDaily('2026-11-14', dailyTry('d1'));
+  const sent = log.filter(r => r.path === '/api/daily');
+  assert.equal(sent.length, 1);
+  assert.deepEqual(sent[0].body, { date: '2026-11-14', record: dailyTry('d1'), name: 'sam' });
+  assert.deepEqual(got(storage, 'mathtime.outbox'), []);
+  // Never a run, never a best.
+  assert.equal(storage.getItem('mathtime.runs'), null);
+  assert.equal(account.best(1), null);
+  assert.equal(log.filter(r => r.path === '/api/runs').length, 0);
+});
+
+test('409 "taken" and 400 are done with; a 5xx or no answer waits', async () => {
+  for (const [answer, waits] of [[{ status: 409, body: { error: 'taken' } }, false], [400, false], [503, true], ['down', true], [200, false]]) {
+    const { storage, account } = setup({ 'mathtime.account': { name: 'sam' }, 'mathtime.outbox': [] }, { '/api/daily': answer });
+    await account.keepDaily('2026-11-14', dailyTry('d1'));
+    const left = got(storage, 'mathtime.outbox');
+    assert.equal(left.length, waits ? 1 : 0, JSON.stringify(answer));
+    if (waits) assert.deepEqual(left[0], { id: 'd1', name: 'sam', daily: { date: '2026-11-14', record: dailyTry('d1') } });
+  }
+});
+
+test('401 signs out, and the try waits for its own account only', async () => {
+  const { storage, account } = setup({ 'mathtime.account': { name: 'sam' }, 'mathtime.outbox': [] }, { '/api/daily': 401 });
+  await account.keepDaily('2026-11-14', dailyTry('d1'));
+  assert.equal(account.name, null);
+  assert.deepEqual(got(storage, 'mathtime.outbox').map(e => e.name), ['sam']);
+});
+
+test('a waiting try goes up with the runs on the next check, to its account alone', async () => {
+  const waiting = [{ id: 'd1', name: 'sam', daily: { date: '2026-11-14', record: dailyTry('d1') } }, { id: 'd2', name: 'alex', daily: { date: '2026-11-14', record: dailyTry('d2') } }];
+  const { storage, account, log } = setup({ 'mathtime.account': { name: 'sam' }, 'mathtime.outbox': waiting },
+    { '/api/me': { status: 200, body: { name: 'sam' } }, '/api/daily': 201, '/api/best': { status: 200, body: {} } });
+  await account.check();
+  assert.deepEqual(log.filter(r => r.path === '/api/daily').map(r => r.body.record.id), ['d1']);
+  assert.deepEqual(got(storage, 'mathtime.outbox').map(e => e.id), ['d2']);
+});
+
+test('a try ended signed out is never kept to go up', async () => {
+  const { storage, account, log } = setup({ 'mathtime.outbox': [] }, { '/api/daily': 201 });
+  await account.keepDaily('2026-11-14', dailyTry('d1'));
+  assert.deepEqual(got(storage, 'mathtime.outbox'), []);
+  assert.equal(log.length, 0);
+});
+
+test('every upload says whose it is; a 403 "owner" keeps it for its owner and stops the round', async () => {
+  const waiting = [{ id: 'r1', name: 'sam' }, { id: 'd1', name: 'sam', daily: { date: '2026-11-14', record: dailyTry('d1') } }];
+  const { storage, account, log } = setup({ 'mathtime.account': { name: 'sam' }, 'mathtime.outbox': waiting, 'mathtime.runs': [run('r1', 1, 70_000)] },
+    { '/api/runs': { status: 403, body: { error: 'owner' } }, '/api/daily': 201 });
+  await account.flush();
+  assert.deepEqual(log.map(r => [r.path, r.body.name]), [['/api/runs', 'sam']]);
+  assert.deepEqual(got(storage, 'mathtime.outbox').map(e => e.id), ['r1', 'd1']);
+  assert.equal(account.name, 'sam');
+});
+
+test('a run finished signed out goes up as the account it is sent for', async () => {
+  const { account, log } = setup({ 'mathtime.account': { name: 'sam' }, 'mathtime.outbox': [{ id: 'r1', name: null }], 'mathtime.runs': [run('r1', 1, 70_000)] }, { '/api/runs': 201 });
+  await account.flush();
+  assert.deepEqual(log[0].body, { ...run('r1', 1, 70_000), name: 'sam' });
+});
+
+test('a daily try kept for another account (cut off in another tab) waits for it, and is not sent now', async () => {
+  const { storage, account, log } = setup({ 'mathtime.account': { name: 'sam' }, 'mathtime.outbox': [] }, { '/api/daily': 201 });
+  await account.keepDaily('2026-11-14', dailyTry('d1'), 'alex');
+  assert.equal(log.length, 0);
+  assert.deepEqual(got(storage, 'mathtime.outbox'), [{ id: 'd1', name: 'alex', daily: { date: '2026-11-14', record: dailyTry('d1') } }]);
+});

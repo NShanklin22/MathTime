@@ -107,6 +107,12 @@ export function createSelector(root, levels, choose, scan) {
   let pressableAt = -Infinity, downAt = null;
   root.addEventListener('pointerdown', e => { downAt = e.timeStamp; }, true);
   root.addEventListener('mousedown', e => { if (e.timeStamp < pressableAt) e.preventDefault(); });
+  // Whether the click `e` on a row (or the daily challenge's tile) counts.
+  function pressable(e) {
+    const startedAt = e.detail && downAt != null ? downAt : e.timeStamp;
+    downAt = null;
+    return startedAt >= pressableAt;
+  }
   // The groups' own box, which fit() makes the grid of topic columns.
   const groups = el('div', 'groups');
   root.append(groups);
@@ -139,9 +145,7 @@ export function createSelector(root, levels, choose, scan) {
     row.append(txt, sample, result);
     row.insertAdjacentHTML('beforeend', LOCK);
     row.addEventListener('click', e => {
-      const startedAt = e.detail && downAt != null ? downAt : e.timeStamp;
-      downAt = null;
-      if (startedAt >= pressableAt) choose(level);
+      if (pressable(e)) choose(level);
     });
     rows.set(level, row);
     group.append(row);
@@ -425,5 +429,5 @@ export function createSelector(root, levels, choose, scan) {
     }
   }
 
-  return { mark, cameFrom, showBests, showLocks, focus, layout };
+  return { mark, cameFrom, showBests, showLocks, focus, layout, pressable };
 }
