@@ -51,6 +51,19 @@ export function openDb(path) {
       PRIMARY KEY (user_id, id)
     );
     CREATE INDEX IF NOT EXISTS runs_best ON runs(user_id, level, total_ms);
+    -- Daily challenge scores (daily spec §5): one a player a date, the first try that ended.
+    -- Added after the tables above; CREATE IF NOT EXISTS adds it to a database made before it.
+    CREATE TABLE IF NOT EXISTS daily (
+      date        TEXT NOT NULL,             -- the player's own calendar date, YYYY-MM-DD
+      user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      id          TEXT NOT NULL,             -- the record's id, so a resend is told from a second try
+      out         INTEGER NOT NULL,          -- 1 when out, 0 when finished
+      total_ms    INTEGER,                   -- null when out
+      reached     INTEGER NOT NULL,          -- the question it ended on; 20 when finished
+      record      TEXT NOT NULL,
+      received_at INTEGER NOT NULL,
+      PRIMARY KEY (date, user_id)
+    );
   `);
   return db;
 }
@@ -174,6 +187,53 @@ export function bestTimes(db, userId) {
     .prepare('SELECT level, MIN(total_ms) AS best FROM runs WHERE user_id = ? GROUP BY level ORDER BY level')
     .all(userId);
   return Object.fromEntries(rows.map((r) => [String(r.level), r.best]));
+}
+
+/* ---------- The daily challenge ---------- */
+
+export const BOARD_ROWS = 200;
+
+// 'stored' when stored; 'resent' when that score is already stored; 'taken' when the player
+// already has a different score for the date, which is kept.
+export function addDaily(db, userId, date, record, now) {
+  const { changes } = db
+    .prepare(`INSERT OR IGNORE INTO daily (date, user_id, id, out, total_ms, reached, record, received_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
+    .run(date, userId, record.id, record.out ? 1 : 0, record.totalMs, record.reached,
+      JSON.stringify(record), now);
+  if (changes > 0) return 'stored';
+  const kept = db.prepare('SELECT id FROM daily WHERE date = ? AND user_id = ?').get(date, userId);
+  return kept.id === record.id ? 'resent' : 'taken';
+}
+
+// The date's board, best first: finishers by time, then outs by how far they got, then by when stored.
+export function dailyBoard(db, date) {
+  return db
+    .prepare(`SELECT d.user_id, u.name, d.out, d.total_ms, d.reached FROM daily d JOIN users u ON u.id = d.user_id
+              WHERE d.date = ?
+              ORDER BY d.out, d.total_ms, d.reached DESC, d.received_at, u.name_lc
+              LIMIT ?`)
+    .all(date, BOARD_ROWS);
+}
+
+export function dailyCount(db, date) {
+  return db.prepare('SELECT COUNT(*) AS n FROM daily WHERE date = ?').get(date).n;
+}
+
+// One player's score for the date, shaped as a board row, or undefined.
+export function dailyScore(db, date, userId) {
+  return db
+    .prepare(`SELECT d.user_id, u.name, d.out, d.total_ms, d.reached FROM daily d JOIN users u ON u.id = d.user_id
+              WHERE d.date = ? AND d.user_id = ?`)
+    .get(date, userId);
+}
+
+// A score's place: one more than the scores strictly better, so ties share it, as on the board.
+export function dailyPlace(db, date, score) {
+  const better = score.out
+    ? db.prepare('SELECT COUNT(*) AS n FROM daily WHERE date = ? AND (out = 0 OR reached > ?)').get(date, score.reached)
+    : db.prepare('SELECT COUNT(*) AS n FROM daily WHERE date = ? AND out = 0 AND total_ms < ?').get(date, score.total_ms);
+  return better.n + 1;
 }
 
 /* ---------- Backups ---------- */

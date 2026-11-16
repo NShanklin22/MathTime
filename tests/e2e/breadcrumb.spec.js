@@ -62,7 +62,7 @@ test('each level\'s breadcrumb reads "Levels › <topic> <number in it>", the le
   ]);
   // The topic is no longer a crumb of its own.
   await expect(page.locator('.crumbs .topic, .crumbs .topic-sep')).toHaveCount(0);
-  await expect(page.locator('.crumbs .sep')).toHaveCount(1);
+  await expect(page.locator('.crumbs .sep:not(.sub)')).toHaveCount(1);   // (.sub: the daily challenge's Practice, hidden)
 });
 
 test('"Levels" is a link back to the selector, never a Tab stop, with Esc as its shortcut', async ({ page }) => {

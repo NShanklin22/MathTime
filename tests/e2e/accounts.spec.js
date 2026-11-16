@@ -242,7 +242,7 @@ test.describe('signed out', () => {
     await logIn(page);
     await expect.poll(() => posts(api, run.id).length).toBe(1);
     await expect.poll(() => outbox(page)).toEqual([]);
-    expect(posts(api, run.id)[0].body).toEqual(run);
+    expect(posts(api, run.id)[0].body).toEqual({ ...run, name: 'sam' });   // whose it is: the account it goes to
     expect(posts(api, run.id)[0].headers['content-type']).toBe('application/json');
     // Out, in again, a reload: never a second time.
     await acct(page).click();
@@ -549,6 +549,7 @@ test.describe('two accounts, one device', () => {
     await page.route('**/api/login', async route => {
       hit = true;
       await held;
+      api.session = 'sam';                                // the session it signs in, as the API's own log in does
       await route.fulfill({ status: 200, contentType: 'application/json', body: '{"name":"sam"}' });
     });
     await home(page);

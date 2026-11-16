@@ -16,5 +16,6 @@ import { LEVEL7 } from './level7.js';
 export const LEVELS = [LEVEL1, LEVEL2, LEVEL3, LEVEL4, LEVEL5, LEVEL6, LEVEL7];
 
 // A level as the breadcrumb and the finish screen name it: its topic and its
-// number within it, "Subtraction 3".
-export const levelName = level => `${level.topic} ${level.k}`;
+// number within it, "Subtraction 3". The daily challenge has a name of
+// its own, its label.
+export const levelName = level => level.label ?? `${level.topic} ${level.k}`;

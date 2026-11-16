@@ -64,11 +64,21 @@ export function fitHeader(topBar, scan) {
   crumbs.style.marginLeft = '';
   // Measured to the fraction of a pixel: scrollWidth rounds, and would let
   // the level run up to half a pixel past its room.
+  // The daily challenge's Practice (main.js) adds a crumb after the level:
+  // "Levels › Daily challenge › Practice". It is measured as it is, whole
+  // (here.dataset.full); where even the tight form doesn't fit, the
+  // challenge is named short, "‹ Daily › Practice" (here.dataset.short).
+  if (here.dataset.full) here.textContent = here.dataset.full;
   const shown = here.textContent;
   here.textContent = widestName(here);
-  const tight = here.getBoundingClientRect().right > where.getBoundingClientRect().right + 0.001;
+  const room = where.getBoundingClientRect().right + 0.001;
+  let tight = here.getBoundingClientRect().right > room;
   here.textContent = shown;
+  const sub = crumbs.querySelector('span.sub');
+  const subShown = () => sub?.getClientRects().length > 0;
+  if (subShown()) tight ||= sub.getBoundingClientRect().right > room;
   topBar.classList.toggle('tight', tight);
+  if (tight && subShown() && here.dataset.short && sub.getBoundingClientRect().right > room) here.textContent = here.dataset.short;
   const first = [...crumbs.children].find(el => el.getClientRects().length);
   if (!first?.textContent) return;
   const dpr = devicePixelRatio;
