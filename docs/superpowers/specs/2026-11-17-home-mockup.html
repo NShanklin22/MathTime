@@ -1,0 +1,544 @@
+<!doctype html>
+<html lang="en" class="loading">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Home screen mockup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<!-- The home screen (2026-11-17-home-screen-design.md): Home, Settings, and
+     Levels without the daily tile. Home and Settings are static pages on the
+     game's own styles (src/styles.css); Levels runs the game itself
+     (src/main.js), its storage in memory and a fake server, as the daily
+     mockup does. Served by the dev server (scripts/serve.mjs), from the
+     site root:
+       /docs/superpowers/specs/2026-11-17-home-mockup.html
+       ?state=before         Home, signed out, before today's try: Levels 1–2 finished (default)
+       ?state=after          Home, signed in as "nate", after the try: "Tue 17 Nov · 5th of 9", the check over 1:12.6; your row under the top 3
+       ?state=empty          Home, signed in, before the try, nobody has played: "No scores yet today"
+       ?state=offline        Home, signed in, after the try, offline: the date alone, the check over the time; the board's note
+       ?state=all-done       Home, signed in, every level finished: "Last played", Subtraction 3, its check and best
+       ?state=locked         Home, signed out, Levels 1–4 finished: Next lesson is Division 1, locked, "Log in to play"
+       ?state=settings-in    Settings, signed in: "Logged in as nate", Log out
+       ?state=settings-out   Settings, signed out: Log in and Sign up
+       ?state=levels         Levels, signed in: the topic columns only, "Home › Levels", no "Log in"
+
+     Home's parts (spec §2): three big buttons, the selector's tiles (80px,
+     the keypad's ring), then Today's board, one button of its heading
+     ("9 played · Full board ›" at its right) and the top three and your row, set as
+     the full board sets them, and Progress, a row per topic with a bar of
+     one segment per built level, the run bar's segments: green finished,
+     faint not. Upright, one column, as wide as the keypad (420px less
+     16px each side); from 688px wide, two columns, the buttons on the left
+     and the board and progress on the right (spec §3). Where the window is
+     short (under 800px tall in one column, 560px in two) the tiles are
+     64px and the board's rows 32px, so it fits whole down to 320×640.
+     Below that, Home scrolls inside the page, with the theme's scrollbar.
+
+     The header: on Home, "MathTime" where the breadcrumb sits, at the
+     breadcrumb's level crumb's weight, and the gear at the right, in the
+     way back's muted colour, where "Log in" was, its ink ending at the
+     header's edge as the hearts' does; its hit area runs to the header's
+     foot and the window's edge, as "Log in"'s did. -->
+<link rel="stylesheet" href="/src/styles.css">
+<style>
+  /* ---------- The header (spec §2) ---------- */
+  .brand { display: none; }
+  body.at-home .crumbs { display: none; }
+  body.at-home .brand {
+    display: block; font-size: 14px; line-height: var(--crumb-line); letter-spacing: 0.04em;
+    font-weight: 600; color: var(--ink); white-space: nowrap;
+  }
+  body.at-home .lives, body.at-settings .lives,
+  body.at-home .stage, body.at-home .run, body.at-home .pad,
+  body.at-settings .stage, body.at-settings .run, body.at-settings .pad { display: none; }
+  .gear { display: none; }
+  body.at-home .gear {
+    display: block; position: relative; flex: none; width: 20px; height: var(--crumb-line); margin: 0; padding: 0;
+    border: 0; background: none; color: var(--muted); cursor: pointer; touch-action: manipulation;
+  }
+  .gear svg { display: block; width: 20px; height: 20px; overflow: visible; }
+  .gear svg path, .gear svg circle { fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+  .gear::after { content: ""; position: absolute; top: calc(-1 * var(--top-safe)); bottom: calc(-1 * var(--top-foot)); left: -12px; right: calc(-1 * max(var(--gutter), env(safe-area-inset-right))); }
+  @media (hover: hover) { .gear:hover { color: var(--ink); } }
+  .gear:focus-visible { outline: 2px solid var(--ink); outline-offset: 4px; }
+
+  /* "Home › Settings", "Home › Levels": the way back is "Home". On Levels
+     the selector's lone "Levels" gets the way back before it, and "Log in"
+     leaves the header (spec §4). */
+  /* "Levels" is the level crumb here, not the selector's title: the game's
+     selector sets its topic columns in from where its title starts (the
+     page's edge on the selector alone), which "Home ›" would push in. */
+  body.at-select.under-home .crumbs > .back, body.at-select.under-home .crumbs > .sep:not(.sub),
+  body.at-select.under-home .crumbs > .here { display: block; }
+  body.at-select.under-home .crumbs > .home { display: none; }
+  body.at-select.under-home .acct { display: none; }
+  body.at-select.under-home .select { --daily-room: 0px; }
+  body.at-select.under-home .select .row.daily { display: none; }
+
+  /* ---------- Home (spec §2–§3) ---------- */
+  .home, .settings { display: none; }
+  body.at-home, body.at-settings { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); grid-template-areas: none; }
+  body.at-home .top, body.at-settings .top { grid-area: 1 / 1 / 2 / -1; }
+  body.at-home .home, body.at-settings .settings { grid-area: 2 / 1 / 3 / -1; }
+  body.at-home .home {
+    --tile-h: 80px; --row-h: 40px; --prog-h: 28px; --part-gap: 28px; --head-gap: 14px; --head-h: 8.38px;
+    display: grid; grid-template-columns: minmax(0, 1fr); align-content: start; row-gap: var(--part-gap);
+    width: 100%; max-width: 420px; min-height: 0; justify-self: center; overflow-y: auto;
+    padding: 40px 16px max(24px, env(safe-area-inset-bottom));
+  }
+  .home .part { min-width: 0; }
+  .home .buttons { display: grid; row-gap: 12px; }
+
+  /* A big button: the selector's tile. Its title and the line under it,
+     the problem kinds or a sample at the right, or a finished row's check
+     and time, or the lock. */
+  .home .tile {
+    position: relative; display: flex; align-items: center; justify-content: space-between; gap: 16px;
+    width: 100%; height: var(--tile-h); margin: 0; padding: 0 24px; border: 0; border-radius: 0;
+    background: transparent; box-shadow: var(--key-ring); font: inherit; color: var(--ink); text-align: left;
+    cursor: pointer; touch-action: manipulation;
+  }
+  .home .tile:active { background: var(--key-press); }
+  .home .bd:active ol { background: var(--key-press); }
+  .home .tile:focus-visible, .home .bd:focus-visible { outline: 2px solid var(--ink); outline-offset: 4px; }
+  .home .txt { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+  .home .title, .home .name, .home .head, .home .best { display: block; text-box: trim-both cap alphabetic; white-space: nowrap; }
+  .home .title { font-size: 17px; font-weight: 600; letter-spacing: 0.02em; }
+  .home .name { font-size: 13px; color: var(--muted); letter-spacing: 0.02em; }
+  .home .tile.done .name { color: var(--ink); }
+  .home .sample { display: flex; gap: 0.3em; font-size: 30px; font-weight: 500; line-height: 1; flex: none; }
+  .home .sample > span { display: block; height: 1em; line-height: 1; }
+  .home .sample .op { color: var(--muted); }
+  .home .kinds .op { color: var(--ink); }
+  .home .kinds { font-size: 26px; gap: 0.35em; }
+  .home .chev { display: block; height: 24px; width: auto; aspect-ratio: 9.5 / 16.5; overflow: visible; flex: none; color: var(--ink); }
+  .home .chev path { fill: none; stroke: currentColor; stroke-width: 2.1; stroke-linecap: round; stroke-linejoin: round; }
+  .home .result { display: flex; flex-direction: column; align-items: flex-end; gap: 10px; flex: none; }
+  .home .result .tick { display: block; font-size: 17px; height: 0.7em; height: 1cap; width: auto; aspect-ratio: 20 / 14.5; overflow: visible; color: var(--good); }
+  .home .result .tick path { fill: none; stroke: currentColor; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+  .home .best { font-size: 13px; letter-spacing: 0.02em; color: var(--ink); }
+  .home .best.blank { visibility: hidden; }
+  .home .lock { display: block; height: 26px; width: auto; aspect-ratio: 16.7 / 20.7; overflow: visible; color: var(--ink); flex: none; }
+  .home .lock path, .home .lock rect { fill: none; stroke: currentColor; stroke-width: 2.7; stroke-linecap: round; stroke-linejoin: round; }
+
+  /* A part's heading: the selector's topic heading. Over the board, at its
+     right, the cue that it opens the full board: "Full board" and the
+     Levels tile's chevron, in ink. */
+  .home .heading { display: flex; justify-content: space-between; align-items: center; height: var(--head-h); margin: 0 0 var(--head-gap); }
+  .home .head { margin: 0; font-size: 12px; font-weight: 500; color: var(--muted); letter-spacing: 0.1em; text-transform: uppercase; }
+  .home .more { display: flex; align-items: center; gap: 0.6em; font-size: 13px; letter-spacing: 0.02em; color: var(--muted); white-space: nowrap; }
+  /* "Full board ›": the way back's link, muted, its faint underline 4px
+     below the baseline, the chevron after it; "9 played ·" before it, plain. */
+  .home .more .link { display: flex; align-items: center; gap: 4px; text-decoration: underline; text-decoration-color: var(--faint); text-decoration-thickness: 1px; text-underline-offset: 4px; }
+  @media (hover: hover) { .home .bd:hover .more .link { text-decoration-color: currentColor; } }
+  .home .more svg { display: block; width: auto; height: 11px; aspect-ratio: 9.5 / 16.5; overflow: visible; margin-left: 2px; }
+  .home .more path { fill: none; stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
+
+  /* ---------- Today's board ---------- */
+  /* The heading and the rows, set as the full board sets them (place,
+     name, score; your row the one outline, at the title's weight), are
+     one button: tapping anywhere on it opens the full board. Empty or
+     offline it is no button: a dashed faint frame round the note. */
+  .home .bd {
+    display: block; width: 100%; margin: 0; padding: 0; border: 0; border-radius: 0; background: transparent;
+    font: inherit; color: var(--ink); text-align: left; cursor: pointer; touch-action: manipulation;
+  }
+  .home .bd ol { list-style: none; margin: 0; padding: 0; }
+  /* The cue ends where the scores do. */
+  .home .r {
+    display: grid; grid-template-columns: 2ch minmax(0, 1fr) auto; column-gap: 16px; align-items: center;
+    height: var(--row-h); padding: 0 16px 0 10px; font-size: 15px; letter-spacing: 0.02em; white-space: nowrap;
+  }
+  .home .r .place { text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .home .r .who { overflow: hidden; text-overflow: ellipsis; }
+  .home .r .score { text-align: right; font-variant-numeric: tabular-nums; }
+  .home .r.you { box-shadow: var(--key-ring); font-weight: 600; }
+  .home .r.you .place { font-weight: 400; }
+  /* Your row under the top three, where you are lower: its outline sets
+     it apart, a little below them. */
+  .home .r.below { margin-top: 6px; }
+  .home .none {
+    display: flex; align-items: center; justify-content: center; height: calc(3 * var(--row-h)); padding: 0 24px;
+    outline: 1px dashed var(--faint); outline-offset: -1px;
+  }
+  .home .note { margin: 0; font-size: 14px; letter-spacing: 0.02em; color: var(--muted); text-align: center; text-wrap: balance; line-height: 1.5; }
+
+  /* ---------- Progress ---------- */
+  /* A row per topic: its name, a bar of one segment per built level (the
+     run bar's segments, 6px, 2px apart: green finished, faint not), and
+     "1 of 2". The names take the longest's room, so the bars line up. */
+  .home .progress { display: grid; grid-template-columns: max-content minmax(0, 1fr) max-content; column-gap: 16px; align-items: center; }
+  .home .progress > * { height: var(--prog-h); display: flex; align-items: center; }
+  .home .progress .topic { font-size: 14px; letter-spacing: 0.02em; }
+  .home .progress .of { justify-content: flex-end; font-size: 13px; letter-spacing: 0.02em; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .home .progress .bar { gap: 2px; }
+  .home .progress .bar span { flex: 1; height: var(--run-bar); background: var(--faint); }
+  .home .progress .bar span.done { background: var(--good); }
+
+  /* Wide windows (spec §3): two columns, the buttons on the left, the
+     board then progress on the right, 48px apart. */
+  @media (min-width: 688px) {
+    body.at-home .home {
+      max-width: calc(2 * 388px + 48px + 2 * var(--gutter)); column-gap: 48px;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: auto 1fr;
+      grid-template-areas: "buttons board" "buttons progress";
+      padding-left: max(var(--gutter), env(safe-area-inset-left)); padding-right: max(var(--gutter), env(safe-area-inset-right));
+    }
+    /* The first tile's top level with the board's, under its heading. */
+    .home .buttons { grid-area: buttons; align-content: start; padding-top: calc(var(--head-h) + var(--head-gap)); }
+    .home .part.b { grid-area: board; }
+    .home .part.p { grid-area: progress; }
+  }
+  /* Short windows: tighter, so it all fits whole. */
+  @media (max-width: 687.98px) and (max-height: 799.98px), (min-width: 688px) and (max-height: 560px) {
+    body.at-home .home { --tile-h: 64px; --row-h: 32px; --prog-h: 22px; --part-gap: 20px; --head-gap: 12px; padding-top: 16px; padding-bottom: max(16px, env(safe-area-inset-bottom)); }
+    .home .buttons { row-gap: 8px; }
+    .home .txt { gap: 9px; }
+    .home .sample { font-size: 26px; }
+  }
+  /* A phone held sideways: tighter again. */
+  @media (min-width: 688px) and (max-height: 420px) {
+    body.at-home .home { --row-h: 28px; --prog-h: 20px; --part-gap: 16px; padding-top: 12px; padding-bottom: max(12px, env(safe-area-inset-bottom)); }
+    .home .r { font-size: 14px; }
+  }
+  @media (max-width: 359.98px) {
+    .home .tile { padding: 0 20px; }
+    .home .sample { font-size: 22px; }
+    .home .lock { height: 20px; }
+    /* So "9 played · Full board ›" keeps a clear gap to the heading. */
+    .home .more { font-size: 12px; letter-spacing: 0; gap: 0.5em; }
+    .home .bd .head { letter-spacing: 0.06em; }
+  }
+  .scrollbars-take-room .home::-webkit-scrollbar { width: 8px; }
+  .scrollbars-take-room .home::-webkit-scrollbar-track { background: transparent; }
+  .scrollbars-take-room .home::-webkit-scrollbar-button { display: none; width: 0; height: 0; }
+  .scrollbars-take-room .home::-webkit-scrollbar-thumb { background: var(--faint); border-radius: 0; }
+  .scrollbars-take-room .home::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+
+  /* ---------- Settings (spec §4) ---------- */
+  /* The finish screen's column. The account's heading, a line, and its
+     buttons: Log out alone; or Log in, filled (the one most come for),
+     and Sign up. */
+  body.at-settings .settings {
+    display: block; width: 100%; max-width: 420px; min-height: 0; justify-self: center; overflow-y: auto;
+    padding: 40px 16px max(32px, env(safe-area-inset-bottom));
+  }
+  .settings .head { display: block; margin: 0 0 20px; text-box: trim-both cap alphabetic; font-size: 12px; font-weight: 500; color: var(--muted); letter-spacing: 0.1em; text-transform: uppercase; }
+  .settings .who { display: block; margin: 0; text-box: trim-both cap alphabetic; font-size: 15px; letter-spacing: 0.02em; white-space: nowrap; }
+  .settings .who b { font-weight: 600; }
+  .settings .who.out { color: var(--muted); }
+  .settings .buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 28px; }
+  .settings .buttons.one { grid-template-columns: 1fr; }
+  .settings button {
+    display: flex; align-items: center; justify-content: center; height: 56px; padding: 0; border: 0; border-radius: 0;
+    background: transparent; box-shadow: var(--key-ring); color: var(--ink); font: 600 17px/1 var(--font); letter-spacing: 0.02em;
+    cursor: pointer; touch-action: manipulation;
+  }
+  .settings button.fill { background: var(--ink); color: var(--bg); box-shadow: none; }
+  .settings button:active { background: var(--key-press); }
+  .settings button.fill:active { background: var(--go-press); }
+  .settings button:focus-visible { outline: 2px solid var(--ink); outline-offset: 4px; }
+</style>
+</head>
+<body class="at-home" data-kind="fact">
+  <header class="top">
+    <div class="where">
+      <span class="brand">MathTime</span>
+      <nav class="crumbs" aria-label="Breadcrumb">
+        <a class="back" href="#" aria-label="Home" aria-keyshortcuts="Escape" tabindex="-1"><span class="word">Home</span><svg class="chevron" viewBox="0 0 12 12" aria-hidden="true"><path d="M7.25 2.5L3.75 6l3.5 3.5"/></svg></a>
+        <svg class="sep" viewBox="0 0 12 12" aria-hidden="true"><path d="M4.5 2.5L8 6l-3.5 3.5"/></svg>
+        <span class="here" aria-current="step">Settings</span>
+        <svg class="sep sub" viewBox="0 0 12 12" aria-hidden="true"><path d="M4.5 2.5L8 6l-3.5 3.5"/></svg>
+        <span class="sub">Practice</span>
+        <span class="home" aria-current="page">Levels</span>
+      </nav>
+    </div>
+    <div class="lives" role="img" aria-label="3 lives left">
+      <svg viewBox="2 3 20 18" aria-hidden="true"><path d="M19.5 12.572l-7.5 7.428l-7.5 -7.428a5 5 0 1 1 7.5 -6.566a5 5 0 1 1 7.5 6.572"/></svg>
+      <svg viewBox="2 3 20 18" aria-hidden="true"><path d="M19.5 12.572l-7.5 7.428l-7.5 -7.428a5 5 0 1 1 7.5 -6.566a5 5 0 1 1 7.5 6.572"/></svg>
+      <svg viewBox="2 3 20 18" aria-hidden="true"><path d="M19.5 12.572l-7.5 7.428l-7.5 -7.428a5 5 0 1 1 7.5 -6.566a5 5 0 1 1 7.5 6.572"/></svg>
+    </div>
+    <button class="acct" type="button">Log in</button>
+    <!-- The gear (Tabler's "settings"), its viewBox cropped to its ink, stroke included. -->
+    <button class="gear" type="button" aria-label="Settings"><svg viewBox="2.25 2.25 19.5 19.5" aria-hidden="true"><path d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 0 0 2.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 0 0 1.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 0 0-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 0 0-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 0 0-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 0 0-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 0 0 1.066-2.573c-.94-1.543.826-3.31 2.37-2.37c1 .608 2.296.07 2.572-1.065z"/><circle cx="12" cy="12" r="3"/></svg></button>
+  </header>
+
+  <!-- Home (spec §2), filled in below. -->
+  <div class="home" role="region" aria-label="Home">
+    <div class="part buttons">
+      <button class="tile daily" type="button"></button>
+      <button class="tile next" type="button"></button>
+      <button class="tile levels" type="button" aria-label="Levels: every level, by topic"><span class="txt"><span class="title">Levels</span><span class="name"></span></span><svg class="chev" viewBox="7.75 3.75 9.5 16.5" aria-hidden="true"><path d="M9 5l7 7l-7 7"/></svg></button>
+    </div>
+    <section class="part b" aria-labelledby="h-board">
+      <div class="board-slot"></div>
+    </section>
+    <section class="part p" aria-labelledby="h-prog">
+      <div class="heading"><h2 class="head" id="h-prog">Progress</h2></div>
+      <div class="progress"></div>
+    </section>
+  </div>
+
+  <!-- Settings (spec §4). -->
+  <div class="settings" role="region" aria-labelledby="s-acct">
+    <h1 class="head" id="s-acct">Account</h1>
+    <p class="who"></p>
+    <div class="buttons"></div>
+  </div>
+
+  <!-- The game's own page (index.html), for ?state=levels. -->
+  <main class="stage">
+    <div class="eq" id="eq">
+      <span class="qnum" id="qnum">Question 1 of 20</span>
+      <span id="a">7</span>
+      <span class="op">+</span>
+      <span id="b">5</span>
+      <span class="op">=</span>
+      <span class="slot empty" id="slot">
+        <span class="shown" aria-hidden="true"><span id="shown"></span><span class="caret"></span></span>
+        <input id="ans" inputmode="none" maxlength="2" autocomplete="off" aria-label="Answer">
+      </span>
+    </div>
+    <div class="board" id="board" aria-hidden="true"></div>
+  </main>
+  <div class="run" aria-hidden="true"></div>
+  <p class="sr-only" role="status" id="status"></p>
+  <div class="select" role="region" aria-label="Levels"></div>
+  <div class="finish" role="region" aria-labelledby="done-title">
+    <h1 class="line done-title" id="done-title"></h1>
+    <p class="line done-time"></p>
+    <p class="line done-best"></p>
+    <p class="line done-misses"></p>
+    <div class="done-buttons">
+      <button class="again"><span class="line">Again</span></button>
+      <button class="levels"><span class="line">Levels</span></button>
+    </div>
+  </div>
+  <div class="dboard" role="region" aria-labelledby="db-title">
+    <div class="outcome" hidden>
+      <p class="line o-title"></p>
+      <p class="line o-time"></p>
+      <p class="line o-detail"></p>
+      <p class="line o-place"></p>
+    </div>
+    <div class="head">
+      <h1 class="line title" id="db-title"></h1>
+      <div class="mine"></div>
+    </div>
+    <ol class="rows" aria-label="Today's board"></ol>
+    <div class="done-buttons">
+      <button class="practice"><span class="line">Practice</span></button>
+      <button class="levels"><span class="line">Levels</span></button>
+    </div>
+  </div>
+  <div class="leave" role="alertdialog" aria-modal="true" aria-labelledby="leave-head" aria-describedby="leave-text" hidden>
+    <h2 class="line l-head" id="leave-head">Leave?</h2>
+    <p class="line l-text" id="leave-text"></p>
+    <div class="done-buttons">
+      <button class="stay"><span class="line">Stay</span></button>
+      <button class="go-leave"><span class="line">Leave</span></button>
+    </div>
+  </div>
+  <div class="login" role="region" aria-labelledby="login-title">
+    <h1 class="sr-only" id="login-title">Log in</h1>
+    <form novalidate>
+      <div class="fields">
+        <div class="field" data-for="signup" hidden>
+          <div class="labels"><label for="f-invite">Invite code</label></div>
+          <input id="f-invite" name="invite" type="text" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" enterkeyhint="next" aria-describedby="f-error">
+        </div>
+        <div class="field">
+          <div class="labels"><label for="f-name">Name</label><span class="hint" id="h-name" data-for="signup" hidden>3–20 letters, digits, _&nbsp;-</span></div>
+          <input id="f-name" name="username" type="text" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" maxlength="20" enterkeyhint="next" aria-describedby="f-error">
+        </div>
+        <div class="field">
+          <div class="labels"><label for="f-pass">Password</label><span class="hint" id="h-pass" data-for="signup" hidden>8 or more characters</span></div>
+          <input id="f-pass" name="password" type="password" autocomplete="current-password" enterkeyhint="go" aria-describedby="f-error">
+        </div>
+      </div>
+      <div class="actions">
+        <button class="submit" type="submit"><span class="line">Log in</span></button>
+        <p class="error" id="f-error" role="alert"></p>
+        <p class="switch"><span class="ask">Have an invite?</span> <button class="swap" type="button">Sign up</button></p>
+      </div>
+    </form>
+  </div>
+  <div class="pad" role="group" aria-label="Keypad">
+    <button tabindex="-1" data-k="1"><span class="kl">1</span></button>
+    <button tabindex="-1" data-k="2"><span class="kl">2</span></button>
+    <button tabindex="-1" data-k="3"><span class="kl">3</span></button>
+    <button tabindex="-1" data-k="4"><span class="kl">4</span></button>
+    <button tabindex="-1" data-k="5"><span class="kl">5</span></button>
+    <button tabindex="-1" data-k="6"><span class="kl">6</span></button>
+    <button tabindex="-1" data-k="7"><span class="kl">7</span></button>
+    <button tabindex="-1" data-k="8"><span class="kl">8</span></button>
+    <button tabindex="-1" data-k="9"><span class="kl">9</span></button>
+    <button tabindex="-1" data-k="Backspace" aria-label="Delete"><svg viewBox="0 0 24 24" aria-hidden="true"><g transform="translate(-0.5 0)"><path d="M20 6H9l-5 6l5 6h11a1 1 0 0 0 1-1V7a1 1 0 0 0-1-1z"/><path d="M12.25 10.25l3.5 3.5m0-3.5l-3.5 3.5"/></g></svg></button>
+    <button tabindex="-1" data-k="0"><span class="kl">0</span></button>
+    <button tabindex="-1" data-k="Enter" class="go" aria-label="Check answer"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 12.5l5.5 5.5l11.5-11.5"/></svg></button>
+  </div>
+
+<script type="module">
+  const params = new URLSearchParams(location.search);
+  const state = params.get('state') ?? 'before';
+  const ME = 'nate';
+  const $ = sel => document.querySelector(sel);
+  const body = document.body;
+  const { LEVELS, levelName } = await import('/src/levels.js');
+  const { formatTime } = await import('/src/finish.js');
+  const { fontsReady } = await import('/src/fonts.js');
+
+  // ---------- Each state's player ----------
+  // Which levels (by build order, n) are finished, with their best times;
+  // signed in or out; today's try; the board.
+  const BESTS = { 1: 72_400, 2: 81_900, 3: 95_300, 4: 88_100, 5: 101_700, 6: 124_800, 7: 108_300 };
+  const finishedOf = {
+    before: [1, 2], after: [1, 2, 3, 4], empty: [1, 2], offline: [1, 2, 3, 4],
+    'all-done': [1, 2, 3, 4, 5, 6, 7], locked: [1, 2, 3, 4], levels: [1, 2, 3, 4],
+  };
+  const signedOut = ['before', 'locked', 'settings-out'].includes(state);
+  const finished = new Set(finishedOf[state] ?? [1, 2]);
+  const LAST_PLAYED = 7;                       // all-done: Subtraction 3
+  const tried = ['after', 'offline'].includes(state);
+  const DAY = new Date(2026, 10, 17).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }).replace(',', '');
+  const NINE = [
+    { name: 'alex', totalMs: 58_700 }, { name: 'bea', totalMs: 61_900 }, { name: 'jonah', totalMs: 64_200 },
+    { name: 'priya', totalMs: 69_000 }, { name: ME, totalMs: 72_600 }, { name: 'theo', totalMs: 79_600 },
+    { name: 'kit', totalMs: 84_100 }, { name: 'rowan', totalMs: null, reached: 12 }, { name: 'ivy', totalMs: null, reached: 5 },
+  ];
+  const SIX = NINE.filter(p => p.name !== ME).slice(0, 6);
+  const ordinal = n => n + ({ 1: 'st', 2: 'nd', 3: 'rd' }[(n % 100 > 10 && n % 100 < 14) ? 0 : n % 10] ?? 'th');
+  const TICK = '<svg class="tick" viewBox="2 5 20 14.5" aria-hidden="true"><path d="M3.5 12.5l5.5 5.5l11.5-11.5"/></svg>';
+  const LOCK = '<svg class="lock" viewBox="-0.35 -0.35 16.7 20.7" aria-hidden="true"><path d="M4 9V5a4 4 0 0 1 8 0v4"/><rect x="1" y="9" width="14" height="10" rx="1"/><path d="M8 13v2"/></svg>';
+  const sampleOf = (level, kinds) => `<span class="sample${kinds ? ' kinds' : ''}" aria-hidden="true">`
+    + (kinds ? '<span class="op">+</span><span class="op">−</span><span class="op">×</span>'
+      : `<span>${level.sample[0]}</span><span class="op">${level.op}</span><span>${level.sample[1]}</span>`) + '</span>';
+  const txt = (title, name, more) => `<span class="txt"><span class="title">${title}</span><span class="name">${name}</span>`
+    + (more ? `<span class="name">${more}</span>` : '') + '</span>';
+
+  // ---------- Home ----------
+  function showHome() {
+    body.className = 'at-home';
+    // Daily challenge: the date and the problem kinds before the try; after,
+    // as a finished level's tile (the daily tile's own form, approved): the
+    // date and the place under the title, the check over the score at the
+    // right. Offline, the date alone under the title.
+    const daily = $('.tile.daily');
+    if (!tried) {
+      daily.innerHTML = txt('Daily challenge', DAY) + sampleOf(null, true);
+      daily.setAttribute('aria-label', `Daily challenge, ${DAY}: 20 problems, one try`);
+    } else {
+      const line = state === 'offline' ? DAY : `${DAY} · 5th of 9`;
+      daily.innerHTML = txt('Daily challenge', line) + `<span class="result">${TICK}<span class="best">1:12.6</span></span>`;
+      daily.setAttribute('aria-label', `Daily challenge: 1:12.6${state === 'offline' ? '' : ', 5th of 9'}. Show the board`);
+    }
+    // Next lesson: the first unfinished level in level order; locked, the
+    // lock and "Log in to play" under the name. With all finished, "Last
+    // played", as a finished level's tile.
+    const next = $('.tile.next');
+    const left = LEVELS.find(l => !finished.has(l.n));
+    const level = left ?? LEVELS.find(l => l.n === LAST_PLAYED);
+    const locked = signedOut && level.n >= 5;
+    let right = sampleOf(level);
+    if (!left) right = `<span class="result">${TICK}<span class="best">${formatTime(BESTS[level.n])}</span></span>`;
+    else if (locked) right = LOCK;
+    const title = left ? 'Next lesson' : 'Last played';
+    next.innerHTML = txt(title, locked ? `${levelName(level)} · Log in to play` : levelName(level)) + right;
+    next.setAttribute('aria-label', `${title}: ${levelName(level)}${locked ? ', locked: log in to play' : ''}`);
+    $('.tile.levels .name').textContent = `${finished.size} of ${LEVELS.length} finished`;
+
+    // Today's board: the top three, then your row if you're lower.
+    const slot = $('.board-slot');
+    const heading = more => '<span class="heading"><span class="head" id="h-board" role="heading" aria-level="2">Today’s board</span>'
+      + (more ? `<span class="more" aria-hidden="true"><span>${players.length} played ·</span><span class="link">Full board<svg viewBox="7.75 3.75 9.5 16.5"><path d="M9 5l7 7l-7 7"/></svg></span></span>` : '') + '</span>';
+    const players = state === 'after' ? NINE : SIX;
+    if (state === 'empty' || state === 'offline') {
+      slot.innerHTML = heading(false) + `<div class="none"><p class="note">${state === 'empty' ? 'No scores yet today' : 'The board will show when you’re back online'}</p></div>`;
+    } else {
+      const row = (p, place) => `<li class="r${p.name === ME ? ' you' : ''}"${p.name === ME ? ' aria-current="true"' : ''}>`
+        + `<span class="place">${place}</span><span class="who">${p.name}</span><span class="score">${p.totalMs == null ? `Out at ${p.reached}` : formatTime(p.totalMs)}</span></li>`;
+      let html = players.slice(0, 3).map((p, i) => row(p, i + 1)).join('');
+      const mine = players.findIndex(p => p.name === ME);
+      if (mine >= 3) html += row(players[mine], mine + 1).replace('class="r you"', 'class="r you below"');
+      slot.innerHTML = `<button class="bd" type="button" aria-label="Today’s board: show it all">${heading(true)}<ol>${html}</ol></button>`;
+    }
+
+    // Progress: a row per topic, its built levels.
+    const topics = [...new Set(LEVELS.map(l => l.topic))];
+    $('.progress').innerHTML = topics.map(t => {
+      const of = LEVELS.filter(l => l.topic === t), done = of.filter(l => finished.has(l.n)).length;
+      return `<span class="topic">${t}</span>`
+        + `<span class="bar" role="img" aria-label="${done} of ${of.length} finished">${of.map((l, i) => `<span${i < done ? ' class="done"' : ''}></span>`).join('')}</span>`
+        + `<span class="of" aria-hidden="true">${done} of ${of.length}</span>`;
+    }).join('');
+    $('.gear').addEventListener('click', () => { location.search = signedOut ? '?state=settings-out' : '?state=settings-in'; });
+    $('.tile.levels').addEventListener('click', () => { location.search = '?state=levels'; });
+  }
+
+  // ---------- Settings ----------
+  function showSettings() {
+    body.className = 'at-settings';
+    const who = $('.settings .who'), buttons = $('.settings .buttons');
+    if (state === 'settings-in') {
+      who.innerHTML = `Logged in as <b>${ME}</b>`;
+      buttons.classList.add('one');
+      buttons.innerHTML = '<button type="button">Log out</button>';
+    } else {
+      who.textContent = 'Not logged in';
+      who.classList.add('out');
+      buttons.innerHTML = '<button type="button" class="fill">Log in</button><button type="button">Sign up</button>';
+    }
+    $('.crumbs .back').addEventListener('click', e => { e.preventDefault(); location.search = signedOut ? '?state=before' : '?state=after'; });
+  }
+
+  // ---------- Levels: the game's own selector, without the tile ----------
+  async function showLevels() {
+    const mem = new Map();
+    const shim = {
+      getItem: k => (mem.has(k) ? mem.get(k) : null), setItem: (k, v) => { mem.set(k, String(v)); },
+      removeItem: k => { mem.delete(k); }, clear: () => mem.clear(),
+      key: i => [...mem.keys()][i] ?? null, get length() { return mem.size; },
+    };
+    Object.defineProperty(window, 'localStorage', { value: shim, configurable: true });
+    const done = [...finished];
+    shim.setItem('mathtime.runs', JSON.stringify(done.map(n => ({ id: `r${n}`, level: n, totalMs: BESTS[n], misses: 0, problems: [] }))));
+    shim.setItem('mathtime.outbox', '[]');
+    shim.setItem('mathtime.account', JSON.stringify({ name: ME }));
+    shim.setItem('mathtime.best', JSON.stringify({ name: ME, best: Object.fromEntries(done.map(n => [n, BESTS[n]])) }));
+    const json = (status, b) => new Response(JSON.stringify(b), { status, headers: { 'Content-Type': 'application/json' } });
+    window.fetch = async (url) => {
+      const path = new URL(url, location.href).pathname;
+      if (path === '/api/me') return json(200, { name: ME });
+      if (path === '/api/best') return json(200, Object.fromEntries(done.map(n => [n, BESTS[n]])));
+      return json(404, {});
+    };
+    body.className = 'at-select under-home';
+    $('.crumbs .here').textContent = 'Levels';
+    await import('/src/main.js');
+    // The game keeps its own body classes; keep this one with them.
+    new MutationObserver(() => { if (!body.classList.contains('under-home')) body.classList.add('under-home'); })
+      .observe(body, { attributes: true, attributeFilter: ['class'] });
+    $('.crumbs .back').addEventListener('click', e => { e.preventDefault(); location.search = '?state=after'; }, true);
+  }
+
+  // ---------- The state asked for ----------
+  if (state === 'levels') {
+    await showLevels();
+    await fontsReady();
+    await new Promise(r => setTimeout(r, 300));
+  } else {
+    const probe = document.createElement('div');
+    probe.style.cssText = 'position:absolute;top:0;left:0;width:100px;height:100px;overflow:scroll;visibility:hidden';
+    body.append(probe);
+    document.documentElement.classList.toggle('scrollbars-take-room', probe.offsetWidth - probe.clientWidth > 0);
+    probe.remove();
+    if (state.startsWith('settings')) showSettings(); else showHome();
+    await fontsReady();
+    document.documentElement.classList.remove('loading');
+  }
+  await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+  document.documentElement.dataset.ready = '1';
+</script>
+</body>
+</html>
