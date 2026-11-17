@@ -22,4 +22,4 @@ if ! docker image inspect mathtime-api:live >/dev/null 2>&1; then
   echo "No API image yet: nothing to back up"
   exit 0
 fi
-docker compose -f deploy/compose.yaml run --rm --no-deps --no-build -T api node backup.mjs /data/backups
+docker compose -f deploy/compose.yaml run --rm --no-deps -T api node backup.mjs /data/backups
