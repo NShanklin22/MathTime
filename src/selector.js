@@ -217,6 +217,16 @@ export function createSelector(root, levels, choose, scan) {
     reveal(root, row, CLEAR);
   }
 
+  // Focus the first row without marking it (coming to the selector from
+  // Home, Progress or the board: main.js), shown whole: the list opens at
+  // its top, as it does on opening.
+  function focusFirst() {
+    const row = rows.values().next().value;
+    if (!row) return;
+    row.focus({ preventScroll: true });
+    reveal(root, row, CLEAR);
+  }
+
   // ---------- In topic columns (the topic-columns mockup, 2026-11-07) ----------
 
   // Where two or more tiles fit across, the list is a grid of topic
@@ -429,5 +439,5 @@ export function createSelector(root, levels, choose, scan) {
     }
   }
 
-  return { mark, cameFrom, showBests, showLocks, focus, layout, pressable };
+  return { mark, cameFrom, showBests, showLocks, focus, focusFirst, layout, pressable };
 }

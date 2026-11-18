@@ -1,5 +1,5 @@
 import { test, expect } from './fixtures.js';
-import { open, levelRow, settle } from './helpers.js';
+import { open, levelRow, settle, toLevels } from './helpers.js';
 
 test('the page loads in IBM Plex Mono with the Blueprint background', async ({ page }) => {
   await open(page);
@@ -45,7 +45,7 @@ test('a slow font stylesheet cannot hold the page for more than about 3 seconds'
   await expect(page.locator('.pad button')).toHaveCount(12);
 });
 
-test('startup measures the level selector once', async ({ page }) => {
+test('startup measures Home once, and opening the selector measures it once', async ({ page }) => {
   // Each ink scan reads the canvas once. Count the scans in the first layout
   // and after the page settles: the fonts it waited for must not trigger a
   // second, cold measure when their load event arrives.
@@ -68,9 +68,20 @@ test('startup measures the level selector once', async ({ page }) => {
   await page.waitForFunction(() => !document.documentElement.classList.contains('loading'));
   await page.evaluate(() => document.fonts.ready.then(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))));
   await page.waitForTimeout(500);
-  const scans = await page.evaluate(() => ({ first: window.scansAtFirstLayout, total: window.scans }));
-  expect(scans.first).toBeGreaterThan(0);
-  expect(scans.total).toBe(scans.first);
+  // Home opens first (the home screen spec §1): nothing measured again
+  // after its first layout. Then the selector, laid out in full on the
+  // click that opens it, and never again.
+  const atHome = await page.evaluate(() => ({ first: window.scansAtFirstLayout, total: window.scans }));
+  expect(atHome.total).toBe(atHome.first);
+  const scans = await page.evaluate(() => {
+    const before = window.scans;
+    document.querySelector('.home .btn.levels').click();
+    return { before, first: window.scans };
+  });
+  await settle(page);
+  await page.waitForTimeout(500);
+  expect(scans.first).toBeGreaterThan(scans.before);
+  expect(await page.evaluate(() => window.scans)).toBe(scans.first);
 });
 
 test('starting a level measures the screen once', async ({ page }) => {
@@ -85,7 +96,7 @@ test('starting a level measures the screen once', async ({ page }) => {
     };
   });
   await page.goto('/');
-  await page.waitForFunction(() => !document.documentElement.classList.contains('loading'));
+  await toLevels(page);
   await page.evaluate(() => document.fonts.ready);
   await settle(page);
   const { before, after } = await page.evaluate(() => {
@@ -109,7 +120,7 @@ test('a failed measurement still shows the page and the real problem', async ({ 
   const errors = [];
   page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
   await page.goto('/');
-  await page.waitForFunction(() => !document.documentElement.classList.contains('loading'), null, { timeout: 10_000 });
+  await toLevels(page);
   await levelRow(page, 1).click();
   await expect(page.locator('.pad')).toBeVisible();
   await expect(page.locator('#ans')).toBeFocused();

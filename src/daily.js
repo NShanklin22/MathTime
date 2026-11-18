@@ -23,7 +23,7 @@ import { formatTime } from './finish.js';
 export const QUESTIONS = 20;
 const PER_LEVEL = 5;
 export const TRY = 'mathtime.daily';         // the key whose changes other tabs hear (storage events)
-const BOARDS = 'mathtime.dailyBoard';
+export const BOARDS = 'mathtime.dailyBoard';   // the key of the boards kept (other tabs hear it too)
 const KEEP_DAYS = 2;
 
 // The player's own calendar date (spec §1), as YYYY-MM-DD.

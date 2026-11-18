@@ -1,13 +1,16 @@
 import { test, expect, withAccount } from './fixtures.js';
-import { open, levelRow, setProblem, rect, resize, settle, capture, ink, freeze, note, typeKeys, TOL, MUTED, GOOD } from './helpers.js';
+import { open, levelRow, setProblem, rect, resize, settle, capture, ink, freeze, note, typeKeys, TOL, MUTED, GOOD, toLevels } from './helpers.js';
 import { LEVELS, levelName } from '../../src/levels.js';
 
 // The level selector (Level 2 spec §3).
 
-// Load the game as it opens: on the selector.
+// Load the game, and go from Home to the selector. It opens with the first
+// row focused; the keyboard tests here start from before it (the way back,
+// which is no Tab stop), as the selector once opened.
 async function home(page) {
   await page.goto('/');
-  await page.waitForFunction(() => !document.documentElement.classList.contains('loading'));
+  await toLevels(page);
+  await page.locator('.crumbs .back').focus();
 }
 
 // The rows as shown (Levels 6–7 batch plan): by topic, each topic where it
@@ -24,8 +27,7 @@ test('the game opens on the selector: the built levels by topic, nothing marked'
   // A landmark of its own: the only <main> is the hidden problem area.
   const list = page.getByRole('region', { name: 'Levels' });
   await expect(list).toBeVisible();
-  await expect(list.getByRole('button')).toHaveCount(8);          // the levels, and the daily challenge's tile
-  await expect(list.locator('.group').getByRole('button')).toHaveCount(7);
+  await expect(list.getByRole('button')).toHaveCount(7);
   await expect(page.locator('#status')).toBeEmpty();   // no problem yet, so nothing announced
   await expect(page.locator('.select .group-name')).toHaveText(['Addition', 'Subtraction', 'Multiplication', 'Division']);
   await expect(page.locator('.select .group')).toHaveCount(4);
@@ -66,7 +68,7 @@ test('the game opens on the selector: the built levels by topic, nothing marked'
   await expect(levelRow(page, 7).locator('.title')).toHaveText('Level 3');
   await expect(levelRow(page, 7).locator('.name')).toHaveText('Column subtraction');
   await expect(levelRow(page, 7).locator('.sample')).toHaveText('52−27');
-  expect(await page.locator('.select .group .row').evaluateAll(rows => rows.map(r => Number(r.dataset.level)))).toEqual(SHOWN);
+  expect(await page.locator('.select .row').evaluateAll(rows => rows.map(r => Number(r.dataset.level)))).toEqual(SHOWN);
   await expect(levelRow(page, 1).locator('.sample')).toHaveAttribute('aria-hidden', 'true');
   await expect(page.locator('.select .row.current')).toHaveCount(0);
   await expect(page.locator('.select .row[aria-current]')).toHaveCount(0);
@@ -93,7 +95,7 @@ test('under each topic the rows are numbered from Level 1, and each is named wit
     { topic: 'Division', titles: ['Level 1'], names: ['Division, Level 1: Division facts'] },
   ]);
   // The build order stays the rows' handle.
-  expect(await page.locator('.select .group .row').evaluateAll(rows => rows.map(r => Number(r.dataset.level)))).toEqual(SHOWN);
+  expect(await page.locator('.select .row').evaluateAll(rows => rows.map(r => Number(r.dataset.level)))).toEqual(SHOWN);
   await page.getByRole('button', { name: 'Subtraction, Level 3: Column subtraction', exact: true }).click();
   await expect(page.locator('.crumbs .here')).toHaveText('Subtraction 3');
   expect(await page.evaluate(() => window.mathtime.game.level.n)).toBe(7);
@@ -154,11 +156,13 @@ test('after a column level, a fact level plays as before', async ({ page }) => {
   await expect(page.locator('#qnum')).toHaveText('Question 2 of 20');
 });
 
-test('on the selector the breadcrumb is "Levels" alone', async ({ page }) => {
+test('on the selector the breadcrumb is "Home › Levels" (the home screen spec §1)', async ({ page }) => {
   await home(page);
-  await expect(page.locator('.crumbs .home')).toHaveText('Levels');
-  await expect(page.locator('.crumbs .home')).toHaveAttribute('aria-current', 'page');
-  for (const crumb of ['.back', '.chevron', '.sep', '.here']) await expect(page.locator(`.crumbs ${crumb}`).first()).toBeHidden();
+  await expect(page.locator('.crumbs .back')).toHaveText('Home');
+  await expect(page.locator('.crumbs .back')).toHaveAttribute('aria-label', 'Home');
+  await expect(page.locator('.crumbs .here')).toHaveText('Levels');
+  await expect(page.locator('.crumbs .sep').first()).toBeVisible();
+  for (const crumb of ['.home', '.chevron']) await expect(page.locator(`.crumbs ${crumb}`).first()).toBeHidden();
 });
 
 const WORD = { 1: 'plus', 2: 'minus', 3: 'minus', 4: 'times', 5: 'divided by' };
@@ -174,12 +178,8 @@ for (const n of [1, 2, 3, 4, 5]) test(`choosing Level ${n} starts it at question
   await expect(page.locator('#status')).toHaveText(new RegExp(`^Question 1 of 20: \\d+ ${WORD[n]} \\d$`));
 });
 
-test('the header link, then the rows, are in the tab order', async ({ page }) => {
+test('the rows are in the tab order (the way back is not a Tab stop)', async ({ page }) => {
   await home(page);
-  await page.keyboard.press('Tab');                       // the header's account link first (accounts spec §4)
-  await expect(page.locator('.top .acct')).toBeFocused();
-  await page.keyboard.press('Tab');                       // then the daily challenge's tile (daily spec §3)
-  await expect(page.locator('.select .daily')).toBeFocused();
   await page.keyboard.press('Tab');
   await expect(levelRow(page, 1)).toBeFocused();
   await page.keyboard.press('Tab');
@@ -193,10 +193,6 @@ test('the header link, then the rows, are in the tab order', async ({ page }) =>
 // The keyboard follows the rows as shown, down the groups and back up.
 test('Tab and Shift+Tab go through the rows as shown: 1, 6, 2, 3, 7, 4, 5', async ({ page }) => {
   await home(page);
-  await page.keyboard.press('Tab');                       // the header's account link first (accounts spec §4)
-  await expect(page.locator('.top .acct')).toBeFocused();
-  await page.keyboard.press('Tab');                       // then the daily challenge's tile (daily spec §3)
-  await expect(page.locator('.select .daily')).toBeFocused();
   for (const n of SHOWN) {
     await page.keyboard.press('Tab');
     await expect(levelRow(page, n)).toBeFocused();
@@ -237,9 +233,6 @@ for (const [width, height] of [[844, 390], [320, 640]]) test(`at ${width}×${hei
   // In the order shown (the rows are grouped by topic, not by number).
   const n = await rows(page);
   expect(n).toBe(SHOWN.length);
-  await page.keyboard.press('Tab');                       // the header's account link first (accounts spec §4)
-  await page.keyboard.press('Tab');                       // then the daily challenge's tile (daily spec §3)
-  await expect(page.locator('.select .daily')).toBeFocused();
   for (const i of SHOWN) {
     await page.keyboard.press('Tab');
     await expect(levelRow(page, i)).toBeFocused();
@@ -357,7 +350,7 @@ const scrolls = page => page.evaluate(() => {
 });
 // A row's side padding as laid out: 24px in the one column, 20px in topic
 // columns.
-const rowPadding = page => page.evaluate(() => parseFloat(getComputedStyle(document.querySelector('.select .group .row')).paddingLeft));
+const rowPadding = page => page.evaluate(() => parseFloat(getComputedStyle(document.querySelector('.select .row')).paddingLeft));
 // How far Level `n`'s focus ring (2px, 4px out) is past the top and the
 // foot of what the list shows (at most 0 where it shows whole).
 const ringInside = (page, n) => page.evaluate(n => {
@@ -391,19 +384,14 @@ const nearPadding = async (page, pad, at, grid = false) => {
     note(`${at}: padding ${side}`, pad[side]);
     expect.soft(Math.abs(pad[side] - want[side]), `${at}: the padding ${side === 'top' ? 'above' : 'below'} (${pad[side]}, want ${want[side]})`).toBeLessThanOrEqual(1 / dpr + 0.01);
   }
-  if (pad.height - pad.rows >= 22 + DAILY) expect.soft(pad.top + pad.bottom + pad.rows, `${at}: rows and padding within the list`).toBeLessThanOrEqual(pad.height + 0.01);
+  if (pad.height - pad.rows >= 22) expect.soft(pad.top + pad.bottom + pad.rows, `${at}: rows and padding within the list`).toBeLessThanOrEqual(pad.height + 0.01);
 };
-// The daily challenge's tile (the daily mockup, 2026-11-14) sits in the
-// top padding: 40px and 16px at the least, each with the tile's 80px and
-// the 32px group gap more.
-const DAILY = 112;
 const wantPadding = (rows, height, grid) => {
-  const [T, TL, B, BL] = [40 + DAILY, 16 + DAILY, 32, 6];
   const spare = height - rows;
-  if (spare >= T + B) return { top: T, bottom: B };
-  if (spare < TL + BL) return { top: grid ? TL : T, bottom: B };
-  let bottom = Math.max(BL, B - (T + B - spare) / 2), top = spare - bottom;
-  if (top < TL) [top, bottom] = [TL, spare - TL];
+  if (spare >= 72) return { top: 40, bottom: 32 };
+  if (spare < 22) return { top: grid ? 16 : 40, bottom: 32 };
+  let bottom = Math.max(6, 32 - (72 - spare) / 2), top = spare - bottom;
+  if (top < 16) [top, bottom] = [16, spare - 16];
   return { top, bottom };
 };
 
@@ -418,7 +406,7 @@ const TWO_BY_TWO = [['Addition', 'Multiplication'], ['Subtraction', 'Division']]
 // --tile wide, whole device pixels, from 288px to 320px, 24px apart, their
 // headings on one line and row N of each at the same height; the bands
 // 32px apart; the grid centred in the list, its left edge on a whole device
-// pixel, never closer to the sides than the header's title, "Levels", is,
+// pixel, never closer to the sides than the page's side (the gutter) is,
 // and under 320px tiles, as close as the rounding lets it be.
 async function expectGrid(page, at) {
   const g = await page.evaluate(() => {
@@ -427,7 +415,7 @@ async function expectGrid(page, at) {
     const r = el => { const b = el.getBoundingClientRect(); return { left: b.left, right: b.right, top: b.top, bottom: b.bottom }; };
     return {
       dpr: devicePixelRatio, left: box.left + list.clientLeft, client: list.clientWidth,
-      title: document.querySelector('.crumbs .home').getBoundingClientRect().left - box.left,
+      title: parseFloat(getComputedStyle(list).getPropertyValue('--side-left')) - box.left,
       groups: [...list.querySelectorAll('.group')].map(g => ({ ...r(g), rows: [...g.querySelectorAll('.row')].map(row => r(row).top) })),
     };
   });
@@ -488,24 +476,26 @@ const overflow = page => page.evaluate(() => {
 async function mockupBoxes(context, query = '') {
   const page = await context.newPage();
   try {
-    await page.goto(`/docs/superpowers/specs/2026-11-07-topic-columns-mockup.html${query}`);
-    await page.waitForFunction(() => !document.documentElement.classList.contains('loading'));
+    // Four topics: the home mockup's Levels (2026-11-17), the look of
+    // record since Levels moved under Home; six, the topic-columns mockup's.
+    if (query) {
+      await page.goto(`/docs/superpowers/specs/2026-11-07-topic-columns-mockup.html${query}`);
+      await page.waitForFunction(() => !document.documentElement.classList.contains('loading'));
+    } else {
+      await page.goto('/docs/superpowers/specs/2026-11-17-home-mockup.html?state=levels');
+      await page.waitForFunction(() => !document.documentElement.classList.contains('loading') && document.body.classList.contains('under-home'));
+      await page.waitForTimeout(400);
+    }
     await settle(page);
     return await boxes(page);
   } finally {
     await page.close();
   }
 }
-// From the first heading down: the topic-columns mockup has no daily
-// challenge's tile above them (the padding is checked on its own).
-const boxes = page => page.evaluate(() => {
-  const all = [...document.querySelectorAll('.select .group-name, .select .group .row')];
-  const top = all[0].getBoundingClientRect().top;
-  return all.map(el => {
-    const b = el.getBoundingClientRect();
-    return `${el.classList[0]} ${b.left} ${b.top - top} ${b.width} ${b.height}`;
-  });
-});
+const boxes = page => page.evaluate(() => [...document.querySelectorAll('.select .group-name, .select .row')].filter(el => el.getClientRects().length).map(el => {
+  const b = el.getBoundingClientRect();
+  return `${el.classList[0]} ${b.left} ${b.top} ${b.width} ${b.height}`;
+}));
 
 // At each window: the topics in columns where two tiles of 288px fit inside
 // the title's inset on both sides, as the mockup lays them out, row for row;
@@ -520,13 +510,11 @@ const WINDOWS = [
   [1440, 900, 1, FOUR, false],
   [1920, 950, 1, FOUR, false],
   [1920, 1080, 1, FOUR, false],
-  [1366, 400, 1, FOUR, true],                           // the daily challenge's tile leaves the rows no room: the grid scrolls
-  [1366, 512, 1, FOUR, false],                          // 1366×400 with the tile's 112px more: the padding gives way
+  [1366, 400, 1, FOUR, false],
   [1240, 610, 1, TWO_BY_TWO, false],                     // three fit across: two bands of two, not three and one
   [1024, 620, 1, TWO_BY_TWO, false],
   [800, 890, 1, TWO_BY_TWO, false],
-  [640, 900, 1, ONE, true],                            // the one column scrolls, as at 1366×400
-  [640, 1012, 1, ONE, false],
+  [640, 900, 1, ONE, false],
   [1920, 330, 1, FOUR, true],
   [375, 812, 2, ONE, true],
   [320, 640, 2, ONE, true],
@@ -534,6 +522,7 @@ const WINDOWS = [
 ];
 test('the topics go into columns, as the mockup has them, at each window', async ({ browser, baseURL }, info) => {
   test.skip(info.project.name !== 'desktop', 'each window is a context at its own pixel ratio; the phone\'s ratio is forced by a launch flag');
+  test.slow();                                          // each window opens the game from Home, and the mockup
   for (const [width, height, dpr, want, scrolling] of WINDOWS) {
     const at = `${width}×${height}@${dpr}`;
     const context = await browser.newContext({ viewport: { width, height }, deviceScaleFactor: dpr, baseURL });
@@ -587,11 +576,11 @@ test('past 320px tiles the margins grow smoothly with the width, never jumping',
     await resize(page, width, 760);
     const { left, tile, title } = await page.evaluate(() => {
       const g = document.querySelector('.select .group').getBoundingClientRect();
-      return { left: g.left, tile: g.width, title: document.querySelector('.crumbs .home').getBoundingClientRect().left };
+      return { left: g.left, tile: g.width, title: parseFloat(getComputedStyle(document.querySelector('.select')).getPropertyValue('--side-left')) };
     });
     expect(tile, `${width}px: the tile`).toBeLessThanOrEqual(320);
     expect(left, `${width}px: no nearer the side than the title`).toBeGreaterThanOrEqual(title - 0.01);
-    if (tile < 320) expect(left - title, `${width}px: at the title's inset`).toBeLessThan(4 / dpr / 2 + 1 / dpr);
+    if (tile < 320) expect(left - title, `${width}px: at the title's inset`).toBeLessThanOrEqual(4 / dpr / 2 + 1 / dpr + 0.01);
     if (last) {
       expect(Math.abs(left - last.left), `${width}px: the margin never jumps`).toBeLessThanOrEqual(3 / 2 + 4 / dpr / 2 + 1 / dpr);
       expect(tile - last.tile, `${width}px: the tile never shrinks`).toBeGreaterThanOrEqual(-0.01);
@@ -704,14 +693,8 @@ for (const [topics, extra] of [['6', FAKE], ['6tall', [...FAKE, ...TALL]]]) test
       await settle(page);
       expect.soft((await columns(page)).map(c => c.topics), `${at}: the columns`).toEqual(SIX);
       await expectGrid(page, at);
-      // Two bands, below the daily challenge's tile, are too tall for 657px
-      // and 610px, and three-row topics for 730px too: there the grid scrolls,
-      // as the design falls back (gridFor: no more columns fit across, so no
-      // shorter grid), from the least top padding, with the theme's
-      // scrollbar, the tile whole at the top.
-      const scrolling = height < (topics === '6tall' ? 800 : 700);
-      expect.soft(await overflow(page), `${at}: nothing else scrolls`).toEqual(scrolling ? ['the list scrolls down'] : []);
-      if (scrolling) await expectFallback(page, at, true);
+      // Three-row topics in both bands are too tall for 657px or 610px: there the grid scrolls.
+      expect.soft(await overflow(page), `${at}: nothing else scrolls`).toEqual(topics === '6tall' && height < 700 ? ['the list scrolls down'] : []);
       expect.soft(await boxes(page), `${at}: the mockup's rows and headings`).toEqual(await mockupBoxes(context, `?topics=${topics}`));
     } finally {
       await context.close();
@@ -769,26 +752,24 @@ test('where only the padding would overflow, top and bottom give way alike, and 
     const left = pad.height - pad.rows - pad.top - pad.bottom;
     expect(left, `${at}: the padding is what the rows leave, to a device pixel or two`).toBeGreaterThanOrEqual(-0.01);
     expect(left, `${at}: the padding is what the rows leave, to a device pixel or two`).toBeLessThan(2 / dpr + 0.01);
-    expect(Math.abs((40 + DAILY - pad.top) - (32 - pad.bottom)), `${at}: the top gives way as far as the bottom`).toBeLessThanOrEqual(1 / dpr + 0.01);
-    expect(pad.top, `${at}: the top less than whole`).toBeLessThan(40 + DAILY);
+    expect(Math.abs((40 - pad.top) - (32 - pad.bottom)), `${at}: the top gives way as far as the bottom`).toBeLessThanOrEqual(1 / dpr + 0.01);
+    expect(pad.top, `${at}: the top less than whole`).toBeLessThan(40);
   };
-  // Each window has the daily challenge's tile's 112px (it is in the top
-  // padding) more than before it.
-  // 640×1012: one column, 782px of rows in 960px.
-  await resize(page, 640, 1012);
-  expect((await columns(page)).map(c => c.topics), '640×1012: one column').toEqual(ONE);
+  // 640×900: one column, 782px of rows in 848px.
+  await resize(page, 640, 900);
+  expect((await columns(page)).map(c => c.topics), '640×900: one column').toEqual(ONE);
   let pad = await listPadding(page);
-  expect(await scrolls(page), '640×1012: the list doesn\'t scroll').toBe(false);
-  alike(pad, '640×1012');
-  // 1366×512: four columns, 286.5px of rows in 464px.
-  await resize(page, 1366, 512);
-  expect((await columns(page)).map(c => c.topics), '1366×512: four columns').toEqual(FOUR);
+  expect(await scrolls(page), '640×900: the list doesn\'t scroll').toBe(false);
+  alike(pad, '640×900');
+  // 1366×400: four columns, 286.5px of rows in 352px.
+  await resize(page, 1366, 400);
+  expect((await columns(page)).map(c => c.topics), '1366×400: four columns').toEqual(FOUR);
   pad = await listPadding(page);
-  expect(await scrolls(page), '1366×512: the list doesn\'t scroll').toBe(false);
-  alike(pad, '1366×512');
+  expect(await scrolls(page), '1366×400: the list doesn\'t scroll').toBe(false);
+  alike(pad, '1366×400');
   // The foot of the tallest column, Level 7, focused: its ring shows whole
-  // (the header link, the daily challenge's tile, then 1, 6, 2, 3, 7).
-  for (let i = 0; i < 7; i++) await page.keyboard.press('Tab');
+  // (1, 6, 2, 3, 7).
+  for (let i = 0; i < 5; i++) await page.keyboard.press('Tab');
   await expect(levelRow(page, 7)).toBeFocused();
   const { ring, bottom, scrollTop } = await page.evaluate(() => {
     const list = document.querySelector('.select');
@@ -797,43 +778,42 @@ test('where only the padding would overflow, top and bottom give way alike, and 
   });
   expect(ring, 'Level 7\'s ring above the list\'s foot').toBeLessThanOrEqual(bottom + 0.01);
   expect(scrollTop, 'and nothing scrolled').toBe(0);
-  // 600×969: 782px of rows in 917px. Alike, the top would go below its
-  // least (16px and the tile's 112px): it stops there, and the bottom
-  // gives the rest.
-  await resize(page, 600, 969);
+  // 600×857: 782px of rows in 805px. Alike, the top would go below 16px:
+  // it stops there, and the bottom gives the rest.
+  await resize(page, 600, 857);
   pad = await listPadding(page);
-  expect(await scrolls(page), '600×969: the list doesn\'t scroll').toBe(false);
-  expect(pad.top, '600×969: the top at its least').toBe(16 + DAILY);
-  expect(Math.abs(pad.bottom - (pad.height - 16 - DAILY - pad.rows)), '600×969: the bottom takes the rest').toBeLessThan(1 / dpr + 0.01);
-  expect(pad.bottom, '600×969: no further than its own least').toBeGreaterThanOrEqual(6);
+  expect(await scrolls(page), '600×857: the list doesn\'t scroll').toBe(false);
+  expect(pad.top, '600×857: the top at its least').toBe(16);
+  expect(Math.abs(pad.bottom - (pad.height - 16 - pad.rows)), '600×857: the bottom takes the rest').toBeLessThan(1 / dpr + 0.01);
+  expect(pad.bottom, '600×857: no further than its own least').toBeGreaterThanOrEqual(6);
   // 375×812: 782px of rows in 764px, too many even for the least padding.
   await resize(page, 375, 812);
   pad = await listPadding(page);
   expect(await scrolls(page), '375×812: the list scrolls').toBe(true);
-  expect([pad.top, pad.bottom], '375×812: its padding whole').toEqual([40 + DAILY, 32]);
+  expect([pad.top, pad.bottom], '375×812: its padding whole').toEqual([40, 32]);
   // 1920×330: four columns, 286.5px of rows in 282px: the grid scrolls,
   // from the least top padding, the bottom whole.
   await resize(page, 1920, 330);
   pad = await listPadding(page);
   expect(await scrolls(page), '1920×330: the list scrolls').toBe(true);
-  expect([pad.top, pad.bottom], '1920×330: the top at its least').toEqual([16 + DAILY, 32]);
+  expect([pad.top, pad.bottom], '1920×330: the top at its least').toEqual([16, 32]);
 });
 
 // A home bar (the safe area below) is the bottom's floor: there the bottom
-// gives way no further, and the top gives the rest. At 600×1012 (600×900
-// and the daily challenge's tile's 112px) with a 34px home bar the bottom
-// is 34px whole and at its least, so all of it comes from the top.
+// gives way no further, and the top gives the rest. At 600×900 with a
+// 34px home bar the bottom is 34px whole and at its least, so all of it
+// comes from the top.
 test('with a home bar, the bottom keeps clear of it and the top gives way instead', async ({ page }) => {
   const cdp = await page.context().newCDPSession(page);
   await cdp.send('Emulation.setSafeAreaInsetsOverride', { insets: { top: 0, left: 0, right: 0, bottom: 34 } });
   await home(page);
-  await resize(page, 600, 1012);
+  await resize(page, 600, 900);
   const pad = await listPadding(page);
   expect(pad.bottom, 'the bottom at the home bar').toBe(34);
   expect(await scrolls(page), 'the list doesn\'t scroll').toBe(false);
   const dpr = await page.evaluate(() => devicePixelRatio);
   expect(Math.abs(pad.top - (pad.height - 34 - pad.rows)), 'the top gives the rest').toBeLessThan(1 / dpr + 0.01);
-  expect(pad.top, 'less than its whole 152px (40px and the tile\'s 112px)').toBeLessThan(40 + DAILY);
+  expect(pad.top, 'less than its whole 40px').toBeLessThan(40);
 });
 
 // When the columns change, the focused row is shown: the browser keeps the
@@ -855,7 +835,7 @@ test('back from Level 5 at 1366×657, resized to 375×812 (one column), its row 
 // window goes from one number of columns to another.
 test('a focused row keeps the focus, and shows whole, as the window resizes across column counts', async ({ page }) => {
   await home(page);
-  for (let i = 0; i < 7; i++) await page.keyboard.press('Tab');   // the header link, the tile, 1, 6, 2, 3, 7
+  for (let i = 0; i < 5; i++) await page.keyboard.press('Tab');   // 1, 6, 2, 3, 7
   await expect(levelRow(page, 7)).toBeFocused();
   for (const [width, height, want] of [[1366, 657, FOUR], [1024, 620, TWO_BY_TWO], [375, 812, ONE], [844, 390, TWO_BY_TWO], [1920, 330, FOUR], [1920, 950, FOUR]]) {
     const at = `${width}×${height}`;
@@ -906,10 +886,6 @@ for (const [width, height, want] of [[1366, 657, FOUR], [1024, 620, TWO_BY_TWO]]
   const left = async n => (await levelRow(page, n).boundingBox()).x;
   expect(await left(6), 'Level 6 under Level 1').toBeCloseTo(await left(1), 2);
   expect(await left(2), 'Level 2 in the second column').toBeGreaterThan(found[0].right);
-  await page.keyboard.press('Tab');                       // the header's account link first (accounts spec §4)
-  await expect(page.locator('.top .acct')).toBeFocused();
-  await page.keyboard.press('Tab');                       // then the daily challenge's tile (daily spec §3)
-  await expect(page.locator('.select .daily')).toBeFocused();
   for (const n of SHOWN) {
     await page.keyboard.press('Tab');
     await expect(levelRow(page, n)).toBeFocused();
@@ -1044,91 +1020,17 @@ test('the list starts 40px below the header, headings 14px above their rows, top
 // The one column is the keypad's width less 16px each side, centred, or
 // the window's less 16px each side where that is narrower (topic columns:
 // the grid tests above). The list itself is the window's width.
-// (Each 112px taller than before the daily challenge's tile, so the list
-// doesn't scroll: where it does, see below.)
-for (const [width, height] of [[600, 969], [400, 1012]]) test(`the one column is as wide as the keypad, centred, at ${width}×${height}`, async ({ page }) => {
+for (const [width, height] of [[600, 857], [400, 900]]) test(`the one column is as wide as the keypad, centred, at ${width}×${height}`, async ({ page }) => {
   await home(page);
   await resize(page, width, height);
-  expect(await scrolls(page), 'the list doesn\'t scroll').toBe(false);
   const list = await rect(page, '.select');
   const found = await columns(page);
   expect(found.map(c => c.topics), 'one column').toEqual(ONE);
   expect([list.left, list.width], 'the list spans the window').toEqual([0, width]);
-  const row = await rect(page, '.select .group .row', 0);
+  const row = await rect(page, '.select .row', 0);
   expect(row.width).toBe(Math.min(388, width - 32));
   expect(Math.abs(row.left + row.width / 2 - width / 2)).toBeLessThanOrEqual(0.5);
   expect(row.left).toBe(Math.max(16, (width - 388) / 2));
-});
-
-// Where the daily challenge's tile leaves the rows too little room (the
-// windows whose rows fit before it), the list falls back as the topic
-// columns are designed to: it scrolls, with the theme's scrollbar (8px,
-// where scrollbars take room), at the window's right edge, the rows
-// narrowing beside it; the tile shows whole at the top; a ring reached by
-// Tab shows whole, 6px clear of the list's edge, the tile's and the last
-// row's; and the header link's ink ends where the tiles do.
-async function expectFallback(page, at, grid) {
-  const m = await page.evaluate(() => {
-    const list = document.querySelector('.select');
-    const b = list.getBoundingClientRect(), t = document.querySelector('.select .daily')?.getBoundingClientRect() ?? null;
-    const top = b.top + list.clientTop;
-    return {
-      themed: document.documentElement.classList.contains('scrollbars-take-room'),
-      bar: list.offsetWidth - list.clientWidth, right: b.right, width: innerWidth,
-      scrolls: list.scrollHeight > list.clientHeight, scrollTop: list.scrollTop,
-      tile: t && { above: top - (t.top - 6), below: (t.bottom + 6) - (top + list.clientHeight), right: t.right },
-      rows: Math.max(...[...list.querySelectorAll('.group .row')].map(r => r.getBoundingClientRect().right)),
-      clientRight: b.left + list.clientLeft + list.clientWidth,
-    };
-  });
-  expect.soft(m.scrolls, `${at}: the list scrolls`).toBe(true);
-  if (m.themed) expect.soft(m.bar, `${at}: the theme's 8px scrollbar`).toBe(8);
-  expect.soft(m.right, `${at}: the scroller's right edge is the window's`).toBe(m.width);
-  expect.soft(m.rows, `${at}: the rows clear of the scrollbar`).toBeLessThanOrEqual(m.clientRight + 0.01);
-  expect.soft(m.scrollTop, `${at}: opened at the top`).toBe(0);
-  // (The six-topic test's own selector has no tile, only its room.)
-  if (!m.tile) return;
-  if (grid) expect.soft(Math.abs(m.tile.right - m.rows), `${at}: the tile ends with the grid`).toBeLessThan(0.01);
-  expect.soft(m.tile.above, `${at}: the tile and its ring whole at the top`).toBeLessThanOrEqual(0.01);
-  expect.soft(m.tile.below, `${at}: the tile whole above the list's foot`).toBeLessThanOrEqual(0.01);
-}
-
-test('where the tile leaves the rows no room, the list scrolls as the design falls back', async ({ page }, info) => {
-  test.skip(info.project.name !== 'desktop', 'the phone project hides scrollbars');
-  for (const [width, height, want] of [[1366, 400, FOUR], [640, 900, ONE], [600, 905, ONE], [600, 857, ONE], [400, 900, ONE]]) {
-    const at = `${width}×${height}`;
-    await home(page);
-    await resize(page, width, height);
-    expect((await columns(page)).map(c => c.topics), `${at}: the columns`).toEqual(want);
-    expect(await overflow(page), `${at}: nothing else scrolls`).toEqual(['the list scrolls down']);
-    await expectFallback(page, at, want !== ONE);
-    // The rings: the tile's, then the last row's, reached by Tab.
-    await page.keyboard.press('Tab');                     // the header link
-    await page.keyboard.press('Tab');
-    await expect(page.locator('.select .daily'), `${at}: the tile`).toBeFocused();
-    const ring = sel => page.evaluate(sel => {
-      const list = document.querySelector('.select');
-      const top = list.getBoundingClientRect().top + list.clientTop, r = document.querySelector(sel).getBoundingClientRect();
-      return { above: top - (r.top - 6), below: (r.bottom + 6) - (top + list.clientHeight) };
-    }, sel);
-    let r = await ring('.select .daily');
-    expect(r.above, `${at}: the tile's ring below the list's top`).toBeLessThanOrEqual(0.01);
-    expect(r.below, `${at}: the tile's ring above the list's foot`).toBeLessThanOrEqual(0.01);
-    for (let i = 0; i < SHOWN.length; i++) await page.keyboard.press('Tab');
-    await expect(levelRow(page, SHOWN.at(-1)), `${at}: the last row`).toBeFocused();
-    r = await ring(`.select .row[data-level="${SHOWN.at(-1)}"]`);
-    expect(r.above, `${at}: the last row's ring below the list's top`).toBeLessThanOrEqual(0.01);
-    expect(r.below, `${at}: the last row's ring above the list's foot`).toBeLessThanOrEqual(0.01);
-    // The header link's ink ends where the tiles do, beside the scrollbar.
-    await page.keyboard.press('Escape');
-    await page.locator('.top .acct').evaluate(a => a.blur());
-    await page.addStyleTag({ content: 'body{background:#12407e!important}' });
-    await settle(page);
-    const box = await rect(page, '.top .acct');
-    const tiles = await page.evaluate(() => Math.max(...[...document.querySelectorAll('.select .row')].map(r => r.getBoundingClientRect().right)));
-    const found = ink(await capture(page), { left: box.left - 20, right: width, top: box.top, bottom: box.bottom }, MUTED);
-    expect(Math.abs(found.right - tiles), `${at}: the header link's ink ends at ${found.right}, the tiles at ${tiles}`).toBeLessThanOrEqual(0.6);
-  }
 });
 
 // Where the one column scrolls, the list's scrollbar is at the window's
@@ -1146,7 +1048,7 @@ test('where the one column scrolls, the scrollbar is at the window\'s right edge
     expect((await columns(page)).map(c => c.topics), `${at}: one column`).toEqual(ONE);
     const got = await page.evaluate(() => {
       const list = document.querySelector('.select');
-      const b = list.getBoundingClientRect(), r = list.querySelector('.group .row').getBoundingClientRect();
+      const b = list.getBoundingClientRect(), r = list.querySelector('.row').getBoundingClientRect();
       return { right: b.right, bar: list.offsetWidth - list.clientWidth, scrolls: list.scrollHeight > list.clientHeight, row: [r.left, r.width] };
     });
     expect(got.scrolls, `${at}: the list scrolls`).toBe(true);
@@ -1164,7 +1066,7 @@ const keptBefore = (page, records) => page.addInitScript(r => localStorage.setIt
 const earlier = (level, totalMs) => ({
   id: `earlier-${level}-${totalMs}`, level, finishedAt: '2026-11-01T09:30:00.000Z', totalMs, misses: 0, problems: [{ a: 1, b: 2, ms: totalMs, misses: 0 }],
 });
-const rows = page => page.locator('.select .group .row').count();
+const rows = page => page.locator('.select .row').count();
 
 // Each placed text starts on a whole device pixel, so its ink is within
 // half of one of its edge, as the breadcrumb's is. Two such texts can be a
@@ -1184,11 +1086,11 @@ const apart = async page => 1 / await page.evaluate(() => devicePixelRatio) + 0.
 // text block in its 10px gap: muted ink counts as ink against the brighter
 // colour, and white as ink against the green.
 async function rowInk(page, shot, i) {
-  const row = await rect(page, '.select .group .row', i);
-  const title = await rect(page, '.select .group .title', i);
-  const name = await rect(page, '.select .group .name', i);
+  const row = await rect(page, '.select .row', i);
+  const title = await rect(page, '.select .title', i);
+  const name = await rect(page, '.select .name', i);
   const parts = await page.evaluate(i => {
-    const row = document.querySelectorAll('.select .group .row')[i];
+    const row = document.querySelectorAll('.select .row')[i];
     const box = el => {
       if (!el.getClientRects().length) return null;          // hidden
       const r = el.getBoundingClientRect();
@@ -1249,7 +1151,7 @@ for (const size of [null, [320, 640], [1366, 657]]) test.describe(size ? `ink al
   test('row text starts on its ink at the left padding edge, headings at the column\'s', async ({ page }) => {
     const [near, pad] = [await onEdge(page), await rowPadding(page)];
     for (let i = 0; i < await rows(page); i++) {
-      const p = await rowInk(page, await shotWith(page, '.select .group .row', i), i);
+      const p = await rowInk(page, await shotWith(page, '.select .row', i), i);
       note(`row ${i + 1} title from the padding edge`, p.title.left - (p.row.left + pad));
       expect(Math.abs(p.title.left - (p.row.left + pad)), `row ${i + 1} title`).toBeLessThanOrEqual(near);
       expect(Math.abs(p.name.left - (p.row.left + pad)), `row ${i + 1} name`).toBeLessThanOrEqual(near);
@@ -1271,7 +1173,7 @@ for (const size of [null, [320, 640], [1366, 657]]) test.describe(size ? `ink al
     const [near, together, pad] = [await onEdge(page), await apart(page), await rowPadding(page)];
     const rights = new Map();                             // a column's left edge → its samples' right ink
     for (let i = 0; i < await rows(page); i++) {
-      const p = await rowInk(page, await shotWith(page, '.select .group .row', i), i);
+      const p = await rowInk(page, await shotWith(page, '.select .row', i), i);
       note(`row ${i + 1} sample from the padding edge`, p.sample.right - (p.row.right - pad));
       expect(Math.abs(p.sample.right - (p.row.right - pad)), `row ${i + 1}`).toBeLessThanOrEqual(near);
       const column = Math.round(p.row.left);
@@ -1286,7 +1188,7 @@ for (const size of [null, [320, 640], [1366, 657]]) test.describe(size ? `ink al
   test('the two inner margins match', async ({ page }) => {
     const together = await apart(page);
     for (let i = 0; i < await rows(page); i++) {
-      const p = await rowInk(page, await shotWith(page, '.select .group .row', i), i);
+      const p = await rowInk(page, await shotWith(page, '.select .row', i), i);
       const left = p.title.left - p.row.left, right = p.row.right - p.sample.right;
       note(`row ${i + 1} margins, right less left`, right - left);
       expect(Math.abs(right - left), `row ${i + 1}: left ${left.toFixed(3)}, right ${right.toFixed(3)}`).toBeLessThanOrEqual(together);
@@ -1295,7 +1197,7 @@ for (const size of [null, [320, 640], [1366, 657]]) test.describe(size ? `ink al
 
   test('each sample\'s operator is centred on its digits\' ink', async ({ page }) => {
     for (let i = 0; i < await rows(page); i++) {
-      const p = await rowInk(page, await shotWith(page, '.select .group .row', i), i);
+      const p = await rowInk(page, await shotWith(page, '.select .row', i), i);
       const off = (p.op.top + p.op.bottom) / 2 - (p.digits.top + p.digits.bottom) / 2;
       note(`row ${i + 1} operator`, off);
       expect(Math.abs(off), `row ${i + 1}`).toBeLessThanOrEqual(TOL);
@@ -1306,7 +1208,7 @@ for (const size of [null, [320, 640], [1366, 657]]) test.describe(size ? `ink al
   // baseline (the review's measure: descenders hang outside it).
   test('the sample and the text block are each centred in their row', async ({ page }) => {
     for (let i = 0; i < await rows(page); i++) {
-      const p = await rowInk(page, await shotWith(page, '.select .group .row', i), i);
+      const p = await rowInk(page, await shotWith(page, '.select .row', i), i);
       const mid = p.row.top + p.row.height / 2;
       const sample = (p.digits.top + p.digits.bottom) / 2 - mid;
       const text = (p.cap.top + p.base.bottom) / 2 - mid;
@@ -1432,9 +1334,9 @@ test('below 360px the samples are 24px, below 340px 22px, and every row\'s name 
   // Row by row, each scrolled into view: the rows run past the fold.
   async function gaps(width) {
     for (let i = 0; i < n; i++) {
-      await shotWith(page, '.select .group .row', i);
-      const row = await rect(page, '.select .group .row', i);
-      const [title, name] = [await rect(page, '.select .group .title', i), await rect(page, '.select .group .name', i)];
+      await shotWith(page, '.select .row', i);
+      const row = await rect(page, '.select .row', i);
+      const [title, name] = [await rect(page, '.select .title', i), await rect(page, '.select .name', i)];
       // Clear of the key ring; the name's half below the text block's gap.
       const whole = { left: row.left + 8, right: row.right - 8, top: row.top + 4, bottom: row.bottom - 4 };
       const lower = { left: row.left + 8, right: row.right - 8, top: (title.bottom + name.top) / 2, bottom: row.bottom - 4 };
@@ -1444,7 +1346,7 @@ test('below 360px the samples are 24px, below 340px 22px, and every row\'s name 
       const samples = await hide('.select .sample');
       const nameInk = ink(await capture(page), lower, MUTED);
       await samples.evaluate(tag => tag.remove());
-      const level = await page.locator('.select .group .row').nth(i).getAttribute('data-level');
+      const level = await page.locator('.select .row').nth(i).getAttribute('data-level');
       note(`${width}px, Level ${level} name → sample`, sample.left - nameInk.right);
       expect(sample.left - nameInk.right, `${width}px, Level ${level}: name → sample`).toBeGreaterThanOrEqual(15);
     }
@@ -1492,7 +1394,7 @@ for (const size of [null, [1366, 657]]) test.describe(size ? `ink alignment, fin
   test('a finished row\'s check and time end on their ink at the right padding edge, and its margins match', async ({ page }) => {
     const [near, together, pad] = [await onEdge(page), await apart(page), await rowPadding(page)];
     for (let i = 0; i < await rows(page); i++) {
-      const p = await rowInk(page, await shotWith(page, '.select .group .row', i), i);
+      const p = await rowInk(page, await shotWith(page, '.select .row', i), i);
       const edge = p.row.right - pad;
       note(`row ${i + 1} check from the padding edge`, p.tick.right - edge);
       note(`row ${i + 1} time from the padding edge`, p.best.right - edge);
@@ -1509,7 +1411,7 @@ for (const size of [null, [1366, 657]]) test.describe(size ? `ink alignment, fin
 test('rows in a group are 12px apart, and a focused row\'s ring stays 6px clear of the next', async ({ page }) => {
   await home(page);
   await freeze(page);
-  for (let i = 0; i < 5; i++) await page.keyboard.press('Tab');   // the header link, the tile, 1, 6, then 2
+  for (let i = 0; i < 3; i++) await page.keyboard.press('Tab');   // 1, 6, then 2
   await expect(levelRow(page, 2)).toBeFocused();
   const [upper, lower] = [await rect(page, '.select .row[data-level="2"]'), await rect(page, '.select .row[data-level="3"]')];
   note('row to row', lower.top - upper.bottom);

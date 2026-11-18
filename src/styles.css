@@ -100,9 +100,9 @@ body {
   white-space: nowrap;
 }
 .crumbs .here, .crumbs .home { color: var(--ink); font-weight: 600; }
-/* On the level selector the breadcrumb is "Levels" alone. */
-.crumbs .home, body.at-select .crumbs > :not(.home) { display: none; }
-body.at-select .crumbs .home { display: block; }
+/* Levels, the level selector, is under Home: "Home › Levels" (the home
+   screen spec §1). The lone "Levels" it once had is kept, unseen. */
+.crumbs .home { display: none; }
 .crumbs .sep, .crumbs .chevron { width: 12px; height: 12px; flex: none; }
 .crumbs .sep path, .crumbs .chevron path { fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
 /* The way back (Level 2 spec §4): "Levels", a link to the level selector,
@@ -669,51 +669,7 @@ body.at-finish .finish { display: block; }
   }
 }
 
-/* ---------- Accounts (2026-11-09-accounts-design.md §2–§4, the accounts mockup) ---------- */
-/* ---------- The header's account link (spec §4) ---------- */
-/* At the right of the header, on the selector only, in the crumbs' type
-   and line, so it is on the title's baseline: muted, with the way back's
-   faint underline 4px below the baseline, from its first ink to its last.
-   The script moves it so its ink ends at the header's edge, as the
-   hearts' does. Its hit area runs from the top of the screen to the
-   header's foot and from 8px before the word to the window's edge. */
-.acct { display: none; }
-body.at-select .acct {
-  display: block;
-  position: relative;
-  left: var(--ink-dx, 0px);
-  flex: none;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  background: none;
-  font: 400 14px/var(--crumb-line) var(--font);
-  letter-spacing: 0.04em;
-  color: var(--muted);
-  white-space: nowrap;
-  cursor: pointer;
-  touch-action: manipulation;
-}
-.acct::before {
-  content: "";
-  position: absolute;
-  left: var(--ul-left, 0px);
-  right: var(--ul-right, 0px);
-  top: var(--ul-top, 19px);
-  height: 1px;
-  background: var(--faint);
-}
-.acct::after {
-  content: "";
-  position: absolute;
-  top: calc(-1 * var(--top-safe));
-  bottom: calc(-1 * var(--top-foot));
-  left: -8px;
-  right: calc(var(--ink-dx, 0px) - max(var(--gutter), env(safe-area-inset-right)));
-}
-@media (hover: hover) { .acct:hover::before { background: currentColor; } }
-.acct:focus-visible { outline: 2px solid var(--ink); outline-offset: 4px; }
-
+/* ---------- Accounts (2026-11-09-accounts-design.md §2–§3, the accounts mockup) ---------- */
 /* ---------- A locked row (spec §2) ---------- */
 /* The lock in place of the sample (or the check and time):
    a little taller than the sample's digits (0.8em, to an even pixel so it is
@@ -730,44 +686,49 @@ body.at-select .acct {
 @media (max-width: 359.98px) { .select .lock { height: 20px; } }
 @media (max-width: 339.98px) { .select .lock { height: 18px; } }
 
-/* ---------- The log-in screen (spec §3) ---------- */
-/* The finish screen's column: as wide as the keypad, its first ink 40px
-   below the header. No keypad and no hearts here: the phone's own
-   keyboard types (spec §3). It never scrolls at any size we check; on a
-   window shorter still it scrolls rather than cut a field off. */
+/* ---------- The log-in screen (spec §3; the home screen spec §4) ---------- */
+/* A page under Home, as Settings is (the UI review): on Home's column and
+   at its scale (--u, --cw: the home screen's rules below), the breadcrumb
+   on the column's edge, a large "Log in" or "Sign up" title, and the
+   fields, the button and the other link one above another, at every size.
+   No keypad and no hearts here: the phone's own keyboard types (spec §3).
+   It never scrolls at any size we check; on a window shorter still it
+   scrolls rather than cut a field off. A field's text is 16px or more, so
+   a phone never zooms in. */
 body.at-login .stage, body.at-login .run, body.at-login .pad, body.at-login .lives, body.at-login .select { display: none; }
 .login { display: none; }
 body.at-login .login {
-  display: block;
-  width: 100%;
-  max-width: 420px;
+  grid-area: 2 / 1 / 3 / -1;
+  display: grid;
+  justify-content: center;
+  align-content: start;
   min-height: 0;
-  justify-self: center;
   overflow-y: auto;
-  padding: 40px 16px max(32px, env(safe-area-inset-bottom));
+  overflow-x: hidden;
+  padding: calc(28 * var(--u)) max(16px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
 }
-.login .fields { display: flex; flex-direction: column; gap: 20px; }
+.login > * { width: var(--cw); }
+.login .fields { display: flex; flex-direction: column; gap: calc(20 * var(--u)); }
 .login [hidden] { display: none !important; }
-.login .labels { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 10px; }
+.login .labels { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: calc(10 * var(--u)); }
 .login label, .login .hint, .login .error, .login .switch { display: block; text-box: trim-both cap alphabetic; letter-spacing: 0.02em; }
-.login label { font-size: 13px; font-weight: 500; color: var(--ink); white-space: nowrap; }
-.login .hint { font-size: 13px; color: var(--muted); white-space: nowrap; }
+.login label { font-size: calc(14 * var(--u)); font-weight: 500; color: var(--ink); white-space: nowrap; }
+.login .hint { font-size: calc(14 * var(--u)); color: var(--muted); white-space: nowrap; }
 /* A field: the keypad's ring round the blueprint's ground (the grid would
-   run through the letters), the equation's weight, the amber caret, and
-   16px or more so a phone never zooms in. */
+   run through the letters), the equation's weight, the amber caret. */
 .login input {
   display: block;
   width: 100%;
-  height: 48px;
+  height: calc(52 * var(--u));
   margin: 0;
-  padding: 0 16px;
+  padding: 0 calc(16 * var(--u));
   border: 0;
   border-radius: 0;
   background: var(--bg);
   box-shadow: var(--key-ring);
   color: var(--ink);
   caret-color: var(--amber);
-  font: 500 17px/1 var(--font);
+  font: 500 max(16px, calc(18 * var(--u)))/1 var(--font);
   letter-spacing: 0.02em;
   user-select: text;
   -webkit-user-select: text;
@@ -785,20 +746,20 @@ body.at-login .login {
   box-shadow: var(--field-ring), inset 0 0 0 100px var(--bg);
   transition: background-color 9999s;
 }
-/* The button: the finish screen's "Again", filled, as the one Enter presses. */
+/* The button: Settings' Log in, filled, as the one Enter presses. */
 .login .submit {
   display: flex;
   align-items: center;
   justify-content: center;
   width: 100%;
-  height: 56px;
-  margin-top: 28px;
+  height: calc(60 * var(--u));
+  margin-top: calc(28 * var(--u));
   padding: 0;
   border: 0;
   border-radius: 0;
   background: var(--ink);
   color: var(--bg);
-  font: 600 17px/1 var(--font);
+  font: 600 calc(18 * var(--u))/1 var(--font);
   letter-spacing: 0.02em;
   cursor: pointer;
   touch-action: manipulation;
@@ -807,9 +768,9 @@ body.at-login .login {
 .login .submit:active { background: var(--go-press); }
 .login .submit:focus-visible { outline: 2px solid var(--ink); outline-offset: 4px; }
 /* The error, in words, under the button: the strike's warm red (4.6:1). */
-.login .error { margin: 16px 0 0; font-size: 14px; line-height: 1.5; color: var(--redline); text-wrap: pretty; }
+.login .error { margin: calc(16 * var(--u)) 0 0; font-size: calc(14 * var(--u)); line-height: 1.5; color: var(--redline); text-wrap: pretty; }
 .login .error:empty { display: none; }
-.login .switch { margin: 24px 0 0; font-size: 14px; color: var(--muted); white-space: nowrap; }
+.login .switch { margin: calc(24 * var(--u)) 0 0; font-size: calc(14 * var(--u)); color: var(--muted); white-space: nowrap; }
 /* "Sign up" / "Log in": a link in the text's line, the way back's
    underline, a 44px tap target round it. */
 .login .swap {
@@ -818,7 +779,7 @@ body.at-login .login {
   padding: 0;
   border: 0;
   background: none;
-  font: 600 14px/1 var(--font);
+  font: 600 calc(14 * var(--u))/1 var(--font);
   letter-spacing: 0.02em;
   color: var(--ink);
   text-decoration: underline;
@@ -832,112 +793,265 @@ body.at-login .login {
 @media (hover: hover) { .login .swap:hover { text-decoration-color: currentColor; } }
 .login .swap:focus-visible { outline: 2px solid var(--ink); outline-offset: 4px; }
 
-/* Held sideways (the game's landscape rule): too short for the fields
-   one above another, so they go in one row of three columns, each up to
-   260px and 32px apart (so a hint is clear of the next label), the same
-   columns in both modes, so switching never moves the form: Log in's two
-   fields take the first two. The button takes the first column, with the
-   error and then the other link under it, at the left, as upright. */
+/* Wide: Home's wide column. */
+@media (min-width: 900px) {
+  body.at-login .login { padding-top: calc(36 * var(--u)); }
+  .login label, .login .hint { font-size: calc(15 * var(--u)); }
+  .login input { height: calc(56 * var(--u)); font-size: calc(19 * var(--u)); }
+  .login .submit { height: calc(64 * var(--u)); font-size: calc(19 * var(--u)); }
+}
+
+/* Held sideways: the same one column, Home's sideways column, tighter,
+   so Sign up's three fields fit too. */
 @media (orientation: landscape) and (max-height: 560px) and (min-aspect-ratio: 3/2) {
-  body.at-login .login { grid-area: stage; max-width: none; padding: 32px max(var(--gutter), env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(var(--gutter), env(safe-area-inset-left)); }
-  .login form { --n: 3; max-width: calc(var(--n) * 260px + (var(--n) - 1) * 32px); margin: 0 auto; }
-  .login .fields { display: grid; grid-template-columns: repeat(var(--n), minmax(0, 1fr)); gap: 32px; }
-  .login .actions { display: grid; grid-template-columns: repeat(var(--n), minmax(0, 1fr)); column-gap: 32px; margin-top: 24px; align-items: center; }
-  .login .submit { margin-top: 0; grid-column: 1; grid-row: 1; }
-  .login .error { grid-column: 1 / -1; grid-row: 2; }
-  .login .switch { grid-column: 1 / -1; grid-row: 3; justify-self: start; }
+  body.at-login .login { padding-top: calc(6 * var(--u)); }
+  .login .s-title { font-size: calc(24 * var(--u)); margin-bottom: calc(24 * var(--u)); }
+  .login .fields { gap: calc(9 * var(--u)); }
+  .login .labels { margin-bottom: calc(6 * var(--u)); }
+  .login label, .login .hint { font-size: calc(13 * var(--u)); }
+  .login input { height: calc(34 * var(--u)); }
+  .login .submit { height: calc(40 * var(--u)); margin-top: calc(12 * var(--u)); font-size: calc(16 * var(--u)); }
+  .login .error { margin-top: calc(8 * var(--u)); line-height: 1.3; }
+  .login .switch { margin-top: calc(12 * var(--u)); font-size: calc(13 * var(--u)); }
+  .login .swap { font-size: calc(13 * var(--u)); }
 }
 
-/* ---------- The daily challenge (2026-11-14-daily-challenge-design.md §3–§4, the daily mockup) ---------- */
-/* The tile at the top of the level selector (dailyview.js places it) and
-   the board after the try. Where the board scrolls: only its rows. The date
-   above them and Practice and Levels below stay put, so the buttons are
-   always in reach however many play; the list opens scrolled to show your
-   row. A list that scrolls has a faint rule at its top and bottom edge (a
-   phone's overlay scrollbar shows only while it moves), and where the
-   system's scrollbar takes room it is the theme's, in the column's right
-   padding, so the rows keep the buttons' width.
-   The tile sits in the list's top padding (the list's top padding is the
-   tile's 80px and the 32px group gap more), so the selector, which fits the
-   topic columns to the room, counts it without knowing it is there. In
-   topic columns it is as wide as the grid; in the one stacked column, as
-   wide as the column. */
+/* ---------- The home screen (2026-11-17-home-screen-design.md, the home mockup) ---------- */
+/* Home, one centred column at every size: the title and the gear, the
+   hero (Daily challenge: the title, the date and Start, the one filled
+   control) and Next lesson and Levels, a title and a line each, centred as
+   one group a little above the middle; the quiet links at the foot.
+   Everything is sized in --u, one design pixel: the smaller of the
+   window's width and height over the layout's design size, so the column
+   fills the window sensibly and never scrolls. Upright, the design is
+   343×812; wide, 460×680; a phone held sideways, 560×390. Progress,
+   Settings and the board are set on Home's column, at its scale, their
+   breadcrumb on the column's edge. */
+html.loading .home, html.loading .progress, html.loading .settings { visibility: hidden; }
+/* ---------- The header ---------- */
+/* Home has no header: the wordmark is the title, the gear at the right
+   of its line. Progress and Settings have the breadcrumb, on the
+   column's edge. */
+body.at-home .top { display: none; }
+body:is(.at-home, .at-settings, .at-progress, .at-daily) .select { display: none; }
+body.at-settings .lives, body.at-progress .lives, body.at-daily .lives,
+body.at-daily .stage, body.at-daily .run, body.at-daily .pad,
+body.at-home .stage, body.at-home .run, body.at-home .pad,
+body.at-settings .stage, body.at-settings .run, body.at-settings .pad,
+body.at-progress .stage, body.at-progress .run, body.at-progress .pad { display: none; }
+/* The sub-pages' breadcrumb, one rule: "Home › X" in full, its first
+   ink on the column's left edge, a little larger in large windows; the
+   way back underlined faintly, 4px under its baseline. */
+body:is(.at-settings, .at-progress, .at-daily, .at-login) { --crumb-line: max(20px, calc(20 * var(--u))); }
+body:is(.at-settings, .at-progress, .at-daily, .at-login) .crumbs { font-size: max(14px, calc(14 * var(--u))); gap: 0.45em; }
+body:is(.at-settings, .at-progress, .at-daily, .at-login) .crumbs .sep { width: max(12px, calc(12 * var(--u))); height: max(12px, calc(12 * var(--u))); }
+/* Its box on the edge, as the title's is below it, not its ink
+   (header.js lines a level's crumbs up on their ink). */
+body:is(.at-settings, .at-progress, .at-daily, .at-login) .crumbs { margin-left: 0 !important; }
+body:is(.at-settings, .at-progress, .at-daily, .at-login) .crumbs .back::before { display: none; }
+body:is(.at-settings, .at-progress, .at-daily, .at-login) .crumbs .back .word { text-decoration: underline; text-decoration-color: var(--faint); text-decoration-thickness: 1px; text-underline-offset: 4px; }
+body:is(.at-settings, .at-progress, .at-daily, .at-login) .top {
+  padding-left: max(16px, env(safe-area-inset-left), (100vw - var(--cw)) / 2);
+  padding-right: max(16px, env(safe-area-inset-right), (100vw - var(--cw)) / 2);
+}
+
+
+/* ---------- The page ---------- */
+.home, .settings, .progress, .dboard { display: none; }
+body.at-home, body.at-settings, body.at-progress, body.at-daily, body.at-login { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); grid-template-areas: none; }
+body.at-settings .top, body.at-progress .top, body.at-daily .top, body.at-login .top { grid-area: 1 / 1 / 2 / -1; }
+body.at-home .home { grid-area: 1 / 1 / 3 / -1; }
+body.at-settings .settings, body.at-progress .progress, body.at-daily .dboard { grid-area: 2 / 1 / 3 / -1; }
+/* One design pixel, --u; the column, --cw; Home's height, --href (the
+   column is that tall in every state, so nothing moves between them). */
+body.at-home, body.at-settings, body.at-progress, body.at-daily, body.at-login {
+  --href: 812; --u: clamp(0.7px, min((100vw - 32px) / 343, 100dvh / var(--href)), 1.3px); --cw: calc(343 * var(--u));
+}
+body.at-home .home, body.at-settings .settings, body.at-progress .progress, body.at-daily .dboard {
+  display: grid; align-content: safe center; justify-content: center; min-height: 0; overflow-y: auto; overflow-x: hidden;
+  padding: 0 max(16px, env(safe-area-inset-right)) env(safe-area-inset-bottom) max(16px, env(safe-area-inset-left));
+}
+body.at-settings .settings, body.at-progress .progress, body.at-daily .dboard { align-content: start; }
+.scrollbars-take-room :is(.home, .settings, .progress, .dboard)::-webkit-scrollbar { width: 8px; }
+.scrollbars-take-room :is(.home, .settings, .progress, .dboard)::-webkit-scrollbar-track { background: transparent; }
+.scrollbars-take-room :is(.home, .settings, .progress, .dboard)::-webkit-scrollbar-button { display: none; width: 0; height: 0; }
+.scrollbars-take-room :is(.home, .settings, .progress, .dboard)::-webkit-scrollbar-thumb { background: var(--faint); border-radius: 0; }
+
+/* ---------- Home ---------- */
+/* The wordmark's line, the hero and the two buttons, one group,
+   centred a little above the middle; the links at the foot. */
+.home .stack {
+  display: grid; grid-template-rows: minmax(0, 1fr) auto; width: var(--cw); height: calc(var(--href) * var(--u));
+  padding: calc(max(20px, env(safe-area-inset-top)) + 6 * var(--u)) 0 calc(max(20px, env(safe-area-inset-bottom)) + 12 * var(--u));
+}
+.home .mid { display: grid; align-content: center; row-gap: calc(14 * var(--u)); padding-bottom: calc(40 * var(--u)); }
+
+/* The wordmark, "Math Time": Plex Mono at its heaviest, set a touch
+   tight. The gear in the way back's muted colour, its tap target 44px
+   at least (below). */
+.home .markrow { display: flex; align-items: center; justify-content: space-between; gap: calc(16 * var(--u)); margin-bottom: calc(30 * var(--u)); }
+.mark, .s-title {
+  margin: 0; font-size: calc(52 * var(--u)); font-weight: 600; line-height: 1; letter-spacing: -0.02em;
+  text-box: trim-both cap alphabetic; white-space: nowrap;
+}
+/* The gear: --gs its ink; padded to a 44px target at least, the padding
+   taken back by the margin so its ink stays on the column's edge. */
+.home .gear {
+  --gs: calc(30 * var(--u)); --gp: max(8px, (46px - var(--gs)) / 2);
+  position: relative; flex: none; box-sizing: content-box; width: var(--gs); height: var(--gs); margin: calc(-1 * var(--gp)); padding: var(--gp);
+  border: 0; background: none; color: var(--muted); cursor: pointer; touch-action: manipulation;
+}
+.home .gear svg { display: block; width: 100%; height: 100%; overflow: visible; }
+.home .gear svg path, .home .gear svg circle { fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+@media (hover: hover) { .home .gear:hover { color: var(--ink); } }
+.home :is(.gear, .hero, .btn, .links a):focus-visible { outline: 2px solid var(--ink); outline-offset: 4px; }
+
+/* The hero: the one box with a 2px ink frame. "Daily challenge" and the
+   date across the top; under them, Start, filled, the frame's width.
+   After the try, in Start's place and at its size, the done line,
+   outlined: the check and "Done", then the time and the place, and the
+   chevron: the hero opens the board. */
+.home .hero {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; row-gap: calc(26 * var(--u)); column-gap: calc(16 * var(--u)); align-items: center;
+  width: 100%; margin: 0; padding: calc(24 * var(--u)) calc(20 * var(--u)) calc(20 * var(--u));
+  border: 0; border-radius: 0; background: transparent; box-shadow: inset 0 0 0 2px var(--ink);
+  font: inherit; color: var(--ink); text-align: left; cursor: pointer; touch-action: manipulation;
+}
+.home .hero:active { background: var(--key-press); }
+.home .h-title, .home .h-date { display: block; text-box: trim-both cap alphabetic; white-space: nowrap; }
+.home .h-title { font-size: calc(20 * var(--u)); font-weight: 600; letter-spacing: 0.01em; }
+.home .h-date { font-size: calc(14 * var(--u)); letter-spacing: 0.02em; color: var(--muted); }
+.home .h-cta {
+  grid-column: 1 / -1; display: flex; align-items: center; justify-content: center; gap: 0.6em; height: calc(60 * var(--u));
+  padding: 0 calc(18 * var(--u)); font-size: calc(19 * var(--u)); font-weight: 600; letter-spacing: 0.02em; white-space: nowrap;
+  background: var(--ink); color: var(--bg);
+}
+.home .hero:active .h-cta { background: var(--go-press); }
+/* Done, in Start's place and at its size, outlined: the button that
+   opens the board. "✓ Done" at the left; the time, the place and the
+   chevron (the tiles', at their size and weight) pinned to the right.
+   One line at every width: room for "10:04.7 · 10th of 12" at 320px. */
+.home .h-cta.done { justify-content: space-between; gap: calc(12 * var(--u)); padding: 0 calc(14 * var(--u)); background: transparent; color: var(--ink); box-shadow: var(--key-ring); font-size: calc(15 * var(--u)); }
+.home .hero:active .h-cta.done { background: transparent; }
+.home .h-cta .ok { display: flex; align-items: center; gap: 0.45em; color: var(--good); }
+.home .h-cta .ok, .home .h-cta .res { flex: none; }
+.home .h-cta .res { display: flex; align-items: center; gap: calc(10 * var(--u)); font-variant-numeric: tabular-nums; }
+.home .h-cta .chev, .home .btn .chev { flex: none; height: calc(18 * var(--u)); color: var(--ink); }
+.home .tick { display: block; height: 0.8em; width: auto; aspect-ratio: 20 / 14.5; overflow: visible; }
+.home .tick path { fill: none; stroke: currentColor; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+.home .chev { display: block; height: 0.8em; width: auto; aspect-ratio: 9.5 / 16.5; overflow: visible; }
+.home .chev path { fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+
+/* Played in another tab: the done line's outline, its words muted. */
+.home .h-cta.busy { background: transparent; color: var(--muted); box-shadow: var(--key-ring); font-size: calc(15 * var(--u)); font-weight: 400; }
+
+/* Next lesson and Levels: the selector's tiles, plain. What it opens
+   leads, in ink at the title's weight ("Division 1", "Levels"), the
+   muted line under it ("Next lesson", "4 of 7 finished"); at the right,
+   centred, the chevron, on Start's right edge, or the lock in its place. */
+.home .btns { display: grid; grid-template-columns: minmax(0, 1fr); gap: calc(12 * var(--u)); }
+.home .btn {
+  display: flex; align-items: center; justify-content: space-between; gap: calc(16 * var(--u));
+  width: 100%; height: calc(76 * var(--u)); margin: 0; padding: 0 calc(20 * var(--u));
+  border: 0; border-radius: 0; background: transparent; box-shadow: var(--key-ring);
+  font: inherit; color: var(--ink); text-align: left; cursor: pointer; touch-action: manipulation; min-width: 0;
+}
+.home .btn:active { background: var(--key-press); }
+.home .b-txt { display: flex; flex-direction: column; gap: calc(11 * var(--u)); min-width: 0; }
+.home .b-title, .home .b-line { display: block; text-box: trim-both cap alphabetic; white-space: nowrap; }
+.home .b-title { font-size: calc(18 * var(--u)); font-weight: 600; letter-spacing: 0.01em; }
+.home .b-line { font-size: calc(14 * var(--u)); letter-spacing: 0.02em; color: var(--muted); }
+.home .lock { display: block; flex: none; height: calc(22 * var(--u)); width: auto; aspect-ratio: 16.7 / 20.7; overflow: visible; color: var(--ink); }
+.home .lock path, .home .lock rect { fill: none; stroke: currentColor; stroke-width: 2.7; stroke-linecap: round; stroke-linejoin: round; }
+
+/* The quiet links: the way back's link, muted, its faint underline. */
+.home .links { display: flex; justify-content: center; gap: calc(40 * var(--u)); }
+.home .links a {
+  position: relative; font-size: calc(16 * var(--u)); letter-spacing: 0.02em; color: var(--muted); text-decoration: underline;
+  text-decoration-color: var(--faint); text-decoration-thickness: 1px; text-underline-offset: 0.3em; white-space: nowrap;
+}
+.home .links a::after { content: ""; position: absolute; inset: -14px -10px; }
+@media (hover: hover) { .home .links a:hover { color: var(--ink); text-decoration-color: currentColor; } }
+
+/* ---------- Progress ---------- */
+/* A large title on Home's column; a row per topic, each a button that
+   opens Levels: the name, a bar of one segment per built level (the run
+   bar's segments, 2px apart: green finished, faint not), "1 of 2" and a
+   chevron; faint rules between. */
+.progress .in, .settings .in, .dboard .in { width: var(--cw); padding: calc(28 * var(--u)) 0 calc(24 * var(--u)); }
+.s-title { margin-bottom: calc(36 * var(--u)); font-size: calc(38 * var(--u)); }
+.progress .rows { display: grid; grid-template-columns: max-content minmax(0, 1fr) max-content max-content; border-top: 1px solid var(--faint); }
+.progress .row {
+  display: grid; grid-column: 1 / -1; grid-template-columns: subgrid; align-items: center; column-gap: calc(16 * var(--u));
+  height: calc(60 * var(--u)); margin: 0; padding: 0; border: 0; border-bottom: 1px solid var(--faint); border-radius: 0;
+  background: transparent; font: inherit; color: var(--ink); text-align: left; cursor: pointer; touch-action: manipulation;
+}
+.progress .row:active { background: var(--key-press); }
+.progress .row:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+.progress .topic, .progress .of { display: block; text-box: trim-both cap alphabetic; white-space: nowrap; }
+.progress .topic { font-size: calc(17 * var(--u)); letter-spacing: 0.02em; }
+.progress .of { justify-self: end; font-size: calc(15 * var(--u)); letter-spacing: 0.02em; color: var(--muted); font-variant-numeric: tabular-nums; }
+.progress .bar { display: flex; gap: 2px; }
+.progress .bar span { flex: 1; height: calc(8 * var(--u)); background: var(--faint); }
+.progress .bar span.done { background: var(--good); }
+.progress .chev { display: block; height: calc(13 * var(--u)); width: auto; aspect-ratio: 9.5 / 16.5; overflow: visible; color: var(--muted); }
+.progress .chev path { fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+
+
+/* ---------- The daily challenge's board (daily spec §4, the home screen spec §3b, the home mockup) ---------- */
+/* The day's board on Home's column, at its scale (below): the large title,
+   the date and how many played, the rows as the full board sets them
+   (place, name, score; an out's score muted; your row the one outline, at
+   the title's weight), and Practice, filled, and Levels. Every row shows
+   where they fit; a long board's list alone scrolls, in its own area, a
+   whole number of rows tall (dailyview.js), with the theme's scrollbar,
+   opening at 1st place, the title and buttons where they are; your row,
+   when it is below the view, pinned at the list's foot after a "⋯".
+   Sideways, the title, the date and the buttons on the left, the list on
+   the right from the top. Your score above the rows where you aren't on
+   them (signed out, or offline), with a note or the log-in link. */
 html.loading .dboard { visibility: hidden; }
-/* ---------- The tile (spec §3) ---------- */
-/* A level row's tile (.row: 80px, the keypad's ring), full width, above
-   the topic columns, 32px (the group gap) above the first headings. */
-.select { --daily-room: calc(80px + var(--group-gap)); --select-top: calc(40px + var(--daily-room)); --select-top-least: calc(16px + var(--daily-room)); }
-.select .row.daily { margin: calc(-1 * var(--daily-room)) 0 var(--group-gap); }
-.select.cols .row.daily { width: var(--daily-w, 100%); margin-left: var(--daily-x, 0px); }
-/* Before the try: the problem kinds, set as the samples are, in place of a
-   sample. After, as a finished level row (the UI review): its result
-   column, the check on the title's line and the score under it on the
-   name's, where a row's best time is (dailyview.js ends its ink on the
-   padding edge). Out, the check is a heart lost, drawn as the play
-   screen's header draws one, at its size (its 18px, from the cap's top,
-   hanging 6px below it, so the score stays on the name's line), in the
-   muted colour, a step brighter than the header's. */
-.select .daily .kinds { position: relative; left: var(--ink-dx, 0px); top: var(--ink-dy, 0px); }
-.select .daily .kinds > span { color: var(--ink); }
-.select .daily .result .heart { display: block; height: 18px; width: auto; aspect-ratio: 20 / 18; overflow: visible; margin-bottom: -6px; }
-.select .daily .result .heart path { fill: none; stroke: var(--muted); stroke-width: 2; stroke-dasharray: 2.5 2; stroke-linejoin: round; }
-
-/* ---------- The board (spec §4) ---------- */
-/* The finish screen's column: as wide as the keypad, its first ink 40px
-   below the header; the hearts keep their room, unseen, as there. */
 .dboard { display: none; }
-body.at-daily .stage, body.at-daily .run, body.at-daily .pad, body.at-daily .select { display: none; }
-body.at-daily .lives { visibility: hidden; }
-/* The result over the board after a try or a practice, as the finish
-   screen's lines (daily.js resultParts): the title, the big time, the
-   muted place; 40px above the date, as the finish screen's buttons are
-   below its lines. */
-.dboard .outcome { flex: none; padding-bottom: 40px; }
-.dboard .outcome[hidden], .dboard .outcome .line[hidden] { display: none; }
-.dboard .o-title { font-size: 17px; font-weight: 600; letter-spacing: 0.02em; }
-.dboard .o-time { font-size: 64px; font-weight: 500; }
-.dboard .outcome .o-title:not([hidden]) + .o-time { margin: 28px auto 0; }
-/* Out, how it went out, at the finish screen's "New best" weight, in ink. */
-.dboard .outcome .o-detail { margin: 28px auto 0; font-size: 15px; font-weight: 600; letter-spacing: 0.02em; color: var(--ink); }
-.dboard .outcome .o-detail:not([hidden]) + .o-place { margin-top: 12px; }
-.dboard .outcome .o-place { margin: 24px auto 0; font-size: 15px; font-weight: 600; letter-spacing: 0.02em; color: var(--muted); }
-body.at-daily .dboard {
-  display: flex;
-  flex-direction: column;
-  width: 100%;
-  max-width: 420px;
-  min-height: 0;
-  justify-self: center;
-  overflow: hidden;
-  padding: 40px 16px max(32px, env(safe-area-inset-bottom));
+body.at-daily .dboard { overflow: hidden; align-content: stretch; }
+.dboard .in {
+  display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto auto auto minmax(0, max-content) auto;
+  grid-template-areas: "title" "date" "said" "mine" "rows" "btns"; align-content: start; min-height: 0; height: 100%;
 }
-.dboard .head, .dboard .done-buttons { flex: none; }
-.dboard .line { display: block; width: fit-content; margin: 0 auto; text-box: trim-both cap alphabetic; white-space: nowrap; }
-.dboard .title { font-size: 17px; font-weight: 600; letter-spacing: 0.02em; }
-.dboard .head { padding-bottom: 28px; }
-.dboard.no-rows .head { padding-bottom: 0; }
-.dboard .note { margin: 20px auto 0; font-size: 14px; letter-spacing: 0.02em; color: var(--muted); }
-.dboard .note.wrap { white-space: normal; width: auto; text-align: center; text-wrap: balance; line-height: 1.5; text-box: trim-both cap alphabetic; }
-/* "Log in to be on tomorrow's board": the log-in screen's link. */
-.dboard .swap {
-  position: relative; display: block; margin: 20px auto 0; padding: 0; border: 0; background: none;
-  font: 600 14px/1 var(--font); letter-spacing: 0.02em; color: var(--ink);
-  text-decoration: underline; text-decoration-color: var(--faint); text-decoration-thickness: 1px; text-underline-offset: 4px;
-  cursor: pointer; touch-action: manipulation;
+.dboard .s-title { grid-area: title; margin-bottom: calc(24 * var(--u)); }
+.dboard .b-date { grid-area: date; margin: 0; font-size: calc(15 * var(--u)); letter-spacing: 0.02em; color: var(--muted); text-box: trim-both cap alphabetic; white-space: nowrap; }
+.dboard .mine { grid-area: mine; }
+/* Just after a practice, or a try that went out: what happened, a line of
+   its own under the date, muted as it is. */
+.dboard .b-said { grid-area: said; margin: calc(14 * var(--u)) 0 0; font-size: calc(15 * var(--u)); letter-spacing: 0.02em; color: var(--muted); text-box: trim-both cap alphabetic; white-space: nowrap; }
+.dboard .b-said[hidden] { display: none; }
+/* The list's area: the rows, which alone scroll, and under them, when
+   your row is below their view, the break (a row of its own, "⋯", muted,
+   centred) and your row, pinned, the area's full width. */
+.dboard .b-list { grid-area: rows; display: flex; flex-direction: column; min-height: 0; margin-top: calc(24 * var(--u)); }
+.dboard.no-rows .b-list { display: none; }
+.dboard .rows { flex: 0 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; list-style: none; margin: 0; padding: 0; }
+.dboard .rows[hidden] { display: none; }
+.dboard .b-pin { flex: none; }
+.dboard .b-pin[hidden] { display: none; }
+.dboard .b-pin.away { visibility: hidden; }
+.dboard .b-gap { display: flex; align-items: center; justify-content: center; height: calc(28 * var(--u)); font-size: calc(24 * var(--u)); line-height: 1; color: var(--muted); }
+.dboard .b-gap span { display: block; letter-spacing: 0.1em; }
+.dboard .b-btns { grid-area: btns; display: grid; grid-template-columns: 1fr 1fr; gap: calc(12 * var(--u)); margin-top: calc(24 * var(--u)); }
+.scrollbars-take-room .dboard .rows::-webkit-scrollbar { width: 8px; }
+.scrollbars-take-room .dboard .rows::-webkit-scrollbar-track { background: transparent; }
+.scrollbars-take-room .dboard .rows::-webkit-scrollbar-button { display: none; width: 0; height: 0; }
+.scrollbars-take-room .dboard .rows::-webkit-scrollbar-thumb { background: var(--faint); border-radius: 0; }
+.scrollbars-take-room .dboard .rows::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+.scrollbars-take-room .dboard .rows.scrolls { padding-right: 4px; }
+@supports not selector(::-webkit-scrollbar) {
+  .dboard .rows { scrollbar-width: thin; scrollbar-color: var(--faint) transparent; }
 }
-.dboard .swap::after { content: ""; position: absolute; inset: -15px -8px; }
-@media (hover: hover) { .dboard .swap:hover { text-decoration-color: currentColor; } }
-.dboard .swap:focus-visible { outline: 2px solid var(--ink); outline-offset: 4px; }
-
-/* The rows: place, name, score, 40px each. The place in the muted
-   colour, right-aligned; a name too long for its room ends in "…"; the
-   score right-aligned, an out's in the muted colour. Your row is
-   marked with a tile's ring, its name and score at the title's weight. */
-.dboard .rows { list-style: none; margin: 0; padding: 0; flex: 0 1 auto; min-height: 0; overflow-y: auto; scroll-snap-type: y mandatory; }
-.dboard .rows > li { scroll-snap-align: start; }
+/* Scrolling: a faint rule at the list's top and foot, as the game's. */
+.dboard .rows.scrolls { margin-top: -1px; border-top: 1px solid var(--faint); border-bottom: 1px solid var(--faint); }
+.dboard .b-list.pinned .rows.scrolls { border-bottom: 0; }
 .dboard .r {
-  display: grid; grid-template-columns: var(--place-w, 2ch) minmax(0, 1fr) auto; column-gap: 16px; align-items: center;
-  height: 40px; padding: 0 16px 0 10px; font-size: 15px; letter-spacing: 0.02em; white-space: nowrap;
+  display: grid; grid-template-columns: var(--place-w, 2ch) minmax(0, 1fr) auto; column-gap: calc(16 * var(--u)); align-items: center;
+  height: calc(40 * var(--u)); padding: 0 calc(14 * var(--u)) 0 calc(8 * var(--u)); font-size: calc(16 * var(--u)); letter-spacing: 0.02em; white-space: nowrap;
 }
 .dboard .r .place { text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; }
 .dboard .r .who { overflow: hidden; text-overflow: ellipsis; }
@@ -945,74 +1059,139 @@ body.at-daily .dboard {
 .dboard .r.out .score { color: var(--muted); }
 .dboard .r.you { box-shadow: var(--key-ring); font-weight: 600; }
 .dboard .r.you .place { font-weight: 400; }
-/* Your score above the rows, where you aren't on them: a row of its own. */
-.dboard .mine > .r { margin-top: 28px; }
-/* The scrollbar's room is kept whether the rows scroll or not (the UI
-   review: a time never moves between a short board and a long one), in
-   the column's right padding, so the rows always keep the buttons' width:
-   the list reaches 12px past them, 12px it keeps clear (the theme's 8px
-   bar, where scrollbars take room, and 4px; a phone's overlay bar in the
-   12px). Scrolling: a faint rule at the top and bottom edge, the buttons'
-   width; the list is a whole number of rows tall and snaps to rows, so no
-   row is ever cut by a rule. */
-.dboard .rows { margin-right: -12px; padding-right: 12px; }
-.scrollbars-take-room .dboard .rows { padding-right: 4px; scrollbar-gutter: stable; }
-.dboard .rows.scrolls {
-  padding-top: 1px; padding-bottom: 1px; scroll-padding-top: 1px;
-  background: linear-gradient(var(--faint), var(--faint)) 0 0 / calc(100% - 12px) 1px no-repeat,
-    linear-gradient(var(--faint), var(--faint)) 0 100% / calc(100% - 12px) 1px no-repeat;
-}
-.scrollbars-take-room .dboard .rows.scrolls { background-size: calc(100% - 4px) 1px; }
-.scrollbars-take-room .dboard .rows::-webkit-scrollbar { width: 8px; }
-.scrollbars-take-room .dboard .rows::-webkit-scrollbar-track { background: transparent; }
-.scrollbars-take-room .dboard .rows::-webkit-scrollbar-button { display: none; width: 0; height: 0; }
-.scrollbars-take-room .dboard .rows::-webkit-scrollbar-thumb { background: var(--faint); border-radius: 0; }
-.scrollbars-take-room .dboard .rows::-webkit-scrollbar-thumb:hover { background: var(--muted); }
-
-/* Practice and Levels: the finish screen's buttons, Practice filled as
-   "Again" is. */
-.dboard .done-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 32px; }
-.dboard .done-buttons button {
-  display: flex; align-items: center; justify-content: center; height: 56px; padding: 0; border: 0; border-radius: 0;
-  background: transparent; box-shadow: var(--key-ring); color: var(--ink); font: 600 17px/1 var(--font); letter-spacing: 0.02em;
+/* Your score above the rows, where you aren't on them: a row of its own;
+   under it the note, or the log-in screen's link. */
+.dboard .mine > .r { margin-top: calc(24 * var(--u)); }
+.dboard .note { margin: calc(20 * var(--u)) 0 0; font-size: calc(14 * var(--u)); line-height: 1.5; letter-spacing: 0.02em; color: var(--muted); text-wrap: balance; text-box: trim-both cap alphabetic; }
+/* "Log in to be on tomorrow's board": a quiet link, as Home's are: muted,
+   regular weight, the faint underline; on one line. */
+.dboard .swap {
+  position: relative; display: block; margin: calc(20 * var(--u)) 0 0; padding: 0; border: 0; background: none; text-align: left;
+  font: 400 calc(14 * var(--u))/1.5 var(--font); letter-spacing: 0.02em; color: var(--muted); white-space: nowrap;
+  text-decoration: underline; text-decoration-color: var(--faint); text-decoration-thickness: 1px; text-underline-offset: 0.3em;
   cursor: pointer; touch-action: manipulation;
 }
-.dboard .done-buttons .line { margin: 0; }
-.dboard .practice { background: var(--ink) !important; color: var(--bg) !important; box-shadow: none !important; }
-.dboard .done-buttons button:active { background: var(--key-press); }
-.dboard .done-buttons button:focus-visible { outline: 2px solid var(--ink); outline-offset: 4px; }
+.dboard .swap::after { content: ""; position: absolute; inset: -15px -8px; }
+@media (hover: hover) { .dboard .swap:hover { color: var(--ink); text-decoration-color: currentColor; } }
+.dboard .swap:focus-visible { outline: 2px solid var(--ink); outline-offset: 4px; }
 
-/* Held sideways: the date, your score and the buttons on the left, the
-   rows on the right, scrolling there. Offline, with no rows, the one
-   column, as upright. */
-@media (orientation: landscape) and (max-height: 560px) and (min-aspect-ratio: 3/2) {
-  body.at-daily .dboard.no-rows { grid-area: stage; max-width: 420px; padding-top: 32px; }
-  body.at-daily .dboard:not(.no-rows) {
-    grid-area: stage; max-width: 840px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    grid-template-rows: auto auto auto 1fr; column-gap: 40px; align-content: start;
-    padding: 32px max(var(--gutter), env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(var(--gutter), env(safe-area-inset-left));
+/* ---------- Settings ---------- */
+/* The account under a faint rule, its buttons at Start's size: Log out
+   alone; or Log in, filled (the one most come for), and Sign up. */
+.settings .sect { padding-top: calc(22 * var(--u)); border-top: 1px solid var(--faint); }
+.settings .s-head { margin: 0; font-size: calc(15 * var(--u)); font-weight: 600; letter-spacing: 0.01em; color: var(--muted); text-box: trim-both cap alphabetic; }
+.settings .who { margin: calc(24 * var(--u)) 0 0; font-size: calc(20 * var(--u)); letter-spacing: 0.01em; text-box: trim-both cap alphabetic; white-space: nowrap; }
+.settings .who b { font-weight: 600; }
+.settings .buttons { display: grid; grid-template-columns: 1fr 1fr; gap: calc(12 * var(--u)); margin-top: calc(32 * var(--u)); }
+:is(.settings .buttons, .dboard .b-btns) button {
+  display: flex; align-items: center; justify-content: center; height: calc(60 * var(--u)); padding: 0; border: 0; border-radius: 0;
+  background: transparent; box-shadow: var(--key-ring); color: var(--ink); font: 600 calc(18 * var(--u))/1 var(--font); letter-spacing: 0.02em;
+  cursor: pointer; touch-action: manipulation;
+}
+:is(.settings .buttons, .dboard .b-btns) button.fill { background: var(--ink); color: var(--bg); box-shadow: none; }
+:is(.settings .buttons, .dboard .b-btns) button:active { background: var(--key-press); }
+:is(.settings .buttons, .dboard .b-btns) button.fill:active { background: var(--go-press); }
+:is(.settings .buttons, .dboard .b-btns) button:focus-visible { outline: 2px solid var(--ink); outline-offset: 4px; }
+.dboard .b-btns button[hidden] { display: none; }
+/* While the try is played in another tab: what to do, as Home's daily
+   challenge says it, a muted line of its own above the buttons, as the
+   offline note is (not a button), and Levels alone under it. On a past day
+   never played, Levels alone. */
+.dboard .b-busy {
+  grid-column: 1 / -1; margin: 0 0 calc(8 * var(--u)); font-size: calc(14 * var(--u)); letter-spacing: 0.02em; color: var(--muted);
+  white-space: nowrap; text-box: trim-both cap alphabetic;
+}
+.dboard .b-busy[hidden] { display: none; }
+.dboard .b-btns.alone .levels { grid-column: 1 / -1; }
+/* A press being checked (main.js openDaily()): dimmed, no more presses. */
+.dboard .b-btns button.waiting, .home .hero.waiting .h-cta { opacity: 0.6; cursor: progress; }
+
+
+/* ---------- Wide windows ---------- */
+/* The same column, wider and larger: designed at 460×680. */
+@media (min-width: 900px) {
+  body.at-home, body.at-settings, body.at-progress, body.at-daily, body.at-login {
+    --href: 680; --u: clamp(0.7px, min((100vw - 48px) / 460, 100dvh / var(--href)), 1.6px); --cw: calc(460 * var(--u));
   }
-  .dboard:not(.no-rows) .outcome { grid-column: 1; grid-row: 1; padding-bottom: 32px; }
-  .dboard:not(.no-rows) .head { grid-column: 1; grid-row: 2; padding-bottom: 0; }
-  .dboard:not(.no-rows) .done-buttons { grid-column: 1; grid-row: 3; margin-top: 32px; }
-  .dboard .rows { grid-column: 2; grid-row: 1 / -1; align-self: start; max-height: 100%; }
-  .dboard .note.away { grid-column: 2; }
-  .dboard:not(.no-rows):not(.has-outcome) .head { padding-top: 15px; }
+  .home .stack { padding: calc(36 * var(--u)) 0 calc(32 * var(--u)); }
+  .home .mid { row-gap: calc(16 * var(--u)); padding-bottom: calc(32 * var(--u)); }
+  .home .markrow { margin-bottom: calc(34 * var(--u)); }
+  .mark { font-size: calc(68 * var(--u)); }
+  .home .gear { --gs: calc(36 * var(--u)); }
+  .home .hero { row-gap: calc(32 * var(--u)); padding: calc(30 * var(--u)) calc(28 * var(--u)) calc(28 * var(--u)); }
+  .home .h-cta.done { padding: 0 calc(20 * var(--u)); font-size: calc(19 * var(--u)); }
+  .home .h-cta .chev, .home .btn .chev { height: calc(20 * var(--u)); }
+  .home .h-title { font-size: calc(26 * var(--u)); }
+  .home .h-date { font-size: calc(17 * var(--u)); }
+  .home .h-cta { height: calc(72 * var(--u)); font-size: calc(22 * var(--u)); padding: 0 calc(24 * var(--u)); }
+  .home .btns { gap: calc(16 * var(--u)); }
+  .home .btn { height: calc(84 * var(--u)); padding: 0 calc(28 * var(--u)); }
+  .home .b-txt { gap: calc(13 * var(--u)); }
+  .home .b-title { font-size: calc(21 * var(--u)); }
+  .home .b-line { font-size: calc(16 * var(--u)); }
+  .home .lock { height: calc(26 * var(--u)); }
+  .home .links a { font-size: calc(17 * var(--u)); }
+  .progress .in, .settings .in, .dboard .in { padding-top: calc(36 * var(--u)); }
+  .dboard .b-date { font-size: calc(17 * var(--u)); }
+  .dboard .r { font-size: calc(18 * var(--u)); }
+  .dboard .b-list { margin-top: calc(28 * var(--u)); }
+  .dboard .b-gap { font-size: calc(26 * var(--u)); height: calc(30 * var(--u)); }
+  .dboard .b-btns { margin-top: calc(28 * var(--u)); }
+  .s-title { font-size: calc(50 * var(--u)); margin-bottom: calc(40 * var(--u)); }
+  .progress .row { height: calc(64 * var(--u)); }
+  .progress .topic { font-size: calc(18 * var(--u)); }
+  .progress .of { font-size: calc(16 * var(--u)); }
+  .settings .s-head { font-size: calc(17 * var(--u)); }
+  .settings .who { font-size: calc(21 * var(--u)); }
+  :is(.settings .buttons, .dboard .b-btns) button { height: calc(64 * var(--u)); font-size: calc(19 * var(--u)); }
+  .dboard .b-busy { font-size: calc(16 * var(--u)); }
 }
 
-/* Side by side on a wide, short window (dailyview.js sets .side where the
-   board stacked can't show all its rows and two columns fit): the result,
-   the date and the buttons on the left, the rows on the right with the
-   whole height, as a phone held sideways has them. */
-body.at-daily .dboard.side:not(.no-rows) {
-  max-width: 840px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  grid-template-rows: auto auto auto 1fr; column-gap: 40px; align-content: start;
-  padding: 40px max(var(--gutter), env(safe-area-inset-right)) max(32px, env(safe-area-inset-bottom)) max(var(--gutter), env(safe-area-inset-left));
+/* ---------- A phone held sideways ---------- */
+/* The same column, wider and shorter: Next lesson and Levels side by
+   side. Designed at 560×390. */
+@media (orientation: landscape) and (max-height: 560px) and (min-aspect-ratio: 3/2) {
+  body.at-home, body.at-settings, body.at-progress, body.at-daily, body.at-login {
+    --href: 390; --u: clamp(0.6px, min((100vw - 32px) / 560, 100dvh / var(--href)), 1.3px); --cw: calc(560 * var(--u));
+  }
+  .home .stack { padding: calc(max(16px, env(safe-area-inset-top)) + 2 * var(--u)) 0 calc(max(16px, env(safe-area-inset-bottom)) + 4 * var(--u)); }
+  .home .mid { row-gap: calc(12 * var(--u)); padding-bottom: 0; }
+  .home .markrow { margin-bottom: calc(10 * var(--u)); }
+  .mark { font-size: calc(36 * var(--u)); }
+  .home .gear { --gs: calc(26 * var(--u)); }
+  .home .hero { row-gap: calc(18 * var(--u)); padding: calc(18 * var(--u)) calc(20 * var(--u)); }
+  .home .h-title { font-size: calc(18 * var(--u)); }
+  .home .h-date { font-size: calc(14 * var(--u)); }
+  .home .h-cta { height: calc(50 * var(--u)); font-size: calc(17 * var(--u)); }
+  .home .h-cta.done { font-size: calc(15 * var(--u)); }
+  .home .btns { grid-template-columns: 1fr 1fr; }
+  .home .btn { height: calc(64 * var(--u)); padding: 0 calc(20 * var(--u)); }
+  .home .b-txt { gap: calc(10 * var(--u)); }
+  .home .b-title { font-size: calc(16 * var(--u)); }
+  .home .b-line { font-size: calc(13 * var(--u)); }
+  .home .links a { font-size: calc(14 * var(--u)); }
+  .progress .in, .settings .in, .dboard .in { padding-top: calc(12 * var(--u)); }
+  .dboard .in {
+    grid-template-columns: minmax(0, 250fr) minmax(0, 286fr); grid-template-rows: auto auto auto auto auto 1fr;
+    grid-template-areas: "title rows" "date rows" "said rows" "mine rows" "btns rows" ". rows"; column-gap: calc(24 * var(--u));
+  }
+  /* With no rows (offline), the one column, as upright. */
+  .dboard.no-rows .in { grid-template-columns: minmax(0, 1fr); grid-template-areas: "title" "date" "said" "mine" "btns" "."; }
+  /* "Daily challenge" on one line in the left column. */
+  .dboard .s-title { font-size: calc(28 * var(--u)); margin-bottom: calc(18 * var(--u)); }
+  .dboard .b-list { margin-top: 0; align-self: start; max-height: 100%; }
+  .dboard .b-gap { font-size: calc(20 * var(--u)); height: calc(20 * var(--u)); }
+  .dboard .b-btns { align-self: start; margin-top: calc(28 * var(--u)); }
+  .dboard .r { height: calc(28 * var(--u)); font-size: calc(14 * var(--u)); }
+  .dboard .b-btns button { height: calc(50 * var(--u)); font-size: calc(16 * var(--u)); }
+  .dboard .b-busy { font-size: calc(13 * var(--u)); }
+  /* The link on one line in the left column. */
+  .dboard .swap { font-size: calc(12.5 * var(--u)); letter-spacing: 0; }
+  .s-title { font-size: calc(36 * var(--u)); margin-bottom: calc(24 * var(--u)); }
+  .progress .row { height: calc(46 * var(--u)); }
+  .progress .topic { font-size: calc(15 * var(--u)); }
+  .progress .of { font-size: calc(14 * var(--u)); }
 }
-.dboard.side:not(.no-rows) .outcome { grid-column: 1; grid-row: 1; padding-bottom: 32px; }
-.dboard.side:not(.no-rows) .head { grid-column: 1; grid-row: 2; padding-bottom: 0; }
-.dboard.side:not(.no-rows) .done-buttons { grid-column: 1; grid-row: 3; margin-top: 32px; }
-.dboard.side .rows { grid-column: 2; grid-row: 1 / -1; align-self: start; max-height: 100%; }
 
 /* ---------- Practice in the breadcrumb (the UI review) ---------- */
 /* "Levels › Daily challenge › Practice": the challenge muted, Practice

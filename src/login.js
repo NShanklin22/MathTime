@@ -1,84 +1,15 @@
 import { snap, onLayoutGrid } from './ink.js';
 import { ERRORS, checkSignup } from './account.js';
 
-// The log-in screen and the header's account link (accounts spec §3–§4),
-// as the accounts mockup (2026-11-09) draws them.
+// The log-in screen (accounts spec §3), as the accounts mockup (2026-11-09)
+// draws it. It opens from Settings (the home screen spec §4), a locked
+// level, or the daily challenge's board.
 
 // A text element's font as the scanner wants it, and its text.
 function textOf(node) {
   const cs = getComputedStyle(node);
   const fs = parseFloat(cs.fontSize);
   return { fs, style: { weight: cs.fontWeight, family: cs.fontFamily, color: cs.color, spacing: (parseFloat(cs.letterSpacing) || 0) / fs }, text: node.textContent };
-}
-
-// ---------- The header link (spec §4) ----------
-// Signed out: "Log in". Signed in: the name; a tap shows "Log out" in its
-// place for 4s or until the focus leaves, and a tap on that logs out.
-// `login()` opens the log-in screen; `logout()` logs out. `edge()` is
-// where its ink ends, if not the header's edge (main.js: the tiles', when
-// the list beside a scrollbar ends short of it).
-export function createAccountLink(link, topBar, scan, { login, logout, edge: edgeOf = () => null }) {
-  let name = null, armed = false, disarm = 0, ready = false;
-
-  function show(next = name) {
-    name = next;
-    if (!name) armed = false;
-    clearTimeout(disarm);
-    link.textContent = !name ? 'Log in' : armed ? 'Log out' : name;
-    if (name && !armed) link.setAttribute('aria-label', `Signed in as ${name}`);
-    else link.removeAttribute('aria-label');
-    if (armed) disarm = setTimeout(() => { armed = false; show(); }, 4000);
-    place();
-  }
-  link.addEventListener('click', () => {
-    if (!name) return login();
-    if (!armed) {
-      armed = true;
-      return show();
-    }
-    armed = false;
-    logout();
-  });
-  link.addEventListener('focusout', () => {
-    if (armed) {
-      armed = false;
-      show();
-    }
-  });
-
-  // Its ink ends at the header's edge (where the hearts' does), or at
-  // edge(), its start on a whole device pixel; the underline from its first ink to its last,
-  // 4px below the baseline, as the way back's (header.js). Only once the
-  // fonts are in (start()), and only while it shows.
-  function place() {
-    if (!ready || !link.getClientRects().length) return;
-    const dpr = devicePixelRatio;
-    link.style.removeProperty('--ink-dx');
-    const { fs, style } = textOf(link);
-    const m = scan(link.textContent, style, fs * dpr);
-    const box = link.getBoundingClientRect();
-    const edge = edgeOf() ?? topBar.getBoundingClientRect().right - parseFloat(getComputedStyle(topBar).paddingRight);
-    const at = snap(edge - m.abr * fs, dpr);
-    const dx = onLayoutGrid(at - box.left, dpr);
-    link.style.setProperty('--ink-dx', dx + 'px');
-    const left = box.left + dx;
-    const probe = document.createElement('span');
-    probe.style.cssText = 'display:inline-block;width:0;height:0;vertical-align:baseline';
-    link.appendChild(probe);
-    const baseline = snap(probe.getBoundingClientRect().top, dpr);
-    probe.remove();
-    link.style.setProperty('--ul-left', onLayoutGrid(snap(left - m.abl * fs, dpr) - left, dpr) + 'px');
-    link.style.setProperty('--ul-right', onLayoutGrid(left + box.width - snap(left + m.abr * fs, dpr), dpr) + 'px');
-    link.style.setProperty('--ul-top', onLayoutGrid(baseline + 4 - box.top, dpr) + 'px');
-  }
-
-  return {
-    show,
-    disarm() { armed = false; show(); },
-    place,
-    start() { ready = true; place(); },
-    focus() { link.focus({ preventScroll: true }); },
-  };
 }
 
 // ---------- The log-in screen (spec §3) ----------
@@ -121,15 +52,16 @@ export function createLogin(root, scan, { enter, done, onMode = () => {} }) {
   const shown = () => [f.invite, f.name, f.pass].filter(i => !i.closest('.field').hidden);
   const firstEmpty = () => shown().find(i => !i.value);
 
-  // Open it afresh, in Log in mode, the focus in Name.
-  function open() {
+  // Open it afresh, in `next` mode (Log in, or Sign up from Settings), the
+  // focus in its first field.
+  function open(next = 'login') {
     visit++;
     busy = false;
     form.removeAttribute('aria-busy');
-    setMode('login');
+    setMode(next);
     f.invite.value = f.name.value = '';
     place();
-    f.name.focus();
+    firstEmpty()?.focus();
   }
 
   // Enter submits (the form's own submit). A field left empty takes the
@@ -196,7 +128,9 @@ export function createLogin(root, scan, { enter, done, onMode = () => {} }) {
     const { fs, style, text } = textOf(node);
     const r = node.getBoundingClientRect();
     const m = scan(text, style, fs * dpr);
-    const at = snap(r.right - m.abr * fs, dpr);
+    // Its last letter's edge, drawn smooth, runs about a pixel past the
+    // scanned ink: a pixel in, so what shows ends on the field's edge.
+    const at = snap(r.right - 1 - m.abr * fs, dpr);
     node.style.marginRight = onLayoutGrid(r.left - at, dpr) + 'px';
   }
   function centreInk(line) {
@@ -217,6 +151,6 @@ export function createLogin(root, scan, { enter, done, onMode = () => {} }) {
     centreInk(form.querySelector('.submit .line'));
   }
 
-  // Esc and the "Levels" link go back without logging in (main.js).
+  // Esc and the way back go back without logging in (main.js).
   return { open, place, start() { ready = true; place(); } };
 }

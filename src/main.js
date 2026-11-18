@@ -11,9 +11,11 @@ import { buildRecord } from './record.js';
 import { createQueue } from './queue.js';
 import { createFinish, finishText } from './finish.js';
 import { createAccount } from './account.js';
-import { createLogin, createAccountLink } from './login.js';
-import { dateKey, dailyLevel, dailyProblems, dailyRecord, boardFrom, placeOn, tryScore, untilMidnight, createDailyStore, QUESTIONS, TRY, IN_PROGRESS } from './daily.js';
-import { createDailyTile, createDailyBoard, BUSY, OFFLINE } from './dailyview.js';
+import { createLogin } from './login.js';
+import { dateKey, dailyLevel, dailyProblems, dailyRecord, boardFrom, placeOn, tryScore, untilMidnight, createDailyStore, QUESTIONS, TRY, BOARDS, IN_PROGRESS } from './daily.js';
+import { createDailyBoard, BUSY, OFFLINE } from './dailyview.js';
+import { nextLesson, topicProgress, boardButton } from './home.js';
+import { createHome, createProgress, createSettings } from './homeview.js';
 import { formatTime } from './finish.js';
 
 const $ = sel => document.querySelector(sel);
@@ -21,10 +23,33 @@ const dom = {
   eq: $('#eq'), slot: $('#slot'), shown: $('#shown'), caret: $('.caret'), qnum: $('#qnum'),
   a: $('#a'), b: $('#b'), op: $('#eq .op'), ans: $('#ans'), pad: $('.pad'), stage: $('.stage'), topBar: $('.top'),
   run: $('.run'), select: $('.select'), finish: $('.finish'), board: $('#board'), check: $('.pad .go'),
-  here: $('.crumbs .here'), back: $('.crumbs .back'), acct: $('.acct'), login: $('.login'),
+  here: $('.crumbs .here'), back: $('.crumbs .back'), login: $('.login'),
   livesBox: $('.lives'), hearts: [...document.querySelectorAll('.lives svg')], status: $('#status'),
-  dboard: $('.dboard'),
+  dboard: $('.dboard'), home: $('div.home'), progress: $('div.progress'), settings: $('div.settings'),
 };
+const body = document.body;
+
+// ---------- The screens (2026-11-17-home-screen-design.md §1) ----------
+// Each screen is a class on the body: Home, Levels (the selector), the
+// finish screen, log in, the daily challenge's board, Progress and
+// Settings; none, the play screen. One at a time.
+const SCREENS = ['at-home', 'at-select', 'at-finish', 'at-login', 'at-daily', 'at-progress', 'at-settings'];
+// `visits` counts the changes: what waits (openDaily()) can tell the
+// screen it began on has gone.
+let visits = 0;
+function screenTo(cls = null) {
+  visits++;
+  body.classList.remove(...SCREENS);
+  if (cls) body.classList.add(cls);
+}
+const on = cls => body.classList.contains(cls);
+// The breadcrumb: the way back, `back` (its word and its name), and where
+// you are, `here`: "Home › Levels", "Levels › Subtraction 3".
+function crumbs(back, here = null) {
+  dom.back.querySelector('.word').textContent = back;
+  dom.back.setAttribute('aria-label', back);
+  if (here != null) dom.here.textContent = here;
+}
 
 // Does the system's own scrollbar take room (a desktop's classic bar, with
 // a mouse or only a touch screen), or lie over the page (a phone's)? Where
@@ -56,61 +81,151 @@ const queue = createQueue();
 // Who is signed in, and the upload of finished runs (accounts spec §5).
 const account = createAccount({ queue });
 const finish = createFinish(dom.finish, scan, { again: () => play(game.level), levels: toSelector });
-const acctLink = createAccountLink(dom.acct, dom.topBar, scan, { login: () => openLogin(), logout, edge: tilesEdge });
-// Where the list's tiles end, while it has a scrollbar that takes room (a
-// desktop's, on a short or narrow window): the rows narrow beside it, and
-// the header link's ink ends with them (the UI review). Else null: the
-// header's edge, where the rows end too.
-function tilesEdge() {
-  const list = dom.select;
-  if (!list.getClientRects().length || list.offsetWidth - list.clientWidth - 2 * list.clientLeft <= 0) return null;
-  const rows = [...list.querySelectorAll('.row')].map(row => row.getBoundingClientRect().right);
-  return rows.length ? Math.max(...rows) : null;
-}
-// Its breadcrumb is "Levels › Log in", or "› Sign up" in that mode.
+// Its breadcrumb is "Settings › Log in" (where you came from), or
+// "› Sign up" in that mode.
 const login = createLogin(dom.login, scan, { enter: account.enter, done: loggedIn, onMode: word => { dom.here.textContent = word; } });
 // The daily challenge (daily spec): the day's try and board as this
-// browser keeps them, the tile above the levels and the board.
+// browser keeps them, and the board.
 const days = createDailyStore();
-const tile = createDailyTile(dom.select, scan, { open: openDaily });
-const dboard = createDailyBoard(dom.dboard, { practice: () => playDaily(true), levels: toSelector, login: () => openLogin({ board: boardDate }) });
+// Its Start goes the way Home's does (openDaily()).
+const dboard = createDailyBoard(dom.dboard, {
+  practice: () => playDaily(true), start: () => openDaily(), levels: e => toSelector(e, { board: boardDate }),
+  login: () => openLogin({ board: boardDate }),
+});
+// Home and the pages behind it (the home screen spec §2–§4).
+const home = createHome(dom.home, {
+  daily: () => openDaily(), next: chooseFromHome, levels: e => toSelector(e, { home: true }), settings: showSettings,
+  board: () => showBoard(dateKey()), progress: showProgress,
+});
+const progress = createProgress(dom.progress, { open: (e, topic) => toSelector(e, { progress: topic }) });
+const settings = createSettings(dom.settings, { open: mode => openLogin({ settings: true }, mode), logout });
 
 // ---------- The account (accounts spec §2–§5) ----------
 
 // Signed out, a level that isn't free is locked (spec §2).
 const locked = level => !account.name && !level.free;
 
-// The selector and the header link as the account stands: the locks, the
-// name, and each finished level's best (finished-mark spec §2), the
-// account's signed in, this browser's runs signed out.
+// The selector, Home, Progress and Settings as the account stands: the
+// locks, the name, and each finished level's best (finished-mark spec §2),
+// the account's signed in, this browser's runs signed out.
 let shownName;
 function showAccount() {
   selector.showBests(account.bests());
   selector.showLocks(locked);
-  acctLink.show(account.name);
+  showLessons();
+  settings.show(account.name);
   showTile();
   // Your place on the board is the account's: asked again when it changes.
   if (shownName !== undefined && shownName !== account.name) refreshDaily();
   shownName = account.name;
   // Laid out only once the fonts are in: ink measured in a fallback font
   // would be kept (the scanner caches it).
-  if (fontsIn && document.body.classList.contains('at-select')) {
+  if (fontsIn && on('at-select')) {
     try {
       selector.layout();
-      tile.place();
     } catch (err) {
       console.error(err);
     }
   }
 }
+
+// ---------- Home (the home screen spec §2) ----------
+
+// The level played last (its n), kept for Next lesson's "Last played".
+const LAST = 'mathtime.lastPlayed';
+function lastPlayed() {
+  try {
+    return Number(localStorage.getItem(LAST)) || null;
+  } catch {
+    return null;
+  }
+}
+function keepLastPlayed(level) {
+  try {
+    localStorage.setItem(LAST, String(level.n));
+  } catch {}
+}
+
+// Next lesson, Levels' count, and Progress, from the bests as they stand.
+function showLessons() {
+  const best = account.bests();
+  const finished = n => best(n) != null;
+  const lesson = nextLesson(LEVELS, finished, lastPlayed());
+  home.showLevels(lesson, locked(lesson.level), LEVELS.filter(l => finished(l.n)).length, LEVELS.length);
+  progress.show(topicProgress(LEVELS, finished));
+}
+
+// Next lesson: locked, it opens log in, and once in, the level starts.
+// Levels, after it, is under Home.
+function chooseFromHome(level) {
+  levelsFrom = { home: true };
+  if (locked(level)) return openLogin({ level, home: true });
+  play(level);
+}
+
+// Home, the focus on what you left it by (homeview.js focus()). Whatever
+// was being played is left first, as on the way to Levels. `press` is the
+// click that brought it up, if any.
+function toHome(which = 'hero', press = null) {
+  leavePlay();
+  levelsFrom = { home: true };
+  dom.status.textContent = '';
+  home.cameFrom(press);
+  screenTo('at-home');
+  showLessons();
+  showTile();
+  safeLayout();
+  home.focus(which);
+  cutOffGone();
+}
+
+// A try another tab was playing, if that tab has gone (its lock is free),
+// is cut off there (endCutOff()): Home and the board, which said "Finish it
+// in the other tab", then say how it ended.
+// While that tab plays on, the lock is waited for: when it goes (the tab
+// finished, or closed), the try is cut off if it never ended, and both say
+// so. One wait a day.
+const waitingFor = new Set();
+function cutOffGone() {
+  const date = on('at-daily') ? boardDate : dateKey();
+  const t = days.get(date);
+  if (!t?.started || t.ended || !navigator.locks || lockHeld?.date === date || waitingFor.has(date)) return;
+  waitingFor.add(date);
+  navigator.locks.request(lockName(date), () => {
+    waitingFor.delete(date);
+    cutOff(date);
+    showTile();
+    redrawBoard();
+  }).catch(err => console.error(err)).finally(() => waitingFor.delete(date));
+}
+
+// Progress and Settings, "Home › Progress", "Home › Settings"; the focus
+// on Progress's first row, or the row of `topic` (back from Levels).
+function showProgress(topic = null) {
+  leavePlay();
+  showLessons();
+  screenTo('at-progress');
+  crumbs('Home', 'Progress');
+  safeLayout();
+  progress.focus(topic);
+}
+function showSettings() {
+  settings.show(account.name);
+  screenTo('at-settings');
+  crumbs('Home', 'Settings');
+  safeLayout();
+  settings.focus();
+}
 // The cached state at once, so the locks never flash; then the API's.
 let fontsIn = false;
 let boardDate = null;                // the day of the board shown, or last shown
 let daily = null;                    // {date, practice, id} while it is played
-let shownDay = null;                 // the day the tile shows
+let shownDay = null;                 // the day Home shows
 let lockHeld = null;                 // the scored try's lock, while this tab plays it: {date, release, dropped}
 let asked = 0;                       // boards asked for: an answer to an earlier ask is ignored
-endCutOff();
+// A try cut off by a reload or a closed tab ends out now; one another tab
+// still plays is waited for (cutOffGone()).
+endCutOff().then(() => cutOffGone()).catch(err => console.error(err));
 showAccount();
 account.onChange(showAccount);
 account.check().catch(err => console.error(err)).then(() => refreshDaily());
@@ -122,55 +237,56 @@ function choose(level) {
   play(level);
 }
 
-// The log-in screen, from the header link or a locked row (`origin`).
+// The log-in screen (`origin`): from Settings ({settings}, in `mode`, Log
+// in or Sign up), a locked level ({level}, on Levels or, {home}, Home's
+// Next lesson), or the board's "Log in" ({board}). Its way back names
+// where you came from: "Settings › Log in".
 let origin = null;
-function openLogin(from = {}) {
+function openLogin(from = {}, mode = 'login') {
   origin = from;
-  acctLink.disarm();
-  document.body.classList.remove('at-select', 'at-daily');
-  document.body.classList.add('at-login');
+  screenTo('at-login');
+  crumbs(from.settings ? 'Settings' : from.board ? 'Daily challenge' : from.home ? 'Home' : 'Levels');
   dom.status.textContent = '';
-  login.open();                      // "Log in" in the breadcrumb
+  login.open(mode);                  // "Log in" in the breadcrumb
   safeLayout();
 }
 
-// Back where you came from without logging in (Esc, the "Levels" link):
-// the selector, the focus on the row you tapped or the header link; or the
-// daily challenge's board, if you came from its "Log in".
+// Back where you came from without logging in (Esc, the way back): the
+// selector, the focus on the row you tapped; Home, on Next lesson;
+// Settings; or the daily challenge's board, if you came from its "Log in".
 function leaveLogin() {
   if (origin?.board) return showBoard(origin.board);
-  document.body.classList.replace('at-login', 'at-select');
-  showAccount();
-  safeLayout();
+  if (origin?.settings) return showSettings();
+  if (origin?.home) return toHome('next');
+  toSelector();
   if (origin?.level) {
     selector.mark(origin.level);
     selector.focus();
-  } else {
-    acctLink.focus();
   }
 }
 
-// In: the level tapped starts, or back to the selector (spec §3, "Done").
+// In: the level tapped starts, or the board you came from, or, from
+// Settings, Home (the home screen spec §4).
 function loggedIn(name) {
-  if (!document.body.classList.contains('at-login')) return;
+  if (!on('at-login')) return;
   if (origin?.board) {
     showBoard(origin.board);
     dom.status.textContent = `Signed in as ${name}`;
     return;
   }
   if (origin?.level) {
-    document.body.classList.replace('at-login', 'at-select');
     play(origin.level);
     return;
   }
-  leaveLogin();
+  toHome();
   dom.status.textContent = `Signed in as ${name}`;
 }
 
-// The header link's "Log out": the runs stay, the upload stops.
+// Settings' "Log out": the runs stay, the upload stops.
 function logout() {
   account.logout().catch(err => console.error(err));
   showAccount();
+  settings.focus();
   dom.status.textContent = 'Logged out';
 }
 
@@ -179,7 +295,10 @@ function logout() {
 // next() would otherwise move this run on. The screen is measured again:
 // the operator and the answer box are the level's, or the board its method's.
 function play(level) {
-  if (!level.daily) daily = null;
+  if (!level.daily) {
+    daily = null;
+    keepLastPlayed(level);
+  }
   practising(false);
   view.reset();
   board.reset();
@@ -188,7 +307,9 @@ function play(level) {
   if (screen === view) layout.possibleAnswers = level.possibleAnswers;
   layout.fitFor = level.daily ? fitWidest(level) : null;
   screen.setLevel(level);
-  document.body.classList.remove('at-select', 'at-finish', 'at-login', 'at-daily');
+  // A level's way back is Levels; the daily challenge's, Home.
+  crumbs(level.daily ? 'Home' : 'Levels');
+  screenTo();
   safeLayout();
   // The equation is drawn even if the layout failed; the board, which
   // places everything it draws, only once it has been measured.
@@ -219,10 +340,42 @@ function showScreenFor(level) {
 // stops. What it last said is cleared, so the next problem is announced
 // even if it reads the same. `press` is the click on a "Levels", if that
 // is how you came.
-// From the daily challenge, its tile has the focus; a scored try left
-// partway is out at that question (daily spec §2).
-function toSelector(press) {
-  const fromDaily = document.body.classList.contains('at-daily') || !!game.level.daily;
+// From anywhere but a level (Home, Progress, the board: `from`, {home},
+// {progress: topic} or {board: date}), no row is marked, and the focus is
+// on the first row. Its way back goes back there: "Home › Levels",
+// "Progress › Levels", "Daily challenge › Levels". From a level, or log in,
+// it goes where it went before.
+let levelsFrom = { home: true };     // Home ({home}), Progress ({progress: topic}) or the board ({board: date})
+function toSelector(press, from = null) {
+  const fromLevel = !SCREENS.some(on) || on('at-finish');
+  const level = game.level;
+  if (from) levelsFrom = from;
+  leavePlay();
+  dom.status.textContent = '';
+  selector.mark(fromLevel && !level.daily ? level : null);
+  selector.showBests(account.bests());   // with the run just finished, if any
+  selector.cameFrom(press);
+  screenTo('at-select');
+  crumbs(levelsFrom.progress ? 'Progress' : levelsFrom.board ? 'Daily challenge' : 'Home', 'Levels');
+  safeLayout();
+  if (fromLevel && !level.daily) selector.focus();
+  else selector.focusFirst();
+}
+
+// Levels' way back: where you came to it from, the focus on what took you.
+function leaveLevels(press) {
+  if (levelsFrom.progress) return showProgress(levelsFrom.progress);
+  if (levelsFrom.board) {
+    showBoard(levelsFrom.board);
+    return dboard.focus('levels');
+  }
+  toHome('levels', press);
+}
+
+// Leave whatever is being played: a scored try left partway is out at
+// that question (daily spec §2). The game takes no keys until a level
+// starts, and anything still playing out for the run stops.
+function leavePlay() {
   if (daily && !daily.practice) endDaily(true, 'left');
   daily = null;
   practising(false);
@@ -230,16 +383,6 @@ function toSelector(press) {
   game.leave();
   view.reset();
   board.reset();
-  dom.status.textContent = '';
-  selector.mark(fromDaily ? null : game.level);
-  selector.showBests(account.bests());   // with the run just finished, if any
-  selector.cameFrom(press);
-  document.body.classList.remove('at-finish', 'at-daily');
-  document.body.classList.add('at-select');
-  showTile();
-  safeLayout();
-  if (fromDaily) tile.focus();
-  else selector.focus();
 }
 
 // ---------- The daily challenge (2026-11-14-daily-challenge-design.md) ----------
@@ -250,21 +393,35 @@ function keptBoard(date) {
   return days.board(date, account.name);
 }
 
-// The tile as the day stands: before today's try, after it with your place
-// on the board kept last; started and not ended, in progress in another tab.
+// Home's daily challenge as the day stands: before today's try, after it
+// with your place on the board kept last; started and not ended, in
+// progress in another tab.
 function showTile() {
   const date = dateKey();
   shownDay = date;
-  tile.show(date, days.get(date), account.name ? placeOn(keptBoard(date)) : null);
+  home.showDaily(date, days.get(date), account.name ? placeOn(keptBoard(date)) : null);
 }
 
-// The day changes at local midnight: the tile with it, whether the page is
-// looked at then (a timer) or later (coming back to it).
+// The board, if shown, again, from what it showed last (boardToShow()'s
+// answer, its note with it), or the board kept since, if another tab
+// fetched one: its button as the try now stands (another tab's, or a new
+// day). It keeps its place.
+let boardShown = null;
+function redrawBoard() {
+  if (!on('at-daily')) return;
+  const kept = keptBoard(boardDate);
+  const fetched = boardShown?.board || boardShown?.loading ? (kept ? { board: kept } : null) : null;
+  showBoardNow(boardDate, fetched ? boardToShow(boardDate, fetched) : boardShown ?? { board: null, loading: true });
+}
+
+// The day changes at local midnight: Home with it, and the board's button
+// (yesterday's board has no Start), whether the page is looked at then (a
+// timer) or later (coming back to it).
 function dayChanged() {
   if (dateKey() === shownDay) return;
   showTile();
-  if (fontsIn && document.body.classList.contains('at-select')) safeLayout();
-  refreshDaily();
+  redrawBoard();
+  refreshDaily(on('at-daily') ? boardDate : dateKey());
 }
 function atMidnight() {
   setTimeout(() => {
@@ -276,30 +433,46 @@ atMidnight();
 addEventListener('focus', dayChanged);
 document.addEventListener('visibilitychange', () => { if (!document.hidden) dayChanged(); });
 
-// The tile: before today's try, the challenge starts; after it, the board.
-// A try started and not ended is another tab's: it says so, and nothing
-// starts. Unless that tab has gone (its lock is free): then it is cut off
-// there, and the board shows.
-async function openDaily(e) {
-  if (!selector.pressable(e)) return;
-  const date = dateKey();
-  let t = days.get(date);
-  if (t?.started && !t.ended && navigator.locks) {
-    await endCutOff(date);
-    t = days.get(date);
+// Home's daily challenge: before today's try, the challenge starts; after
+// it, the board. A try started and not ended is another tab's: it says so,
+// and nothing starts. Unless that tab has gone (its lock is free): then it
+// is cut off there, and the board shows.
+// The board's Start goes the same way. While it waits (the lock, the
+// board), the control pressed says so and takes no more presses; if the
+// screen changes meanwhile, nothing starts.
+let opening = false;
+async function openDaily() {
+  if (opening) return;
+  opening = true;
+  const visit = visits;
+  home.waiting(true);
+  dboard.waiting(true);
+  try {
+    const date = dateKey();
+    let t = days.get(date);
+    if (t?.started && !t.ended && navigator.locks) {
+      await endCutOff(date);
+      t = days.get(date);
+    }
+    // Signed in, the try may have been played on another device: the board
+    // says so (reconcile()). Asked first, for a moment at most; offline, this
+    // browser's state stands.
+    if (!t?.started && account.name) {
+      await Promise.race([refreshDaily(date), new Promise(resolve => setTimeout(resolve, CHECK_MS))]);
+      t = days.get(date);
+    }
+    if (visits !== visit) return;
+    if (t?.ended) showBoard(date);
+    else if (t?.started) {
+      showTile();
+      redrawBoard();
+      dom.status.textContent = IN_PROGRESS;
+    } else playDaily(false);
+  } finally {
+    opening = false;
+    home.waiting(false);
+    dboard.waiting(false);
   }
-  // Signed in, the try may have been played on another device: the board
-  // says so (reconcile()). Asked first, for a moment at most; offline, this
-  // browser's state stands.
-  if (!t?.started && account.name) {
-    await Promise.race([refreshDaily(date), new Promise(resolve => setTimeout(resolve, CHECK_MS))]);
-    t = days.get(date);
-  }
-  if (t?.ended) showBoard(date);
-  else if (t?.started) {
-    showTile();
-    dom.status.textContent = IN_PROGRESS;
-  } else playDaily(false);
 }
 
 const CHECK_MS = 1500;                // how long a try waits for the board, signed in
@@ -369,10 +542,15 @@ function dropLock() {
   lockHeld = null;
 }
 
-// Another tab changed the day's try: the tile, and the board if shown, as
+// Another tab changed the day's try: Home, and the board if shown, as
 // it now stands. If it ended this tab's try (it found it cut off), this
-// tab stops, and shows the board.
+// tab stops, and shows the board. A board another tab fetched gives Home
+// its place.
 addEventListener('storage', e => {
+  if (e.key === BOARDS) {
+    showTile();
+    return redrawBoard();
+  }
   if (e.key !== null && e.key !== TRY) return;
   if (daily && !daily.practice) {
     const t = days.get(daily.date);
@@ -384,8 +562,9 @@ addEventListener('storage', e => {
     return;
   }
   showTile();
-  if (fontsIn && document.body.classList.contains('at-select')) safeLayout();
-  refreshDaily(document.body.classList.contains('at-daily') ? boardDate : dateKey());
+  redrawBoard();
+  cutOffGone();
+  refreshDaily(on('at-daily') ? boardDate : dateKey());
 });
 
 // The answer box fits the widest of the day's answers (dailyLevel); the
@@ -526,46 +705,53 @@ function boardToShow(date, fetched) {
   return { board: null, note: fetched?.busy ? BUSY : OFFLINE };
 }
 
-// Ask for the board again, for the tile's place, and the board if shown.
+// Ask for the board again, for Home's place, and the board if shown.
 async function refreshDaily(date = dateKey()) {
   if (!account.name && !days.get(date)?.ended && boardDate !== date) return;
   const mine = ++asked;
   const fetched = await fetchBoard(date);
   if (mine !== asked) return;
   showTile();
-  if (fontsIn && document.body.classList.contains('at-select')) safeLayout();
-  if (document.body.classList.contains('at-daily') && boardDate === date) showBoardNow(date, boardToShow(date, fetched));
+  if (on('at-daily') && boardDate === date) showBoardNow(date, boardToShow(date, fetched));
 }
 
 // The board (daily spec §4), in place of the finish screen after a try,
-// and from the tile: the board kept last at once, then the API's.
-let practiced = null;                // the practice shown over the board, if it was just played
-function showBoard(date, practice = null) {
+// and from Home: the board kept last at once, then the API's.
+let practiced = null;                // the practice told on the board, if it was just played
+let fresh = false;                   // the try told on the board, as it just ended here
+function showBoard(date, practice = null, ended = false) {
   boardDate = date;
   practiced = practice;
+  fresh = ended;
   daily = null;
   practising(false);
   closePrompt();
   game.leave();
   view.reset();
   board.reset();
-  document.body.classList.remove('at-select', 'at-finish', 'at-login');
-  document.body.classList.add('at-daily');
-  dom.here.textContent = 'Daily challenge';
-  showBoardNow(date, { board: keptBoard(date) ?? { rows: [], total: 0 } }, false);
+  screenTo('at-daily');
+  crumbs('Home', 'Daily challenge');
+  // Opened afresh: at 1st place (dailyview.js), not where it was left.
+  dboard.open();
+  const kept = keptBoard(date);
+  showBoardNow(date, kept ? { board: kept } : { board: null, loading: true }, false);
   safeLayout();
   dboard.focus();
   refreshDaily(date);
+  cutOffGone();
 }
 // The board as it stands: `shown`, {board, note} (boardToShow()); your
 // place on it, signed in, for the result line.
+// A check of Home's (openDaily()) still running shows on Start too.
 function showBoardNow(date, shown, place = true) {
+  boardShown = shown;
   const where = account.name ? placeOn(shown.board) : null;
-  dboard.show({ date, t: days.get(date), name: account.name, practice: practiced, place: where, ...shown });
+  const t = days.get(date);
+  dboard.show({ date, t, name: account.name, practice: practiced, fresh, place: where, button: boardButton(date, dateKey(), t), waiting: opening, ...shown });
   if (place) dboard.place();
 }
 
-// Practice in the breadcrumb, "Levels › Daily challenge › Practice"
+// Practice in the breadcrumb, "Home › Daily challenge › Practice"
 // (header.js fits it, "‹ Daily › Practice" at the narrowest), or not.
 function practising(on) {
   document.body.classList.toggle('practice', on);
@@ -601,7 +787,7 @@ function keepRun() {
 // The finish screen, with "Again" focused (runs spec §3).
 function toFinish(text) {
   finish.show(text);
-  document.body.classList.add('at-finish');
+  body.classList.add('at-finish');
   safeLayout();
   finish.focus();
   dom.status.textContent = text.said;
@@ -614,22 +800,29 @@ function toFinish(text) {
 // "Levels" does.
 // In a scored daily try, the way back asks first (the UI review): leaving
 // counts as out. Esc then closes the question, as Stay does.
-dom.back.addEventListener('click', e => {
-  e.preventDefault();
-  if (document.body.classList.contains('at-login')) leaveLogin();
+// Each goes up one (the home screen spec §1): a level to Levels; Levels,
+// the daily challenge, its board, Progress and Settings to Home, the focus
+// on what you left Home by; log in to where you came from. Home has none.
+function goBack(press) {
+  if (on('at-login')) leaveLogin();
   else if (leaving) stay();
   else if (askToLeave()) return;
-  else toSelector(e);
+  else if (on('at-select')) leaveLevels(press);
+  else if (on('at-progress')) toHome('progress', press);
+  else if (on('at-settings')) toHome('settings', press);
+  else if (on('at-daily') || game.level.daily) toHome('hero', press);
+  else toSelector(press);
+}
+dom.back.addEventListener('click', e => {
+  e.preventDefault();
+  goBack(e);
 });
 addEventListener('keydown', e => {
   // keyCode 229: Safari can send the keydown that ends a composition with
   // isComposing false.
-  if (e.key !== 'Escape' || e.isComposing || e.keyCode === 229 || document.body.classList.contains('at-select')) return;
+  if (e.key !== 'Escape' || e.isComposing || e.keyCode === 229 || on('at-home')) return;
   e.preventDefault();
-  if (document.body.classList.contains('at-login')) leaveLogin();
-  else if (leaving) stay();
-  else if (askToLeave()) return;
-  else toSelector();
+  goBack();
 });
 
 // ---------- Leaving a scored daily try (the UI review) ----------
@@ -665,7 +858,7 @@ function stay() {
 leavePrompt.querySelector('.stay').addEventListener('click', stay);
 leavePrompt.querySelector('.go-leave').addEventListener('click', e => {
   closePrompt();
-  toSelector(e);
+  toHome('hero', e);
 });
 // The focus stays in the question: Tab goes between its two buttons.
 leavePrompt.addEventListener('keydown', e => {
@@ -677,7 +870,7 @@ leavePrompt.addEventListener('keydown', e => {
 
 // Handle for the browser tests (tests/e2e) to put a known problem, level or
 // finish screen on screen, or lay the screen out again as a resize does (relayout).
-window.mathtime = { game, view, layout, board, selector, finish, levels: LEVELS, play, relayout, account, login, openLogin, days, tile, dboard, showBoard, playDaily };
+window.mathtime = { game, view, layout, board, selector, finish, levels: LEVELS, play, relayout, account, login, openLogin, days, dboard, showBoard, playDaily, toHome };
 
 // The game locks input itself during the correct, out-of-lives and finished
 // transitions (spec §2), so every key just goes to game.press(). On the
@@ -714,7 +907,7 @@ bindInput(dom, key => {
     screen.showOut(game.state).then(shown => {
       if (!shown) return;
       if (!playing) return toSelector();
-      showBoard(playing.date, playing.practice ? { out: true, reached } : null);
+      showBoard(playing.date, playing.practice ? { out: true, reached } : null, !playing.practice);
       if (playing.practice) dom.status.textContent = `Practice: out at ${reached} of ${QUESTIONS}`;
     });
   }
@@ -723,7 +916,7 @@ bindInput(dom, key => {
     const totalMs = Math.round(game.result.totalMs);
     screen.showFinished(game.state).then(shown => {
       if (!shown) return;
-      showBoard(playing.date, playing.practice ? { out: false, totalMs } : null);
+      showBoard(playing.date, playing.practice ? { out: false, totalMs } : null, !playing.practice);
       dom.status.textContent = playing.practice ? `Practice: ${formatTime(totalMs)}` : `Daily challenge: ${tryScore(days.get(playing.date))}`;
     });
   } else if (result === 'finished') {
@@ -752,7 +945,7 @@ function safeLayout() {
   try {
     if (screen === board) board.layout(game.state);
     else layout.layout();
-    if (document.body.classList.contains('at-finish')) finish.place();
+    if (on('at-finish')) finish.place();
     if (!measuredOnce) {
       measuredOnce = true;
       for (const face of document.fonts) if (face.status === 'loaded') measuredFaces.add(face);
@@ -762,10 +955,8 @@ function safeLayout() {
   }
   try {
     selector.layout();
-    tile.place();
-    acctLink.place();
     login.place();
-    if (document.body.classList.contains('at-daily')) dboard.place();
+    if (on('at-daily')) dboard.place();
   } catch (err) {
     console.error(err);
   }
@@ -803,7 +994,6 @@ function watchPixelRatio() {
 
 fontsReady().then(() => {
   fontsIn = true;
-  acctLink.start();
   login.start();
   safeLayout();
   document.documentElement.classList.remove('loading');

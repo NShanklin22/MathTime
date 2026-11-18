@@ -2,8 +2,7 @@ import { test, expect } from './fixtures.js';
 import {
   open, levelRow, freeze, settle, resize, setProblem, layOut, rect, capture, ink, digitInk, digitBand,
   boxEdges, boxInside, borderInner, showAnswer, groupOffset, equalsGap, labelInk, note, fontSize,
-  cssFontSize, typeKeys, TOL, MUTED,
-} from './helpers.js';
+  cssFontSize, typeKeys, TOL, MUTED, toLevels } from './helpers.js';
 
 // Level 3, subtraction past 10 (Level 3 spec §1, §2). Its play screen is
 // Level 2's with a first number of two digits, and every alignment row of
@@ -244,7 +243,7 @@ test.describe('the fit', () => {
   // two, and its fit must not wait for the layout that comes after.
   test('chosen on a narrow screen, Level 3 is fitted for its two digits from the first frame', async ({ page }) => {
     await page.goto('/');                                   // the selector, with index.html's one-digit 7 drawn
-    await page.waitForFunction(() => !document.documentElement.classList.contains('loading'));
+    await toLevels(page);
     await resize(page, 280, 700);
     const { atClick, settled } = await chooseAndFit(page, 3);
     expect(settled.size, 'precondition: two digits shrink the font at 280px').not.toBe('');

@@ -1,5 +1,5 @@
 import { test, expect } from './fixtures.js';
-import { open, levelRow, finishRun, rect, resize, setProblem, typeKeys, GOOD, INK } from './helpers.js';
+import { open, levelRow, finishRun, rect, resize, setProblem, typeKeys, GOOD, INK, toLevels } from './helpers.js';
 
 // The finished-level mark (finished-mark spec): a finished level's row
 // shows a green check and its best time in place of its sample.
@@ -11,7 +11,7 @@ const earlier = (level, totalMs) => ({
 });
 async function home(page) {
   await page.goto('/');
-  await page.waitForFunction(() => !document.documentElement.classList.contains('loading'));
+  await toLevels(page);
 }
 const result = (page, n) => levelRow(page, n).locator('.result');
 const rgb = c => `rgb(${c.join(', ')})`;

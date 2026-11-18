@@ -1,7 +1,6 @@
 import { test, expect } from './fixtures.js';
 import {
-  open, levelRow, freeze, playTo, answer, finishRun, finishColumnRun, rect, capture, ink, note, typeKeys, resize, TOL, BG, INK, MUTED, GOOD,
-} from './helpers.js';
+  open, levelRow, freeze, playTo, answer, finishRun, finishColumnRun, rect, capture, ink, note, typeKeys, resize, TOL, BG, INK, MUTED, GOOD, toLevels } from './helpers.js';
 import { finishText } from '../../src/finish.js';
 import { LEVELS, levelName } from '../../src/levels.js';
 
@@ -225,7 +224,7 @@ test('"Levels" goes to the selector, with this level marked and focused', async 
 // it opens, unscrolled, Level 1's row at the top.
 async function pressLevelsTwice(page, twice, tap, [width, height] = [375, 812]) {
   await page.goto('/');
-  await page.waitForFunction(() => !document.documentElement.classList.contains('loading'));
+  await toLevels(page);
   await resize(page, width, height);
   const rows = await page.locator('.select .row').evaluateAll(rows => rows.map(r => {
     const b = r.getBoundingClientRect();
@@ -282,11 +281,10 @@ test.describe('by touch', () => {
   });
 });
 
-// In topic columns too: at 1024×620 Level 3's row lies most under "Levels"
-// (below the daily challenge's tile).
+// In topic columns too: at 1024×620 Level 7's row lies most under "Levels".
 test('in topic columns, a double click on "Levels" stops at the selector', async ({ page }) => {
   const n = await pressLevelsTwice(page, (x, y) => page.mouse.dblclick(x, y), (x, y) => page.mouse.click(x, y), [1024, 620]);
-  expect(n, 'the row under "Levels"').toBe('3');
+  expect(n, 'the row under "Levels"').toBe('7');
 });
 
 test.describe('in topic columns, by touch', () => {
@@ -297,13 +295,13 @@ test.describe('in topic columns, by touch', () => {
   });
 });
 
-// At 1440×900 Level 4's row lies under "Levels" (before the daily
-// challenge's tile moved the topics down, no row did: there is no window
-// left where none does). A double click there stops at the selector, Level
-// 1's row focused, and nothing starts, the second press or the wait after it.
-test('in topic columns at 1440×900, a double click on "Levels" stops at the selector, over Level 4', async ({ page }) => {
+// At 1440×900 no row lies under "Levels": it is over the gap between the
+// second and third topics' columns, below the third's one row. A double
+// click there stops at the selector, Level 1's row focused, and nothing
+// starts, the second press or the wait after it.
+test('in topic columns at 1440×900, a double click on "Levels" stops at the selector, over no row', async ({ page }) => {
   await page.goto('/');
-  await page.waitForFunction(() => !document.documentElement.classList.contains('loading'));
+  await toLevels(page);
   await resize(page, 1440, 900);
   await levelRow(page, 1).click();
   await finishRun(page);
@@ -312,7 +310,7 @@ test('in topic columns at 1440×900, a double click on "Levels" stops at the sel
   await page.mouse.dblclick(x, y);
   await expect(page.locator('.select')).toBeVisible();
   await expect(page.locator('.select')).toHaveClass(/\bcols\b/);
-  expect(await page.evaluate(([x, y]) => document.elementFromPoint(x, y).closest('.row')?.dataset.level ?? null, [x, y]), 'the row under "Levels"').toBe('4');
+  expect(await page.evaluate(([x, y]) => document.elementFromPoint(x, y).closest('.row')?.dataset.level ?? null, [x, y]), 'no row under "Levels"').toBe(null);
   await expect(levelRow(page, 1)).toBeFocused();
   await page.waitForTimeout(450);
   await expect(page.locator('body')).toHaveClass(/\bat-select\b/);
