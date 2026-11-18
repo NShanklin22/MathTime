@@ -17,31 +17,38 @@ the first unfinished level. The rest are the recommended defaults.
   daily try or its board returns to Home.
 
 ## 2. What Home holds
-- **The title**, "MathTime", in the header where the breadcrumb sits on other screens. A settings
-  button (a gear) is at the header's right, where "Log in" sits now.
-- **Daily challenge**, a big button:
-  - before today's try it shows "Daily challenge" and the date, e.g. "Tue 17 Nov";
-  - after the try it shows a green check (the finished-level check), the score and the place, e.g.
-    "✓ 1:04.2 · 3rd of 7". Tapping it then opens the day's board, as the tile does now.
-- **Next lesson**, a big button naming the first level, in level order (Levels 1–7 as built), that you haven't finished, e.g.
-  "Next lesson · Subtraction 2". Tapping it starts that level. A locked one opens log in first, as on
-  Levels, with "Log in to play" below the name. With every level finished the button reads "Last played"
-  and names the last level played, with its check and best time.
-- **Levels**, a big button opening the Levels screen.
-- **Today's board**: the top three rows (place, name, time), then your own row if you're lower, marked as
-  on the full board. Tapping it opens the full board. Before anyone has played, it reads "No scores yet
-  today". Offline, "The board will show when you're back online". Signed out, the top three still show.
-- **Progress**: one row per topic, e.g. "Addition 1 of 2" with a small bar filled by finished levels.
-  The bars count levels that are built, not the roadmap's future ones.
+Revised 2026-11-17 after the owner rejected the first mockup as ugly: same contents, laid out as a game's
+title screen with one hero. The mockup (2026-11-17-home-mockup.html) is the record of the look.
+- **The title**, "MathTime", set large with the answer box's amber caret after it. Home has no header;
+  the settings gear sits at the right of the title's line.
+- **Daily challenge** is the hero, the only box with a solid white frame. The date sits top right in
+  every state.
+  - Before today's try: a large sample sum in the play screen's digits and a solid white Start button.
+  - After: the time very large, "✓ Done · 5th of 9 today", and an outlined "Full board ›" button.
+  - Offline after the try: the same layout, with a dashed, dimmed "Full board · offline" in the button's place.
+- **Next lesson** and **Levels** are second-level tiles with one shared anatomy: title and subtitle at top
+  left, one figure at bottom right on a shared baseline, no chevrons.
+  - Next lesson: the first unfinished level in level order (Levels 1–7 as built), with a sample problem;
+    tapping starts it. Locked: the lock and "Log in" as the figure; tapping opens log in. With every level
+    finished it reads "Last played", with the check and best time as the figure.
+  - Levels: "Finished so far" and a big "4/7"; tapping opens the Levels screen.
+- **Today's board** and **Progress** form one third-level section under a faint rule.
+  - The board heading reads "Today's board · N played"; "Full board ›" sits there only before the try.
+    Rows: the top three, then your own row (outlined) if you're lower. Empty: "No scores yet today".
+    Offline: "The board will show when you're back online".
+  - Progress: one row per topic, e.g. "Addition 1 of 2", a segmented bar counting built levels.
 
 ## 3. Layout
-- Portrait (phones): one column, in the order above, title at the top.
-- Wide windows (≥688px, as the daily board's rule): two columns. Left: Daily challenge, Next lesson,
-  Levels. Right: the board, then progress.
-- Home and Settings fit without scrolling at every checked window down to 320×640; below that they may scroll inside
-  the page, with the themed scrollbar. Levels keeps its existing rule: one column scrolls on phones.
+- Phones: one column: title, hero, the two tiles side by side, then board and progress.
+- Wide windows: the hero with the two tiles stacked beside it, then board and progress side by side.
+  A sideways phone uses three columns.
+- One width rule that grows steadily with the window; type and controls scale with it. The title and
+  hero hold their positions across states.
+- Home and Settings fit without scrolling at every checked window, 320×640 and 844×390 included.
+  Levels keeps its existing rule: one column scrolls on phones.
 
 ## 4. Settings
+- A large "Settings" title in Home's column and scale, the breadcrumb on the column's edge.
 - Signed in: "Logged in as nate" and a Log out button.
 - Signed out: Log in and Sign up, opening the existing screens. After logging in you return to Home.
 - "Log in" leaves the selector header; the lock on a level still opens log in.

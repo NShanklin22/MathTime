@@ -14,61 +14,47 @@
      site root:
        /docs/superpowers/specs/2026-11-17-home-mockup.html
        ?state=before         Home, signed out, before today's try: Levels 1–2 finished (default)
-       ?state=after          Home, signed in as "nate", after the try: "Tue 17 Nov · 5th of 9", the check over 1:12.6; your row under the top 3
+       ?state=after          Home, signed in as "nate", after the try: the check, 1:12.6 large, "5th of 9 today"; your row under the top 3
        ?state=empty          Home, signed in, before the try, nobody has played: "No scores yet today"
-       ?state=offline        Home, signed in, after the try, offline: the date alone, the check over the time; the board's note
+       ?state=offline        Home, signed in, after the try, offline: the check, the time, the date alone; the board's note
        ?state=all-done       Home, signed in, every level finished: "Last played", Subtraction 3, its check and best
        ?state=locked         Home, signed out, Levels 1–4 finished: Next lesson is Division 1, locked, "Log in to play"
        ?state=settings-in    Settings, signed in: "Logged in as nate", Log out
        ?state=settings-out   Settings, signed out: Log in and Sign up
        ?state=levels         Levels, signed in: the topic columns only, "Home › Levels", no "Log in"
 
-     Home's parts (spec §2): three big buttons, the selector's tiles (80px,
-     the keypad's ring), then Today's board, one button of its heading
-     ("9 played · Full board ›" at its right) and the top three and your row, set as
-     the full board sets them, and Progress, a row per topic with a bar of
-     one segment per built level, the run bar's segments: green finished,
-     faint not. Upright, one column, as wide as the keypad (420px less
-     16px each side); from 688px wide, two columns, the buttons on the left
-     and the board and progress on the right (spec §3). Where the window is
-     short (under 800px tall in one column, 560px in two) the tiles are
-     64px and the board's rows 32px, so it fits whole down to 320×640.
-     Below that, Home scrolls inside the page, with the theme's scrollbar.
-
-     The header: on Home, "MathTime" where the breadcrumb sits, at the
-     breadcrumb's level crumb's weight, and the gear at the right, in the
-     way back's muted colour, where "Log in" was, its ink ending at the
-     header's edge as the hearts' does; its hit area runs to the header's
-     foot and the window's edge, as "Log in"'s did. -->
+     Home is a title screen, in three steps of weight (the redesign brief
+     of 2026-11-17, in place of spec §3):
+       1. The wordmark, "MathTime" and the answer box's amber caret, large.
+       2. Daily challenge, the hero: a 2px ink frame, the title and date,
+          a sample problem in the play screen's digits and the filled Start
+          (the check key's and "Again"'s fill). After the try: the green
+          check and "Done", your time as large as the finish screen's, your
+          place, and "Today's board" outlined.
+       3. Next lesson and Levels, the selector's tiles, half the hero's
+          weight. Then, under one faint rule, Today's board and Progress,
+          set as one section: the same heading, the same row height.
+     Everything is sized in --u, one design pixel, so the composition fills
+     the window and never scrolls: the smaller of the width and the height
+     over the layout's own design size. Upright (under 900px wide), one
+     column, designed at 343×770 (375×812 less gutters and the header);
+     wide, two columns, 1000×612 (a 1366×657 laptop); a phone held
+     sideways, three columns, 812×342 (844×390). Below 0.7px a design
+     pixel (under about 320×600) Home scrolls inside the page, with the
+     theme's scrollbar. -->
 <link rel="stylesheet" href="/src/styles.css">
 <style>
-  /* ---------- The header (spec §2) ---------- */
-  .brand { display: none; }
-  body.at-home .crumbs { display: none; }
-  body.at-home .brand {
-    display: block; font-size: 14px; line-height: var(--crumb-line); letter-spacing: 0.04em;
-    font-weight: 600; color: var(--ink); white-space: nowrap;
-  }
-  body.at-home .lives, body.at-settings .lives,
+  /* ---------- The header ---------- */
+  /* Home has no header: the wordmark is the title, and the gear sits at
+     the right of its line, the content's edge. */
+  body.at-home .top { display: none; }
+  body.at-settings .lives,
   body.at-home .stage, body.at-home .run, body.at-home .pad,
   body.at-settings .stage, body.at-settings .run, body.at-settings .pad { display: none; }
-  .gear { display: none; }
-  body.at-home .gear {
-    display: block; position: relative; flex: none; width: 20px; height: var(--crumb-line); margin: 0; padding: 0;
-    border: 0; background: none; color: var(--muted); cursor: pointer; touch-action: manipulation;
-  }
-  .gear svg { display: block; width: 20px; height: 20px; overflow: visible; }
-  .gear svg path, .gear svg circle { fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
-  .gear::after { content: ""; position: absolute; top: calc(-1 * var(--top-safe)); bottom: calc(-1 * var(--top-foot)); left: -12px; right: calc(-1 * max(var(--gutter), env(safe-area-inset-right))); }
-  @media (hover: hover) { .gear:hover { color: var(--ink); } }
-  .gear:focus-visible { outline: 2px solid var(--ink); outline-offset: 4px; }
 
   /* "Home › Settings", "Home › Levels": the way back is "Home". On Levels
      the selector's lone "Levels" gets the way back before it, and "Log in"
      leaves the header (spec §4). */
-  /* "Levels" is the level crumb here, not the selector's title: the game's
-     selector sets its topic columns in from where its title starts (the
-     page's edge on the selector alone), which "Home ›" would push in. */
   body.at-select.under-home .crumbs > .back, body.at-select.under-home .crumbs > .sep:not(.sub),
   body.at-select.under-home .crumbs > .here { display: block; }
   body.at-select.under-home .crumbs > .home { display: none; }
@@ -76,175 +62,337 @@
   body.at-select.under-home .select { --daily-room: 0px; }
   body.at-select.under-home .select .row.daily { display: none; }
 
-  /* ---------- Home (spec §2–§3) ---------- */
+  /* ---------- The page ---------- */
   .home, .settings { display: none; }
   body.at-home, body.at-settings { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); grid-template-areas: none; }
-  body.at-home .top, body.at-settings .top { grid-area: 1 / 1 / 2 / -1; }
-  body.at-home .home, body.at-settings .settings { grid-area: 2 / 1 / 3 / -1; }
-  body.at-home .home {
-    --tile-h: 80px; --row-h: 40px; --prog-h: 28px; --part-gap: 28px; --head-gap: 14px; --head-h: 8.38px;
-    display: grid; grid-template-columns: minmax(0, 1fr); align-content: start; row-gap: var(--part-gap);
-    width: 100%; max-width: 420px; min-height: 0; justify-self: center; overflow-y: auto;
-    padding: 40px 16px max(24px, env(safe-area-inset-bottom));
+  body.at-settings .top { grid-area: 1 / 1 / 2 / -1; }
+  body.at-home .home { grid-area: 1 / 1 / 3 / -1; }
+  body.at-settings .settings { grid-area: 2 / 1 / 3 / -1; }
+  /* One design pixel, --u: upright, 343×812 is the design, the whole
+     window less its gutters. --cw is the column, Home's and Settings'
+     alike; --href the column's height, which the composition is laid in
+     from the top and which is centred in the window, so nothing moves
+     between states. */
+  body.at-home, body.at-settings {
+    --href: 812; --u: clamp(0.7px, min((100vw - 32px) / 343, 100dvh / var(--href)), 1.3px); --cw: calc(343 * var(--u));
   }
-  .home .part { min-width: 0; }
-  .home .buttons { display: grid; row-gap: 12px; }
-
-  /* A big button: the selector's tile. Its title and the line under it,
-     the problem kinds or a sample at the right, or a finished row's check
-     and time, or the lock. */
-  .home .tile {
-    position: relative; display: flex; align-items: center; justify-content: space-between; gap: 16px;
-    width: 100%; height: var(--tile-h); margin: 0; padding: 0 24px; border: 0; border-radius: 0;
-    background: transparent; box-shadow: var(--key-ring); font: inherit; color: var(--ink); text-align: left;
-    cursor: pointer; touch-action: manipulation;
+  body.at-home .home, body.at-settings .settings {
+    display: grid; align-content: safe center; justify-content: center; min-height: 0; overflow-y: auto; overflow-x: hidden;
+    padding: 0 max(16px, env(safe-area-inset-right)) env(safe-area-inset-bottom) max(16px, env(safe-area-inset-left));
   }
-  .home .tile:active { background: var(--key-press); }
-  .home .bd:active ol { background: var(--key-press); }
-  .home .tile:focus-visible, .home .bd:focus-visible { outline: 2px solid var(--ink); outline-offset: 4px; }
-  .home .txt { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
-  .home .title, .home .name, .home .head, .home .best { display: block; text-box: trim-both cap alphabetic; white-space: nowrap; }
-  .home .title { font-size: 17px; font-weight: 600; letter-spacing: 0.02em; }
-  .home .name { font-size: 13px; color: var(--muted); letter-spacing: 0.02em; }
-  .home .tile.done .name { color: var(--ink); }
-  .home .sample { display: flex; gap: 0.3em; font-size: 30px; font-weight: 500; line-height: 1; flex: none; }
-  .home .sample > span { display: block; height: 1em; line-height: 1; }
-  .home .sample .op { color: var(--muted); }
-  .home .kinds .op { color: var(--ink); }
-  .home .kinds { font-size: 26px; gap: 0.35em; }
-  .home .chev { display: block; height: 24px; width: auto; aspect-ratio: 9.5 / 16.5; overflow: visible; flex: none; color: var(--ink); }
-  .home .chev path { fill: none; stroke: currentColor; stroke-width: 2.1; stroke-linecap: round; stroke-linejoin: round; }
-  .home .result { display: flex; flex-direction: column; align-items: flex-end; gap: 10px; flex: none; }
-  .home .result .tick { display: block; font-size: 17px; height: 0.7em; height: 1cap; width: auto; aspect-ratio: 20 / 14.5; overflow: visible; color: var(--good); }
-  .home .result .tick path { fill: none; stroke: currentColor; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
-  .home .best { font-size: 13px; letter-spacing: 0.02em; color: var(--ink); }
-  .home .best.blank { visibility: hidden; }
-  .home .lock { display: block; height: 26px; width: auto; aspect-ratio: 16.7 / 20.7; overflow: visible; color: var(--ink); flex: none; }
-  .home .lock path, .home .lock rect { fill: none; stroke: currentColor; stroke-width: 2.7; stroke-linecap: round; stroke-linejoin: round; }
+  .home .stack {
+    --hero-h: calc(224 * var(--u)); --row-h: calc(33 * var(--u)); --prog-h: calc(29 * var(--u)); --gap: calc(12 * var(--u));
+    display: grid; grid-template-columns: minmax(0, 1fr); align-content: start; width: var(--cw); height: calc(var(--href) * var(--u));
+    padding: calc(max(20px, env(safe-area-inset-top)) + 4 * var(--u)) 0 calc(20 * var(--u));
+  }
 
-  /* A part's heading: the selector's topic heading. Over the board, at its
-     right, the cue that it opens the full board: "Full board" and the
-     Levels tile's chevron, in ink. */
-  .home .heading { display: flex; justify-content: space-between; align-items: center; height: var(--head-h); margin: 0 0 var(--head-gap); }
-  .home .head { margin: 0; font-size: 12px; font-weight: 500; color: var(--muted); letter-spacing: 0.1em; text-transform: uppercase; }
-  .home .more { display: flex; align-items: center; gap: 0.6em; font-size: 13px; letter-spacing: 0.02em; color: var(--muted); white-space: nowrap; }
-  /* "Full board ›": the way back's link, muted, its faint underline 4px
-     below the baseline, the chevron after it; "9 played ·" before it, plain. */
-  .home .more .link { display: flex; align-items: center; gap: 4px; text-decoration: underline; text-decoration-color: var(--faint); text-decoration-thickness: 1px; text-underline-offset: 4px; }
-  @media (hover: hover) { .home .bd:hover .more .link { text-decoration-color: currentColor; } }
-  .home .more svg { display: block; width: auto; height: 11px; aspect-ratio: 9.5 / 16.5; overflow: visible; margin-left: 2px; }
-  .home .more path { fill: none; stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
+  /* ---------- 1. The wordmark ---------- */
+  /* Plex Mono at its heaviest, set a touch tight, with the answer box's
+     caret after it: amber, as tall as the capitals, on the baseline. */
+  .home .markrow { display: flex; align-items: center; justify-content: space-between; gap: calc(16 * var(--u)); margin: 0 0 calc(22 * var(--u)); }
+  .home .mark {
+    margin: 0; font-size: calc(44 * var(--u)); font-weight: 600; line-height: 1; letter-spacing: -0.02em;
+    text-box: trim-both cap alphabetic; white-space: nowrap;
+  }
+  /* The gear (Tabler's "settings"), in the way back's muted colour, about
+     as tall as the wordmark's capitals; its hit area 12px past it all round. */
+  .home .gear {
+    position: relative; flex: none; width: calc(30 * var(--u)); height: calc(30 * var(--u)); margin: 0; padding: 0;
+    border: 0; background: none; color: var(--muted); cursor: pointer; touch-action: manipulation;
+  }
+  .home .gear svg { display: block; width: 100%; height: 100%; overflow: visible; }
+  .home .gear svg path, .home .gear svg circle { fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+  .home .gear::after { content: ""; position: absolute; inset: -12px; }
+  @media (hover: hover) { .home .gear:hover { color: var(--ink); } }
+  .home .gear:focus-visible { outline: 2px solid var(--ink); outline-offset: 4px; }
+  .home .mark .cur { display: inline-block; width: 0.13em; height: 0.7em; margin-left: 0.12em; background: var(--amber); vertical-align: baseline; }
 
-  /* ---------- Today's board ---------- */
-  /* The heading and the rows, set as the full board sets them (place,
-     name, score; your row the one outline, at the title's weight), are
-     one button: tapping anywhere on it opens the full board. Empty or
-     offline it is no button: a dashed faint frame round the note. */
-  .home .bd {
-    display: block; width: 100%; margin: 0; padding: 0; border: 0; border-radius: 0; background: transparent;
+  /* ---------- 2. Daily challenge, the hero ---------- */
+  /* One button (offline after the try, no button: there is nowhere to
+     go). The title and the date across the top in every state; upright,
+     the sample problem or your time large in the middle, the control the
+     button's width at the foot. */
+  .home .hero {
+    position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto auto auto auto;
+    grid-template-areas: "title date" "big big" "place place" "cta cta"; align-content: space-between; align-items: center; column-gap: calc(16 * var(--u));
+    width: 100%; height: var(--hero-h); margin: 0; padding: calc(22 * var(--u)) calc(20 * var(--u)) calc(20 * var(--u));
+    border: 0; border-radius: 0; background: transparent; box-shadow: inset 0 0 0 2px var(--ink);
     font: inherit; color: var(--ink); text-align: left; cursor: pointer; touch-action: manipulation;
   }
+  div.hero { cursor: default; }
+  button.hero:active { background: var(--key-press); }
+  .home .hero:focus-visible, .home .tile:focus-visible, .home .bd:focus-visible { outline: 2px solid var(--ink); outline-offset: 4px; }
+  .home .h-title, .home .h-date, .home .h-sub { display: block; text-box: trim-both cap alphabetic; white-space: nowrap; }
+  .home .h-title { grid-area: title; font-size: calc(20 * var(--u)); font-weight: 600; letter-spacing: 0.01em; }
+  .home .h-date { grid-area: date; justify-self: end; font-size: calc(15 * var(--u)); letter-spacing: 0.02em; color: var(--muted); }
+  .home .h-sub { display: none; }
+  .home .tick path { fill: none; stroke: currentColor; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+  /* The sample, in the play screen's digits: weight 500, the signs muted. */
+  .home .h-big { grid-area: big; justify-self: center; }
+  .home .hero:not(.done) .h-big { grid-area: 2 / 1 / 4 / -1; }
+  .home .eqs { display: flex; gap: 0.32em; font-size: calc(76 * var(--u)); font-weight: 500; line-height: 1; text-box: trim-both cap alphabetic; white-space: nowrap; }
+  .home .eqs > span { display: block; text-box: trim-both cap alphabetic; }
+  .home .eqs .op { color: var(--muted); }
+  /* After the try: the time as the finish screen sets it, larger, and
+     under it the finished level's green check and "Done", then the place,
+     at the finish screen's best line's weight. The gaps above the time,
+     between, and down to the control are the same. */
+  .home .res { display: contents; }
+  .home .res .time { grid-area: big; justify-self: center; display: block; font-size: calc(62 * var(--u)); font-weight: 500; line-height: 1; text-box: trim-both cap alphabetic; font-variant-numeric: tabular-nums; }
+  .home .res .place { grid-area: place; justify-self: center; display: flex; align-items: center; gap: 0.5em; height: 1cap; font-size: calc(15 * var(--u)); font-weight: 600; letter-spacing: 0.02em; color: var(--muted); white-space: nowrap; }
+  .home .res .ok { display: flex; align-items: center; gap: 0.45em; color: var(--good); }
+  .home .res .ok .tick { display: block; height: 0.85em; width: auto; aspect-ratio: 20 / 14.5; overflow: visible; }
+  /* The control: the finish screen's button. Filled before the try (the
+     one thing to do); after, "Full board", outlined: the way to the board. */
+  .home .h-cta {
+    grid-area: cta; display: flex; align-items: center; justify-content: center; gap: 0.6em; height: calc(56 * var(--u));
+    padding: 0 calc(36 * var(--u)); font-size: calc(18 * var(--u)); font-weight: 600; letter-spacing: 0.02em;
+    box-shadow: var(--key-ring); white-space: nowrap;
+  }
+  .home .h-cta.fill { background: var(--ink); color: var(--bg); box-shadow: none; }
+  /* Offline: the control's place, kept, dashed and dimmed: no control. */
+  .home .h-cta.off { box-shadow: none; outline: 1px dashed var(--faint); outline-offset: -1px; color: var(--muted); font-weight: 400; }
+  .home .hero:active .h-cta.fill { background: var(--go-press); }
+  .home .h-cta svg { display: block; height: 0.8em; width: auto; aspect-ratio: 9.5 / 16.5; overflow: visible; }
+  .home .h-cta svg path { fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+
+  /* ---------- 3. Next lesson and Levels ---------- */
+  /* One anatomy, at every size: the title and the line under it at the
+     top left; at the bottom right, on one baseline at one size (the play
+     screen's digits, small), the tile's figure: Next lesson's sample, the
+     lock, or the check and best; Levels' finished count, "4/7". No
+     chevrons. */
+  .home .second { display: grid; grid-template-columns: 1fr 1fr; gap: var(--gap); margin-top: var(--gap); }
+  .home .tile {
+    position: relative; display: flex; flex-direction: column; justify-content: space-between;
+    --tp-r: calc(16 * var(--u)); --tp-b: calc(16 * var(--u));
+    width: 100%; height: calc(104 * var(--u)); margin: 0; padding: calc(18 * var(--u)) var(--tp-r) var(--tp-b) calc(16 * var(--u));
+    border: 0; border-radius: 0; background: transparent; box-shadow: var(--key-ring);
+    font: inherit; color: var(--ink); text-align: left; cursor: pointer; touch-action: manipulation; min-width: 0;
+  }
+  .home .tile:active { background: var(--key-press); }
+  .home .t-txt { display: flex; flex-direction: column; gap: calc(9 * var(--u)); min-width: 0; }
+  .home .t-title, .home .t-name { display: block; text-box: trim-both cap alphabetic; white-space: nowrap; }
+  .home .t-title { font-size: calc(16 * var(--u)); font-weight: 600; letter-spacing: 0.01em; }
+  .home .t-name { font-size: calc(13 * var(--u)); letter-spacing: 0.02em; color: var(--muted); }
+  .home .t-name.ink { color: var(--ink); }
+  /* The figure is pinned to the padding corner, so its baseline is the
+     same in both tiles whatever the lines above it hold. */
+  .home .x { position: absolute; right: var(--tp-r); bottom: var(--tp-b); font-size: calc(28 * var(--u)); gap: 0.3em; }
+  .home .x.frac { gap: 0.08em; }
+  .home .x .tick { display: block; align-self: flex-end; height: 0.62em; width: auto; aspect-ratio: 20 / 14.5; overflow: visible; color: var(--good); margin-right: 0.05em; }
+  /* Locked: the lock and "Log in" together, right-aligned on the
+     figure's baseline, a little smaller than the digits; all finished,
+     the check and best at that size too, clear of the left padding. */
+  .home .x.lockslot, .home .x.best { font-size: calc(24 * var(--u)); }
+  .home .x.lockslot { display: flex; align-items: flex-end; gap: 0.3em; font-weight: 500; line-height: 1; white-space: nowrap; }
+  .home .x.lockslot > span { display: block; text-box: trim-both cap alphabetic; }
+  .home .lock { display: block; flex: none; height: 0.9em; width: auto; aspect-ratio: 16.7 / 20.7; overflow: visible; color: var(--ink); }
+  .home .lock path, .home .lock rect { fill: none; stroke: currentColor; stroke-width: 2.7; stroke-linecap: round; stroke-linejoin: round; }
+
+  /* ---------- Today's board and Progress: one section ---------- */
+  /* Under one faint rule, each with the same heading (sentence case, the
+     tile title's weight), rows the same height. */
+  .home .extra { display: grid; row-gap: calc(20 * var(--u)); margin-top: calc(24 * var(--u)); padding-top: calc(16 * var(--u)); border-top: 1px solid var(--faint); }
+  .home .part { min-width: 0; }
+  .home .sh { display: flex; justify-content: space-between; align-items: center; height: 1cap; margin: 0 0 calc(14 * var(--u)); font-size: calc(15 * var(--u)); }
+  .home .sh-title { margin: 0; font-size: inherit; font-weight: 600; letter-spacing: 0.01em; color: var(--ink); white-space: nowrap; text-box: trim-both cap alphabetic; }
+  .home .sh-title .count { font-weight: 400; color: var(--muted); }
+  /* Before the try, the board is a button: "Full board", the way back's
+     link, its faint underline under the words alone, the chevron clear of
+     it. After the try the hero's control is the way to the board. */
+  .home .more { display: flex; align-items: center; gap: 0.45em; font-size: calc(14 * var(--u)); letter-spacing: 0.02em; color: var(--muted); white-space: nowrap; }
+  .home .more .link { text-decoration: underline; text-decoration-color: var(--faint); text-decoration-thickness: 1px; text-underline-offset: 0.3em; }
+  @media (hover: hover) { .home .bd:hover .more .link { text-decoration-color: currentColor; } }
+  .home .more svg { display: block; width: auto; height: 0.75em; aspect-ratio: 9.5 / 16.5; overflow: visible; }
+  .home .more path { fill: none; stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
+
+  /* The rows as the full board sets them: place, name, score; your row
+     the one outline, at the title's weight. */
+  .home .bd {
+    display: block; width: 100%; margin: 0; padding: 0; border: 0; border-radius: 0; background: transparent;
+    font: inherit; color: var(--ink); text-align: left;
+  }
+  button.bd { cursor: pointer; touch-action: manipulation; }
+  button.bd:active ol { background: var(--key-press); }
   .home .bd ol { list-style: none; margin: 0; padding: 0; }
-  /* The cue ends where the scores do. */
   .home .r {
-    display: grid; grid-template-columns: 2ch minmax(0, 1fr) auto; column-gap: 16px; align-items: center;
-    height: var(--row-h); padding: 0 16px 0 10px; font-size: 15px; letter-spacing: 0.02em; white-space: nowrap;
+    display: grid; grid-template-columns: 2ch minmax(0, 1fr) auto; column-gap: calc(16 * var(--u)); align-items: center;
+    height: var(--row-h); padding: 0 calc(16 * var(--u)) 0 calc(10 * var(--u)); font-size: calc(16 * var(--u)); letter-spacing: 0.02em; white-space: nowrap;
   }
   .home .r .place { text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; }
   .home .r .who { overflow: hidden; text-overflow: ellipsis; }
   .home .r .score { text-align: right; font-variant-numeric: tabular-nums; }
   .home .r.you { box-shadow: var(--key-ring); font-weight: 600; }
   .home .r.you .place { font-weight: 400; }
-  /* Your row under the top three, where you are lower: its outline sets
-     it apart, a little below them. */
-  .home .r.below { margin-top: 6px; }
-  .home .none {
-    display: flex; align-items: center; justify-content: center; height: calc(3 * var(--row-h)); padding: 0 24px;
-    outline: 1px dashed var(--faint); outline-offset: -1px;
-  }
-  .home .note { margin: 0; font-size: 14px; letter-spacing: 0.02em; color: var(--muted); text-align: center; text-wrap: balance; line-height: 1.5; }
+  .home .r.below { margin-top: calc(6 * var(--u)); }
+  /* Nobody yet, or offline: a dashed faint frame round the note. */
+  .home .none { display: flex; align-items: center; justify-content: center; height: calc(4 * var(--row-h) + 6 * var(--u)); padding: 0 calc(24 * var(--u)); outline: 1px dashed var(--faint); outline-offset: -1px; }
+  .home .note { margin: 0; font-size: calc(15 * var(--u)); letter-spacing: 0.02em; color: var(--muted); text-align: center; text-wrap: balance; line-height: 1.5; }
 
-  /* ---------- Progress ---------- */
-  /* A row per topic: its name, a bar of one segment per built level (the
-     run bar's segments, 6px, 2px apart: green finished, faint not), and
-     "1 of 2". The names take the longest's room, so the bars line up. */
-  .home .progress { display: grid; grid-template-columns: max-content minmax(0, 1fr) max-content; column-gap: 16px; align-items: center; }
-  .home .progress > * { height: var(--prog-h); display: flex; align-items: center; }
-  .home .progress .topic { font-size: 14px; letter-spacing: 0.02em; }
-  .home .progress .of { justify-content: flex-end; font-size: 13px; letter-spacing: 0.02em; color: var(--muted); font-variant-numeric: tabular-nums; }
-  .home .progress .bar { gap: 2px; }
-  .home .progress .bar span { flex: 1; height: var(--run-bar); background: var(--faint); }
-  .home .progress .bar span.done { background: var(--good); }
+  /* Progress: a row per topic, as the board's rows: its name, a bar of one
+     segment per built level (the run bar's segments, 2px apart: green
+     finished, faint not), and "1 of 2". The names take the longest's
+     room, so the bars line up. */
+  .home .pg { display: grid; grid-template-columns: max-content minmax(0, 1fr) max-content; column-gap: calc(16 * var(--u)); }
+  .home .pc { display: grid; grid-column: 1 / -1; grid-template-columns: subgrid; align-items: center; height: var(--prog-h); min-width: 0; }
+  .home .pc .topic, .home .pc .of { display: block; text-box: trim-both cap alphabetic; white-space: nowrap; }
+  .home .pc .topic { font-size: calc(15 * var(--u)); letter-spacing: 0.02em; }
+  .home .pc .of { justify-self: end; font-size: calc(14 * var(--u)); letter-spacing: 0.02em; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .home .pc .bar { display: flex; gap: 2px; }
+  .home .pc .bar span { flex: 1; height: calc(7 * var(--u)); background: var(--faint); }
+  .home .pc .bar span.done { background: var(--good); }
 
-  /* Wide windows (spec §3): two columns, the buttons on the left, the
-     board then progress on the right, 48px apart. */
-  @media (min-width: 688px) {
-    body.at-home .home {
-      max-width: calc(2 * 388px + 48px + 2 * var(--gutter)); column-gap: 48px;
-      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: auto 1fr;
-      grid-template-areas: "buttons board" "buttons progress";
-      padding-left: max(var(--gutter), env(safe-area-inset-left)); padding-right: max(var(--gutter), env(safe-area-inset-right));
+  /* ---------- Wide windows: two columns ---------- */
+  /* The wordmark, then the hero on the left and the two tiles stacked on
+     the right, as tall as the hero; under the rule the board under the
+     hero and progress under the tiles, as tall as the board's rows.
+     Designed at 1000×640. The column grows steadily with the window,
+     60% of it and 260px, never nearer than 24px to its sides, unless the
+     window is too short for it. */
+  @media (min-width: 900px) {
+    body.at-home, body.at-settings {
+      --href: 650; --u: clamp(0.6px, min(min(100vw - 48px, 60vw + 260px) / 1000, 100dvh / var(--href)), 1.6px); --cw: calc(1000 * var(--u));
     }
-    /* The first tile's top level with the board's, under its heading. */
-    .home .buttons { grid-area: buttons; align-content: start; padding-top: calc(var(--head-h) + var(--head-gap)); }
-    .home .part.b { grid-area: board; }
-    .home .part.p { grid-area: progress; }
+    body.at-home .home, body.at-settings .settings { padding-left: max(24px, env(safe-area-inset-left)); padding-right: max(24px, env(safe-area-inset-right)); }
+    .home .stack {
+      --hero-h: calc(264 * var(--u)); --row-h: calc(36 * var(--u)); --prog-h: var(--row-h); --gap: calc(16 * var(--u));
+      grid-template-columns: minmax(0, 600fr) minmax(0, 376fr); column-gap: calc(24 * var(--u));
+      grid-template-areas: "mark mark" "hero second" "extra extra"; padding: calc(38 * var(--u)) 0 calc(18 * var(--u));
+    }
+    .home .markrow { grid-area: mark; margin-bottom: calc(30 * var(--u)); }
+    .home .mark { font-size: calc(66 * var(--u)); }
+    .home .gear { width: calc(36 * var(--u)); height: calc(36 * var(--u)); }
+    /* Before the try: the title and the date across the top, then on the
+       left the line under it and Start, the text column's width; the
+       sample on the right. */
+    .home .hero {
+      grid-area: hero; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto auto 1fr auto;
+      grid-template-areas: "title date" "sub big" ". big" "cta big"; align-items: start; column-gap: calc(32 * var(--u));
+      padding: calc(32 * var(--u)) calc(32 * var(--u));
+    }
+    .home .h-title { font-size: calc(28 * var(--u)); }
+    .home .h-date { font-size: calc(18 * var(--u)); }
+    .home .h-sub { display: block; grid-area: sub; margin-top: calc(20 * var(--u)); font-size: calc(18 * var(--u)); letter-spacing: 0.02em; color: var(--muted); }
+    .home .h-big, .home .hero:not(.done) .h-big { grid-area: big; align-self: center; justify-self: end; margin-top: calc(16 * var(--u)); }
+    .home .eqs { font-size: calc(100 * var(--u)); }
+    .home .h-cta { justify-self: stretch; height: calc(76 * var(--u)); font-size: calc(22 * var(--u)); }
+    /* Done: a scoreboard. The title and the date across the top, the time
+       large at the left, "Done" and the place and the control across the
+       foot. */
+    .home .hero.done { grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto 1fr auto; grid-template-areas: "title date" "big big" "place cta"; align-items: center; }
+    .home .res .time { grid-area: big; justify-self: start; font-size: calc(96 * var(--u)); }
+    .home .res .place { grid-area: place; justify-self: start; font-size: calc(19 * var(--u)); }
+    .home .hero.done .h-cta { justify-self: end; height: calc(64 * var(--u)); min-width: calc(240 * var(--u)); font-size: calc(20 * var(--u)); }
+    .home .second { grid-area: second; grid-template-columns: minmax(0, 1fr); grid-template-rows: repeat(2, minmax(0, 1fr)); height: var(--hero-h); margin-top: 0; }
+    .home .tile { --tp-r: calc(28 * var(--u)); --tp-b: calc(24 * var(--u)); height: auto; padding: calc(22 * var(--u)) var(--tp-r) var(--tp-b) calc(28 * var(--u)); }
+    .home .t-txt { gap: calc(10 * var(--u)); }
+    .home .t-title { font-size: calc(22 * var(--u)); }
+    .home .t-name { font-size: calc(16 * var(--u)); }
+    .home .x { font-size: calc(36 * var(--u)); }
+    .home .x.lockslot, .home .x.best { font-size: calc(30 * var(--u)); }
+    .home .extra { grid-area: extra; grid-template-columns: subgrid; margin-top: calc(28 * var(--u)); padding-top: calc(24 * var(--u)); }
+    .home .sh { font-size: calc(18 * var(--u)); margin-bottom: calc(16 * var(--u)); }
+    .home .more { font-size: calc(16 * var(--u)); }
+    .home .r { font-size: calc(18 * var(--u)); }
+    .home .note { font-size: calc(17 * var(--u)); }
+    .home .pg { column-gap: calc(20 * var(--u)); }
+    .home .pc .topic { font-size: calc(18 * var(--u)); }
+    .home .pc .bar span { height: calc(8 * var(--u)); }
+    .home .pc .of { font-size: calc(17 * var(--u)); }
   }
-  /* Short windows: tighter, so it all fits whole. */
-  @media (max-width: 687.98px) and (max-height: 799.98px), (min-width: 688px) and (max-height: 560px) {
-    body.at-home .home { --tile-h: 64px; --row-h: 32px; --prog-h: 22px; --part-gap: 20px; --head-gap: 12px; padding-top: 16px; padding-bottom: max(16px, env(safe-area-inset-bottom)); }
-    .home .buttons { row-gap: 8px; }
-    .home .txt { gap: 9px; }
-    .home .sample { font-size: 26px; }
-  }
-  /* A phone held sideways: tighter again. */
-  @media (min-width: 688px) and (max-height: 420px) {
-    body.at-home .home { --row-h: 28px; --prog-h: 20px; --part-gap: 16px; padding-top: 12px; padding-bottom: max(12px, env(safe-area-inset-bottom)); }
-    .home .r { font-size: 14px; }
-  }
-  @media (max-width: 359.98px) {
-    .home .tile { padding: 0 20px; }
-    .home .sample { font-size: 22px; }
-    .home .lock { height: 20px; }
-    /* So "9 played · Full board ›" keeps a clear gap to the heading. */
-    .home .more { font-size: 12px; letter-spacing: 0; gap: 0.5em; }
-    .home .bd .head { letter-spacing: 0.06em; }
-  }
-  .scrollbars-take-room .home::-webkit-scrollbar { width: 8px; }
-  .scrollbars-take-room .home::-webkit-scrollbar-track { background: transparent; }
-  .scrollbars-take-room .home::-webkit-scrollbar-button { display: none; width: 0; height: 0; }
-  .scrollbars-take-room .home::-webkit-scrollbar-thumb { background: var(--faint); border-radius: 0; }
-  .scrollbars-take-room .home::-webkit-scrollbar-thumb:hover { background: var(--muted); }
 
-  /* ---------- Settings (spec §4) ---------- */
-  /* The finish screen's column. The account's heading, a line, and its
-     buttons: Log out alone; or Log in, filled (the one most come for),
-     and Sign up. */
-  body.at-settings .settings {
-    display: block; width: 100%; max-width: 420px; min-height: 0; justify-self: center; overflow-y: auto;
-    padding: 40px 16px max(32px, env(safe-area-inset-bottom));
+  /* ---------- A phone held sideways: three columns ---------- */
+  /* The wordmark over the hero, the tiles stacked, the board and progress
+     under their rule; designed at 812×380. */
+  @media (orientation: landscape) and (max-height: 560px) and (min-aspect-ratio: 3/2) {
+    body.at-home, body.at-settings { --href: 380; --u: clamp(0.6px, min((100vw - 32px) / 812, 100dvh / var(--href)), 1.3px); --cw: calc(812 * var(--u)); }
+    body.at-home .home, body.at-settings .settings { padding-left: max(16px, env(safe-area-inset-left)); padding-right: max(16px, env(safe-area-inset-right)); }
+    .home .stack {
+      --hero-h: calc(296 * var(--u)); --row-h: calc(28 * var(--u)); --prog-h: calc(24 * var(--u)); --gap: calc(12 * var(--u));
+      grid-template-columns: minmax(0, 290fr) minmax(0, 196fr) minmax(0, 286fr); column-gap: calc(20 * var(--u));
+      grid-template-areas: "mark mark mark" "hero second extra"; padding: calc(max(16px, env(safe-area-inset-top)) + 2 * var(--u)) 0 calc(16 * var(--u));
+    }
+    .home .markrow { grid-area: mark; margin-bottom: calc(18 * var(--u)); }
+    .home .mark { font-size: calc(34 * var(--u)); }
+    .home .gear { width: calc(24 * var(--u)); height: calc(24 * var(--u)); }
+    .home .hero { grid-area: hero; padding: calc(20 * var(--u)) calc(18 * var(--u)) calc(18 * var(--u)); }
+    .home .h-title { font-size: calc(17 * var(--u)); }
+    .home .h-date { font-size: calc(13 * var(--u)); }
+    .home .eqs { font-size: calc(64 * var(--u)); }
+    .home .res .time { font-size: calc(56 * var(--u)); }
+    .home .res .place { font-size: calc(14 * var(--u)); }
+    .home .h-cta { height: calc(52 * var(--u)); font-size: calc(17 * var(--u)); }
+    .home .second { grid-area: second; grid-template-columns: minmax(0, 1fr); grid-template-rows: repeat(2, minmax(0, 1fr)); height: var(--hero-h); margin-top: 0; }
+    .home .tile { --tp-r: calc(18 * var(--u)); --tp-b: calc(18 * var(--u)); height: auto; padding: calc(20 * var(--u)) var(--tp-r) var(--tp-b) calc(18 * var(--u)); }
+    .home .t-txt { gap: calc(11 * var(--u)); }
+    .home .t-title { font-size: calc(17 * var(--u)); }
+    .home .t-name { font-size: calc(14 * var(--u)); }
+    .home .x { font-size: calc(34 * var(--u)); }
+    .home .x.lockslot, .home .x.best { font-size: calc(29 * var(--u)); }
+    .home .extra { grid-area: extra; align-content: start; row-gap: calc(18 * var(--u)); margin-top: 0; padding-top: calc(14 * var(--u)); }
+    .home .sh { font-size: calc(13 * var(--u)); margin-bottom: calc(10 * var(--u)); }
+    .home .more { font-size: calc(12 * var(--u)); }
+    .home .r { font-size: calc(14 * var(--u)); column-gap: calc(12 * var(--u)); padding: 0 calc(12 * var(--u)) 0 calc(6 * var(--u)); }
+    .home .r.below { margin-top: calc(5 * var(--u)); }
+    .home .note { font-size: calc(13 * var(--u)); }
+    .home .pg { column-gap: calc(12 * var(--u)); }
+    .home .pc .topic { font-size: calc(13 * var(--u)); }
+    .home .pc .bar span { height: calc(6 * var(--u)); }
+    .home .pc .of { font-size: calc(13 * var(--u)); }
   }
-  .settings .head { display: block; margin: 0 0 20px; text-box: trim-both cap alphabetic; font-size: 12px; font-weight: 500; color: var(--muted); letter-spacing: 0.1em; text-transform: uppercase; }
-  .settings .who { display: block; margin: 0; text-box: trim-both cap alphabetic; font-size: 15px; letter-spacing: 0.02em; white-space: nowrap; }
+  .scrollbars-take-room .home::-webkit-scrollbar, .scrollbars-take-room .settings::-webkit-scrollbar { width: 8px; }
+  .scrollbars-take-room .home::-webkit-scrollbar-track, .scrollbars-take-room .settings::-webkit-scrollbar-track { background: transparent; }
+  .scrollbars-take-room .home::-webkit-scrollbar-button, .scrollbars-take-room .settings::-webkit-scrollbar-button { display: none; width: 0; height: 0; }
+  .scrollbars-take-room .home::-webkit-scrollbar-thumb, .scrollbars-take-room .settings::-webkit-scrollbar-thumb { background: var(--faint); border-radius: 0; }
+  .scrollbars-take-room .home::-webkit-scrollbar-thumb:hover, .scrollbars-take-room .settings::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+
+  /* ---------- Settings ---------- */
+  /* The same treatment, on Home's column, the breadcrumb's first ink
+     where the column starts: a large title at the wordmark's size, then
+     the account as Home's section, under a faint rule, and its buttons at
+     the hero's control's size: Log out alone; or Log in, filled (the one
+     most come for), and Sign up. From the top. */
+  body.at-settings .top {
+    padding-left: max(16px, env(safe-area-inset-left), (100vw - var(--cw)) / 2);
+    padding-right: max(16px, env(safe-area-inset-right), (100vw - var(--cw)) / 2);
+  }
+  body.at-settings .settings { align-content: start; }
+  .settings .in { width: var(--cw); padding: calc(24 * var(--u)) 0 calc(24 * var(--u)); }
+  .settings .s-title { margin: 0 0 calc(40 * var(--u)); font-size: calc(44 * var(--u)); font-weight: 600; line-height: 1; letter-spacing: -0.02em; text-box: trim-both cap alphabetic; }
+  .settings .sect { padding-top: calc(22 * var(--u)); border-top: 1px solid var(--faint); }
+  .settings .s-head { margin: 0; font-size: calc(15 * var(--u)); font-weight: 600; letter-spacing: 0.01em; color: var(--muted); text-box: trim-both cap alphabetic; }
+  .settings .who { margin: calc(24 * var(--u)) 0 0; font-size: calc(20 * var(--u)); letter-spacing: 0.01em; text-box: trim-both cap alphabetic; white-space: nowrap; }
   .settings .who b { font-weight: 600; }
-  .settings .who.out { color: var(--muted); }
-  .settings .buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 28px; }
-  .settings .buttons.one { grid-template-columns: 1fr; }
+  .settings .buttons { display: grid; grid-template-columns: 1fr 1fr; gap: calc(12 * var(--u)); margin-top: calc(32 * var(--u)); }
   .settings button {
-    display: flex; align-items: center; justify-content: center; height: 56px; padding: 0; border: 0; border-radius: 0;
-    background: transparent; box-shadow: var(--key-ring); color: var(--ink); font: 600 17px/1 var(--font); letter-spacing: 0.02em;
+    display: flex; align-items: center; justify-content: center; height: calc(60 * var(--u)); padding: 0; border: 0; border-radius: 0;
+    background: transparent; box-shadow: var(--key-ring); color: var(--ink); font: 600 calc(18 * var(--u))/1 var(--font); letter-spacing: 0.02em;
     cursor: pointer; touch-action: manipulation;
   }
   .settings button.fill { background: var(--ink); color: var(--bg); box-shadow: none; }
   .settings button:active { background: var(--key-press); }
   .settings button.fill:active { background: var(--go-press); }
   .settings button:focus-visible { outline: 2px solid var(--ink); outline-offset: 4px; }
+  /* Wide: the account under the hero's column. */
+  @media (min-width: 900px) {
+    .settings .in { padding-top: calc(36 * var(--u)); }
+    .settings .sect { width: calc(600 * var(--u)); }
+    .settings .s-title { font-size: calc(66 * var(--u)); margin-bottom: calc(48 * var(--u)); }
+    .settings .s-head { font-size: calc(18 * var(--u)); }
+    .settings .who { font-size: calc(22 * var(--u)); }
+    .settings button { height: calc(64 * var(--u)); font-size: calc(20 * var(--u)); }
+  }
+  @media (orientation: landscape) and (max-height: 560px) and (min-aspect-ratio: 3/2) {
+    .settings .in { padding-top: calc(12 * var(--u)); }
+    .settings .sect { width: calc(420 * var(--u)); }
+    .settings .s-title { font-size: calc(40 * var(--u)); margin-bottom: calc(32 * var(--u)); }
+  }
 </style>
 </head>
 <body class="at-home" data-kind="fact">
   <header class="top">
     <div class="where">
-      <span class="brand">MathTime</span>
       <nav class="crumbs" aria-label="Breadcrumb">
         <a class="back" href="#" aria-label="Home" aria-keyshortcuts="Escape" tabindex="-1"><span class="word">Home</span><svg class="chevron" viewBox="0 0 12 12" aria-hidden="true"><path d="M7.25 2.5L3.75 6l3.5 3.5"/></svg></a>
         <svg class="sep" viewBox="0 0 12 12" aria-hidden="true"><path d="M4.5 2.5L8 6l-3.5 3.5"/></svg>
@@ -260,31 +408,41 @@
       <svg viewBox="2 3 20 18" aria-hidden="true"><path d="M19.5 12.572l-7.5 7.428l-7.5 -7.428a5 5 0 1 1 7.5 -6.566a5 5 0 1 1 7.5 6.572"/></svg>
     </div>
     <button class="acct" type="button">Log in</button>
-    <!-- The gear (Tabler's "settings"), its viewBox cropped to its ink, stroke included. -->
-    <button class="gear" type="button" aria-label="Settings"><svg viewBox="2.25 2.25 19.5 19.5" aria-hidden="true"><path d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 0 0 2.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 0 0 1.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 0 0-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 0 0-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 0 0-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 0 0-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 0 0 1.066-2.573c-.94-1.543.826-3.31 2.37-2.37c1 .608 2.296.07 2.572-1.065z"/><circle cx="12" cy="12" r="3"/></svg></button>
   </header>
 
-  <!-- Home (spec §2), filled in below. -->
+  <!-- Home, filled in below. -->
   <div class="home" role="region" aria-label="Home">
-    <div class="part buttons">
-      <button class="tile daily" type="button"></button>
-      <button class="tile next" type="button"></button>
-      <button class="tile levels" type="button" aria-label="Levels: every level, by topic"><span class="txt"><span class="title">Levels</span><span class="name"></span></span><svg class="chev" viewBox="7.75 3.75 9.5 16.5" aria-hidden="true"><path d="M9 5l7 7l-7 7"/></svg></button>
+    <div class="stack">
+      <div class="markrow">
+        <h1 class="mark">MathTime<span class="cur" aria-hidden="true"></span></h1>
+        <!-- The gear (Tabler's "settings"), its viewBox cropped to its ink, stroke included. -->
+        <button class="gear" type="button" aria-label="Settings"><svg viewBox="2.25 2.25 19.5 19.5" aria-hidden="true"><path d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 0 0 2.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 0 0 1.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 0 0-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 0 0-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 0 0-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 0 0-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 0 0 1.066-2.573c-.94-1.543.826-3.31 2.37-2.37c1 .608 2.296.07 2.572-1.065z"/><circle cx="12" cy="12" r="3"/></svg></button>
+      </div>
+      <button class="hero" type="button"></button>
+      <div class="second">
+        <button class="tile next" type="button"></button>
+        <button class="tile levels" type="button" aria-label="Levels: every level, by topic"><span class="t-txt"><span class="t-title">Levels</span><span class="t-name"></span></span><svg class="x chev" viewBox="7.75 3.75 9.5 16.5" aria-hidden="true"><path d="M9 5l7 7l-7 7"/></svg></button>
+      </div>
+      <div class="extra">
+        <section class="part b" aria-labelledby="h-board"><div class="board-slot"></div></section>
+        <section class="part p" aria-labelledby="h-prog">
+          <div class="sh"><h2 class="sh-title" id="h-prog">Progress</h2></div>
+          <div class="pg"></div>
+        </section>
+      </div>
     </div>
-    <section class="part b" aria-labelledby="h-board">
-      <div class="board-slot"></div>
-    </section>
-    <section class="part p" aria-labelledby="h-prog">
-      <div class="heading"><h2 class="head" id="h-prog">Progress</h2></div>
-      <div class="progress"></div>
-    </section>
   </div>
 
-  <!-- Settings (spec §4). -->
-  <div class="settings" role="region" aria-labelledby="s-acct">
-    <h1 class="head" id="s-acct">Account</h1>
-    <p class="who"></p>
-    <div class="buttons"></div>
+  <!-- Settings. -->
+  <div class="settings" role="region" aria-labelledby="s-title">
+    <div class="in">
+      <h1 class="s-title" id="s-title">Settings</h1>
+      <section class="sect" aria-labelledby="s-acct">
+        <h2 class="s-head" id="s-acct">Account</h2>
+        <p class="who"></p>
+        <div class="buttons"></div>
+      </section>
+    </div>
   </div>
 
   <!-- The game's own page (index.html), for ?state=levels. -->
@@ -408,69 +566,89 @@
     { name: 'kit', totalMs: 84_100 }, { name: 'rowan', totalMs: null, reached: 12 }, { name: 'ivy', totalMs: null, reached: 5 },
   ];
   const SIX = NINE.filter(p => p.name !== ME).slice(0, 6);
-  const ordinal = n => n + ({ 1: 'st', 2: 'nd', 3: 'rd' }[(n % 100 > 10 && n % 100 < 14) ? 0 : n % 10] ?? 'th');
   const TICK = '<svg class="tick" viewBox="2 5 20 14.5" aria-hidden="true"><path d="M3.5 12.5l5.5 5.5l11.5-11.5"/></svg>';
   const LOCK = '<svg class="lock" viewBox="-0.35 -0.35 16.7 20.7" aria-hidden="true"><path d="M4 9V5a4 4 0 0 1 8 0v4"/><rect x="1" y="9" width="14" height="10" rx="1"/><path d="M8 13v2"/></svg>';
-  const sampleOf = (level, kinds) => `<span class="sample${kinds ? ' kinds' : ''}" aria-hidden="true">`
-    + (kinds ? '<span class="op">+</span><span class="op">−</span><span class="op">×</span>'
-      : `<span>${level.sample[0]}</span><span class="op">${level.op}</span><span>${level.sample[1]}</span>`) + '</span>';
-  const txt = (title, name, more) => `<span class="txt"><span class="title">${title}</span><span class="name">${name}</span>`
-    + (more ? `<span class="name">${more}</span>` : '') + '</span>';
+  const CHEV = '<svg viewBox="7.75 3.75 9.5 16.5" aria-hidden="true"><path d="M9 5l7 7l-7 7"/></svg>';
+  const eq = (a, op, b, cls) => `<span class="${cls} eqs" aria-hidden="true"><span>${a}</span><span class="op">${op}</span><span>${b}</span></span>`;
+  const txt = (title, ...names) => `<span class="t-txt"><span class="t-title">${title}</span>`
+    + names.map(n => `<span class="t-name">${n}</span>`).join('') + '</span>';
 
   // ---------- Home ----------
   function showHome() {
     body.className = 'at-home';
-    // Daily challenge: the date and the problem kinds before the try; after,
-    // as a finished level's tile (the daily tile's own form, approved): the
-    // date and the place under the title, the check over the score at the
-    // right. Offline, the date alone under the title.
-    const daily = $('.tile.daily');
+    // Daily challenge, the hero: the title and the date in every state.
+    // Before the try: a sample from the day's mix and Start. After: the
+    // time large, the check and "Done" and the place, and "Full board",
+    // the one way to the board. Offline after the try: no place and no
+    // control, and no button.
+    let hero = $('.hero');
+    const top = `<span class="h-title">Daily challenge</span><span class="h-date">${DAY}</span>`;
     if (!tried) {
-      daily.innerHTML = txt('Daily challenge', DAY) + sampleOf(null, true);
-      daily.setAttribute('aria-label', `Daily challenge, ${DAY}: 20 problems, one try`);
+      hero.innerHTML = top + '<span class="h-sub">20 problems · one try</span>'
+        + eq(7, '×', 8, 'h-big') + '<span class="h-cta fill">Start</span>';
+      hero.setAttribute('aria-label', `Daily challenge, ${DAY}: 20 problems, one try. Start`);
     } else {
-      const line = state === 'offline' ? DAY : `${DAY} · 5th of 9`;
-      daily.innerHTML = txt('Daily challenge', line) + `<span class="result">${TICK}<span class="best">1:12.6</span></span>`;
-      daily.setAttribute('aria-label', `Daily challenge: 1:12.6${state === 'offline' ? '' : ', 5th of 9'}. Show the board`);
+      const offline = state === 'offline';
+      if (offline) {
+        const div = document.createElement('div');
+        div.className = hero.className;
+        div.setAttribute('role', 'group');
+        hero.replaceWith(div);
+        hero = div;
+      }
+      hero.classList.add('done');
+      hero.innerHTML = top + `<span class="h-big res"><span class="time">1:12.6</span>`
+        + `<span class="place"><span class="ok">${TICK}Done</span>${offline ? '' : '<span>· 5th of 9 today</span>'}</span></span>`
+        + (offline ? '<span class="h-cta off">Full board · offline</span>' : `<span class="h-cta">Full board${CHEV}</span>`);
+      hero.setAttribute('aria-label', `Daily challenge, ${DAY}: done, 1:12.6${offline ? '' : ', 5th of 9. Show the full board'}`);
     }
-    // Next lesson: the first unfinished level in level order; locked, the
-    // lock and "Log in to play" under the name. With all finished, "Last
-    // played", as a finished level's tile.
+    // Next lesson: the first unfinished level in level order, its sample;
+    // locked, "Log in to play" under the name and the lock. With all
+    // finished, "Last played", its check and best. Levels: how many are
+    // finished.
     const next = $('.tile.next');
     const left = LEVELS.find(l => !finished.has(l.n));
     const level = left ?? LEVELS.find(l => l.n === LAST_PLAYED);
     const locked = signedOut && level.n >= 5;
-    let right = sampleOf(level);
-    if (!left) right = `<span class="result">${TICK}<span class="best">${formatTime(BESTS[level.n])}</span></span>`;
-    else if (locked) right = LOCK;
+    let right = eq(level.sample[0], level.op, level.sample[1], 'x');
+    if (!left) right = `<span class="x eqs best" aria-hidden="true">${TICK}<span>${formatTime(BESTS[level.n])}</span></span>`;
+    else if (locked) right = `<span class="x lockslot" aria-hidden="true">${LOCK}<span>Log in</span></span>`;
     const title = left ? 'Next lesson' : 'Last played';
-    next.innerHTML = txt(title, locked ? `${levelName(level)} · Log in to play` : levelName(level)) + right;
+    next.innerHTML = txt(title, levelName(level)) + right;
     next.setAttribute('aria-label', `${title}: ${levelName(level)}${locked ? ', locked: log in to play' : ''}`);
-    $('.tile.levels .name').textContent = `${finished.size} of ${LEVELS.length} finished`;
+    const levels = $('.tile.levels');
+    levels.innerHTML = txt('Levels', 'Finished so far')
+      + `<span class="x eqs frac" aria-hidden="true"><span>${finished.size}</span><span class="op">/</span><span class="op">${LEVELS.length}</span></span>`;
+    levels.setAttribute('aria-label', `Levels: ${finished.size} of ${LEVELS.length} finished`);
 
-    // Today's board: the top three, then your row if you're lower.
+    // Today's board: the top three, then your row if you're lower. Before
+    // the try it is a button, "Full board" at the heading's right; after,
+    // the hero's control is the way there, and the heading counts the day.
     const slot = $('.board-slot');
-    const heading = more => '<span class="heading"><span class="head" id="h-board" role="heading" aria-level="2">Today’s board</span>'
-      + (more ? `<span class="more" aria-hidden="true"><span>${players.length} played ·</span><span class="link">Full board<svg viewBox="7.75 3.75 9.5 16.5"><path d="M9 5l7 7l-7 7"/></svg></span></span>` : '') + '</span>';
     const players = state === 'after' ? NINE : SIX;
+    const link = !tried && state !== 'empty';
+    const heading = '<span class="sh"><span class="sh-title" id="h-board" role="heading" aria-level="2">Today’s board'
+      + (state === 'offline' ? '' : `<span class="count"> · ${state === 'empty' ? 0 : players.length} played</span>`) + '</span>'
+      + (link ? `<span class="more" aria-hidden="true"><span class="link">Full board</span>${CHEV}</span>` : '') + '</span>';
     if (state === 'empty' || state === 'offline') {
-      slot.innerHTML = heading(false) + `<div class="none"><p class="note">${state === 'empty' ? 'No scores yet today' : 'The board will show when you’re back online'}</p></div>`;
+      slot.innerHTML = heading + `<div class="none"><p class="note">${state === 'empty' ? 'No scores yet today' : 'The board will show when you’re back online'}</p></div>`;
     } else {
       const row = (p, place) => `<li class="r${p.name === ME ? ' you' : ''}"${p.name === ME ? ' aria-current="true"' : ''}>`
         + `<span class="place">${place}</span><span class="who">${p.name}</span><span class="score">${p.totalMs == null ? `Out at ${p.reached}` : formatTime(p.totalMs)}</span></li>`;
       let html = players.slice(0, 3).map((p, i) => row(p, i + 1)).join('');
       const mine = players.findIndex(p => p.name === ME);
       if (mine >= 3) html += row(players[mine], mine + 1).replace('class="r you"', 'class="r you below"');
-      slot.innerHTML = `<button class="bd" type="button" aria-label="Today’s board: show it all">${heading(true)}<ol>${html}</ol></button>`;
+      slot.innerHTML = link ? `<button class="bd" type="button" aria-label="Today’s board: show it all">${heading}<ol>${html}</ol></button>`
+        : `<div class="bd">${heading}<ol>${html}</ol></div>`;
     }
 
-    // Progress: a row per topic, its built levels.
+    // Progress: a topic per cell, its built levels.
     const topics = [...new Set(LEVELS.map(l => l.topic))];
-    $('.progress').innerHTML = topics.map(t => {
+    $('.pg').innerHTML = topics.map(t => {
       const of = LEVELS.filter(l => l.topic === t), done = of.filter(l => finished.has(l.n)).length;
-      return `<span class="topic">${t}</span>`
+      return `<div class="pc"><span class="topic">${t}</span>`
         + `<span class="bar" role="img" aria-label="${done} of ${of.length} finished">${of.map((l, i) => `<span${i < done ? ' class="done"' : ''}></span>`).join('')}</span>`
-        + `<span class="of" aria-hidden="true">${done} of ${of.length}</span>`;
+        + `<span class="of" aria-hidden="true">${done} of ${of.length}</span></div>`;
     }).join('');
     $('.gear').addEventListener('click', () => { location.search = signedOut ? '?state=settings-out' : '?state=settings-in'; });
     $('.tile.levels').addEventListener('click', () => { location.search = '?state=levels'; });
