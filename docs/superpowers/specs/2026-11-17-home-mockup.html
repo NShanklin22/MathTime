@@ -100,15 +100,14 @@
   }
   .home .mid { display: grid; align-content: center; row-gap: calc(14 * var(--u)); padding-bottom: calc(40 * var(--u)); }
 
-  /* The wordmark: Plex Mono at its heaviest, set a touch tight, the answer
-     box's amber caret after it. The gear in the way back's muted colour,
-     its hit area 12px past it all round. */
+  /* The wordmark, "Math Time": Plex Mono at its heaviest, set a touch
+     tight. The gear in the way back's muted colour, its tap target 44px
+     at least (below). */
   .home .markrow { display: flex; align-items: center; justify-content: space-between; gap: calc(16 * var(--u)); margin-bottom: calc(30 * var(--u)); }
   .mark, .s-title {
     margin: 0; font-size: calc(52 * var(--u)); font-weight: 600; line-height: 1; letter-spacing: -0.02em;
     text-box: trim-both cap alphabetic; white-space: nowrap;
   }
-  .home .mark .cur { display: inline-block; width: 0.13em; height: 0.7em; margin-left: 0.12em; background: var(--amber); vertical-align: baseline; }
   /* The gear: --gs its ink; padded to a 44px target at least, the padding
      taken back by the margin so its ink stays on the column's edge. */
   .home .gear {
@@ -385,7 +384,7 @@
     <div class="stack">
       <div class="mid">
       <div class="markrow">
-        <h1 class="mark">MathTime<span class="cur" aria-hidden="true"></span></h1>
+        <h1 class="mark">Math Time</h1>
         <!-- The gear (Tabler's "settings"), its viewBox cropped to its ink, stroke included. -->
         <button class="gear" type="button" aria-label="Settings"><svg viewBox="2.25 2.25 19.5 19.5" aria-hidden="true"><path d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 0 0 2.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 0 0 1.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 0 0-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 0 0-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 0 0-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 0 0-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 0 0 1.066-2.573c-.94-1.543.826-3.31 2.37-2.37c1 .608 2.296.07 2.572-1.065z"/><circle cx="12" cy="12" r="3"/></svg></button>
       </div>

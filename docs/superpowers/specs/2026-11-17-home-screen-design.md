@@ -17,7 +17,7 @@ main screen, with some of it behind further pages. Everything they listed stays 
   "Home › Settings"; a level reads "Levels › Subtraction 3", as now. Esc and the first link go up one.
 
 ## 2. Home
-- **The title**, "MathTime", large, with the amber caret; the gear at the right of its line.
+- **The title**, "Math Time" (two words), large, with no caret; the gear at the right of its line.
 - **Daily challenge**, the hero, the one solid-white-framed box, plain: "Daily challenge", the date, and
   a solid white Start button. No sample sum. After today's try, an outlined row in Start's place shows the
   done indicator: "✓ Done" at the left; time, place and › at the right ("1:12.6 · 5th of 9 ›"); it opens
