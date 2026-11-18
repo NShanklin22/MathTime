@@ -6,46 +6,43 @@ account only, progress as per-topic bars, the board as the top 3 plus your place
 the first unfinished level. The rest are the recommended defaults.
 
 ## 1. Screens
-- **Home** is the first screen. It replaces the level selector as the game's opening screen.
-- **Levels** is the existing selector, the topic columns only. The daily tile moves off it to Home.
-- **Settings** is a new screen holding the account.
-- Breadcrumbs start from the screen above:
-  - Levels reads "Home › Levels"; a level reads "Levels › Subtraction 3", as now.
-  - The daily challenge and its board read "Home › Daily challenge".
-  - Settings reads "Home › Settings".
-- Esc and the first breadcrumb link go up one screen. Finishing or leaving a level returns to Levels; a
-  daily try or its board returns to Home.
+Revised again 2026-11-17: the owner found the one-page Home "too busy to start" and asked for a tight
+main screen, with some of it behind further pages. Everything they listed stays reachable from Home.
+- **Home**: the first screen, tight: title, gear, Daily challenge, Next lesson, Levels, and two small links.
+- **Levels**: the existing selector, the topic columns only.
+- **Board**: today's daily board, the existing board screen.
+- **Progress**: a new page with the per-topic progress.
+- **Settings**: a new page holding the account.
+- Breadcrumbs: "Home › Levels", "Home › Daily challenge" (the try and its board), "Home › Progress",
+  "Home › Settings"; a level reads "Levels › Subtraction 3", as now. Esc and the first link go up one.
 
-## 2. What Home holds
-Revised 2026-11-17 after the owner rejected the first mockup as ugly: same contents, laid out as a game's
-title screen with one hero. The mockup (2026-11-17-home-mockup.html) is the record of the look.
-- **The title**, "MathTime", set large with the answer box's amber caret after it. Home has no header;
-  the settings gear sits at the right of the title's line.
-- **Daily challenge** is the hero, the only box with a solid white frame. The date sits top right in
-  every state.
-  - Before today's try: a large sample sum in the play screen's digits and a solid white Start button.
-  - After: the time very large, "✓ Done · 5th of 9 today", and an outlined "Full board ›" button.
-  - Offline after the try: the same layout, with a dashed, dimmed "Full board · offline" in the button's place.
-- **Next lesson** and **Levels** are second-level tiles with one shared anatomy: title and subtitle at top
-  left, one figure at bottom right on a shared baseline, no chevrons.
-  - Next lesson: the first unfinished level in level order (Levels 1–7 as built), with a sample problem;
-    tapping starts it. Locked: the lock and "Log in" as the figure; tapping opens log in. With every level
-    finished it reads "Last played", with the check and best time as the figure.
-  - Levels: "Finished so far" and a big "4/7"; tapping opens the Levels screen.
-- **Today's board** and **Progress** form one third-level section under a faint rule.
-  - The board heading reads "Today's board · N played"; "Full board ›" sits there only before the try.
-    Rows: the top three, then your own row (outlined) if you're lower. Empty: "No scores yet today".
-    Offline: "The board will show when you're back online".
-  - Progress: one row per topic, e.g. "Addition 1 of 2", a segmented bar counting built levels.
+## 2. Home
+- **The title**, "MathTime", large, with the amber caret; the gear at the right of its line.
+- **Daily challenge**, the hero, the one solid-white-framed box, plain: "Daily challenge", the date, and
+  a solid white Start button. No sample sum. After today's try, an outlined row in Start's place shows the
+  done indicator: "✓ Done" at the left; time, place and › at the right ("1:12.6 · 5th of 9 ›"); it opens
+  the board. Offline it shows the time alone.
+- **Next lesson** and **Levels**, two plain buttons under it: the name leads ("Division 1", "Levels") with
+  one muted line ("Next lesson", "4 of 7 finished") and a › at the right. A locked next lesson shows the
+  lock in the ›'s place; tapping it opens log in. With every level finished the line reads "Last played".
+- **Two quiet links** at the bottom: "Leaderboard" (opens the board) and "Progress".
+- Nothing else: no board rows, bars or counts on Home.
 
 ## 3. Layout
-- Phones: one column: title, hero, the two tiles side by side, then board and progress.
-- Wide windows: the hero with the two tiles stacked beside it, then board and progress side by side.
-  A sideways phone uses three columns.
-- One width rule that grows steadily with the window; type and controls scale with it. The title and
-  hero hold their positions across states.
-- Home and Settings fit without scrolling at every checked window, 320×640 and 844×390 included.
-  Levels keeps its existing rule: one column scrolls on phones.
+- One centred column at every size, scaled up to fill sensibly; the same order on phone and desktop.
+- Home, Progress and Settings fit without scrolling at every checked window, 320×640 and 844×390
+  included. Levels keeps its existing rule: one column scrolls on phones.
+
+## 3a. Progress
+- A large "Progress" title in Home's column. One row per topic, e.g. "Addition 1 of 2", a segmented bar
+  with one segment per built level, finished ones green. Tapping a row opens Levels.
+
+## 3b. Board
+- A large "Daily challenge" title, "Tue 17 Nov · 9 played", the rows with yours outlined, then Practice
+  and Levels, in Home's column and scale.
+- When every row fits, nothing scrolls. When a long board doesn't fit, only the list of rows scrolls,
+  inside its own area with the themed scrollbar, opening at the top (1st place); the title and buttons
+  stay put. If your row is out of view, it is pinned at the list's foot.
 
 ## 4. Settings
 - A large "Settings" title in Home's column and scale, the breadcrumb on the column's edge.
