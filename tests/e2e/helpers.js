@@ -1,13 +1,24 @@
 import { test, expect } from '@playwright/test';
 import { PNG } from 'pngjs';
 
-// Load the game, wait until fonts are in and it is laid out on the level
-// selector, then choose Level `level` as the player does.
+// Load the game, wait until fonts are in and it is laid out on Home, go to
+// the level selector, then choose Level `level` as the player does.
 export async function open(page, level = 1) {
   await page.goto('/');
-  await page.waitForFunction(() => !document.documentElement.classList.contains('loading'));
+  await toLevels(page);
   await levelRow(page, level).click();
   await page.waitForFunction(() => !document.body.classList.contains('at-select'));
+}
+
+// From Home, once the page is loaded, to the level selector, "Home ›
+// Levels" (the home screen spec §1), laid out, and the tap's double tap
+// waited out (the selector ignores a press before then: selector.js).
+export async function toLevels(page) {
+  await page.waitForFunction(() => !document.documentElement.classList.contains('loading'));
+  await page.locator('.home .btn.levels').click();
+  await page.waitForFunction(() => document.body.classList.contains('at-select'));
+  await page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));
+  await page.waitForTimeout(450);
 }
 
 // The level selector's row for Level `n`.

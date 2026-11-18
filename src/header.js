@@ -74,6 +74,9 @@ export function fitHeader(topBar, scan) {
   const room = where.getBoundingClientRect().right + 0.001;
   let tight = here.getBoundingClientRect().right > room;
   here.textContent = shown;
+  // The pages under Home (the home screen spec §1) are no level's: their
+  // breadcrumb is whole where it fits as it is, "Daily challenge › Log in".
+  if (document.body.matches('.at-select, .at-login, .at-daily, .at-progress, .at-settings')) tight = here.getBoundingClientRect().right > room;
   const sub = crumbs.querySelector('span.sub');
   const subShown = () => sub?.getClientRects().length > 0;
   if (subShown()) tight ||= sub.getBoundingClientRect().right > room;

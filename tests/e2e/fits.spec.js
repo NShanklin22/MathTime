@@ -1,5 +1,5 @@
 import { test, expect, withAccount } from './fixtures.js';
-import { levelRow, finishRun, finishColumnRun, settle, capture, rect } from './helpers.js';
+import { levelRow, finishRun, finishColumnRun, settle, capture, rect, toLevels } from './helpers.js';
 import { LEVELS, levelName } from '../../src/levels.js';
 
 // Every screen fits its window (incident 2026-11-05, corrective action B.3):
@@ -18,10 +18,7 @@ const SIZES = [[1366, 657, 1], [1536, 730, 1.25], [1280, 610, 1.5], [1440, 900, 
 
 // Windows where the selector's rows fit and only its padding would not, as
 // it did before the padding gave way (the UI review): it must not scroll.
-// 1366×512 and 600×1017 are 1366×400 and 600×905 with the daily
-// challenge's tile's 112px more (it is in the top padding); at those two
-// the list now scrolls, as the design falls back (selector.spec.js).
-const PADDING_ONLY = [[1366, 512, 1], [1240, 610, 1], [1024, 620, 1], [1274, 636, 1], [800, 890, 1], [600, 1017, 1]];
+const PADDING_ONLY = [[1366, 400, 1], [1240, 610, 1], [1024, 620, 1], [1274, 636, 1], [800, 890, 1], [600, 905, 1]];
 
 // Runs kept before the page loads, as the finish screen keeps them.
 const earlier = (level, totalMs) => ({
@@ -38,7 +35,7 @@ async function at(browser, baseURL, [width, height, dpr], runs = null) {
   const page = await context.newPage();
   if (runs) await page.addInitScript(r => localStorage.setItem('mathtime.runs', JSON.stringify(r)), runs);
   await page.goto('/');
-  await page.waitForFunction(() => !document.documentElement.classList.contains('loading'));
+  await toLevels(page);
   await settle(page);
   const bar = await page.evaluate(() => {
     const probe = document.createElement('div');
@@ -348,7 +345,7 @@ test('a touch screen whose system scrollbar takes room (no mouse) gets the theme
   try {
     const page = await context.newPage();
     await page.goto('/');
-    await page.waitForFunction(() => !document.documentElement.classList.contains('loading'));
+    await toLevels(page);
     await settle(page);
     expect(await page.evaluate(() => matchMedia('(pointer: coarse) and (hover: none)').matches), 'a coarse pointer, no hover').toBe(true);
     await themedScrollbar(page, '.select');
@@ -369,7 +366,7 @@ test('on a phone (mobile emulation, touch) the list scrolls with its own overlay
   try {
     const page = await context.newPage();
     await page.goto('/');
-    await page.waitForFunction(() => !document.documentElement.classList.contains('loading'));
+    await toLevels(page);
     await settle(page);
     const found = await page.evaluate(() => {
       const list = document.querySelector('.select');

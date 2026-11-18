@@ -1,14 +1,9 @@
-import { snap, onLayoutGrid } from './ink.js';
 import { formatTime } from './finish.js';
-import { reveal } from './reveal.js';
-import { dayLabel, tileParts, resultParts, rowScore } from './daily.js';
+import { cutBoard } from './home.js';
+import { dayLabel, resultParts, rowScore } from './daily.js';
 
-// The daily challenge's tile and board (2026-11-14-daily-challenge-design.md
-// §3–§4), as the daily mockup (2026-11-14) draws them.
-
-// The keypad's check, and a heart, their viewBoxes cropped to their ink.
-const TICK = '<svg class="tick" viewBox="2 5 20 14.5"><path d="M3.5 12.5l5.5 5.5l11.5-11.5"/></svg>';
-const HEART = '<svg class="heart" viewBox="2 3 20 18"><path d="M19.5 12.572l-7.5 7.428l-7.5 -7.428a5 5 0 1 1 7.5 -6.566a5 5 0 1 1 7.5 6.572"/></svg>';
+// The daily challenge's board (2026-11-14-daily-challenge-design.md §4),
+// as the home mockup (2026-11-17) draws it (the home screen spec §3b).
 
 const el = (tag, cls, text) => {
   const node = document.createElement(tag);
@@ -17,137 +12,24 @@ const el = (tag, cls, text) => {
   return node;
 };
 
-// ---------- The tile (spec §3) ----------
-// A level row's tile, full width, at the top of the selector's list, in
-// its top padding (styles.css), so the selector, which fits the topic
-// columns to the room, counts it without knowing it is there. Before the
-// try: "Daily challenge", the date, and the problem kinds set as the
-// samples are. After: the score (and place), with a finished row's check,
-// or a lost heart if out. A tap or Enter calls open().
-export function createDailyTile(select, scan, { open }) {
-  const tile = el('button', 'row daily');
-  tile.type = 'button';
-  tile.innerHTML = '<span class="txt"><span class="title">Daily challenge</span><span class="name"></span></span>'
-    + '<span class="sample kinds" aria-hidden="true"><span>+</span><span>−</span><span>×</span></span>'
-    + '<span class="result" aria-hidden="true"></span>';
-  select.prepend(tile);
-  tile.addEventListener('click', e => open(e));
-
-  // `t` is the day's try (daily.js), `place` your place on the board or null.
-  let parts = null;
-  function show(date, t, place) {
-    const after = !!t?.ended;
-    parts = tileParts(date, t, place);
-    tile.querySelector('.name').textContent = parts.line;
-    tile.classList.toggle('finished', after);
-    tile.classList.toggle('out', after && t.out);
-    const result = tile.querySelector('.result');
-    result.innerHTML = after ? (t.out ? HEART : TICK) : '';
-    if (after) result.append(el('span', 'best', parts.best));
-    tile.setAttribute('aria-label', parts.label);
-  }
-
-  // A text's ink box as drawn (a Range: the line's own box is the column's).
-  const textBox = node => {
-    const range = document.createRange();
-    range.selectNodeContents(node);
-    return range.getBoundingClientRect();
-  };
-  // The line under the title, whole where it keeps 15px clear of what is on
-  // the right (the kinds, or the score), as a row's name does; else short.
-  // Its ink starts on the padding edge, as the selector lines it up (its
-  // inkLeft): placed again here when the line changes, in this same
-  // layout, so the selector's next finds it measured.
-  function fitLine(clearOf) {
-    const name = tile.querySelector('.name');
-    const was = name.textContent;
-    name.textContent = parts.line;
-    if (parts.short !== parts.line && textBox(name).right > clearOf - 15) name.textContent = parts.short;
-    if (name.textContent === was) return;
-    const dpr = devicePixelRatio;
-    name.style.marginLeft = '';
-    const cs = getComputedStyle(name), fs = parseFloat(cs.fontSize);
-    const style = { weight: cs.fontWeight, family: cs.fontFamily, color: cs.color, spacing: (parseFloat(cs.letterSpacing) || 0) / fs };
-    const left = name.getBoundingClientRect().left;
-    name.style.marginLeft = onLayoutGrid(snap(left + scan(name.textContent, style, fs * dpr).abl * fs, dpr) - left, dpr) + 'px';
-  }
-  // The score's ink ends at the row's padding edge, as a row's best time's
-  // does (selector.js), on a whole device pixel.
-  function inkRight(node, edge) {
-    const dpr = devicePixelRatio;
-    node.style.left = '';
-    const cs = getComputedStyle(node), fs = parseFloat(cs.fontSize);
-    const style = { weight: cs.fontWeight, family: cs.fontFamily, color: cs.color, spacing: (parseFloat(cs.letterSpacing) || 0) / fs };
-    const left = node.getBoundingClientRect().left;
-    node.style.left = onLayoutGrid(snap(edge - scan(node.textContent, style, fs * dpr).abr * fs, dpr) - left, dpr) + 'px';
-  }
-
-  // In topic columns, as wide as the grid and where it starts; the kinds'
-  // last ink on the row's padding edge, their band on its middle, each on
-  // whole device pixels. Run after the selector's layout.
-  function place() {
-    if (!tile.getClientRects().length) return;
-    const groups = select.querySelector('.groups');
-    if (select.classList.contains('cols')) {
-      const cs = getComputedStyle(select), n = Number(cs.getPropertyValue('--cols'));
-      const w = n * parseFloat(cs.getPropertyValue('--tile')) + (n - 1) * parseFloat(cs.getPropertyValue('--col-gap'));
-      select.style.setProperty('--daily-w', w + 'px');
-      select.style.setProperty('--daily-x', groups.style.marginLeft || '0px');
-    } else {
-      select.style.removeProperty('--daily-w');
-      select.style.removeProperty('--daily-x');
-    }
-    const kinds = tile.querySelector('.kinds');
-    const best = tile.querySelector('.result .best');
-    if (best?.getClientRects().length) {
-      const r0 = tile.getBoundingClientRect();
-      inkRight(best, r0.right - parseFloat(getComputedStyle(tile).paddingRight));
-      fitLine(Math.min(textBox(best).left, tile.querySelector('.result svg').getBoundingClientRect().left));
-    }
-    if (!kinds.getClientRects().length) return;
-    const dpr = devicePixelRatio;
-    kinds.style.removeProperty('--ink-dx');
-    kinds.style.removeProperty('--ink-dy');
-    const cs = getComputedStyle(kinds), fs = parseFloat(cs.fontSize);
-    const style = { weight: cs.fontWeight, family: cs.fontFamily, color: cs.color, spacing: 0 };
-    const last = kinds.lastElementChild, m = scan(last.textContent, style, fs * dpr);
-    const r = tile.getBoundingClientRect(), edge = r.right - parseFloat(getComputedStyle(tile).paddingRight);
-    kinds.style.setProperty('--ink-dx', onLayoutGrid(snap(edge - m.abr * fs, dpr) - last.getBoundingClientRect().left, dpr) + 'px');
-    const each = [...kinds.children].map(s => scan(s.textContent, style, fs * dpr));
-    const top = Math.min(...each.map(e => -e.asc)), bottom = Math.max(...each.map(e => e.desc));
-    const probe = document.createElement('span');
-    probe.style.cssText = 'display:inline-block;width:0;height:0;vertical-align:baseline';
-    last.appendChild(probe);
-    const baseline = probe.getBoundingClientRect().top;
-    probe.remove();
-    const mid = baseline + (top + bottom) / 2 * fs;
-    kinds.style.setProperty('--ink-dy', onLayoutGrid(snap(r.top + r.height / 2 - mid + baseline, dpr) - baseline, dpr) + 'px');
-    fitLine(kinds.firstElementChild.getBoundingClientRect().left);
-  }
-
-  // The focus, coming back from the challenge, its ring in sight.
-  function focus() {
-    tile.focus({ preventScroll: true });
-    reveal(select, tile, 6);
-  }
-
-  return { show, place, focus, el: tile };
-}
-
-// ---------- The board (spec §4) ----------
-// In `root` (index.html): the date, the rows, Practice and Levels, which
-// call practice() and levels(). Signed out, your score above the rows with
-// "Log in to get on the board", which calls login(). Offline, with no board
-// kept, your score and "The board will show when you're back online"; or,
-// the API busy, "The board is busy: try again in a minute".
-const ROW = 40;
-const SIDE_MIN = 2 * 300 + 40 + 2 * 24;
+/// ---------- The board (spec §4, the home screen spec §3b) ----------
+// In `root` (index.html): the title, the date and how many played, the
+// rows, Practice and Levels, which call practice() and levels(). Before
+// today's try, Start in Practice's place, which calls start(); while a try
+// is played in another tab, in its place what to do about it, as Home
+// says; on a past day never played, Levels alone. Signed out, your score
+// above the rows with "Log in to be on tomorrow's board", which calls
+// login(). Offline, with no board kept, your score and "The board will
+// show when you're back online"; or, the API busy, "The board is busy: try
+// again in a minute".
 export const OFFLINE = 'The board will show when you’re back online';
 export const BUSY = 'The board is busy: try again in a minute';
-export function createDailyBoard(root, { practice, levels, login }) {
+export function createDailyBoard(root, { practice, start, levels, login }) {
   const $ = sel => root.querySelector(sel);
-  const rows = $('.rows'), mine = $('.head .mine');
-  $('.practice').addEventListener('click', practice);
+  const rows = $('.rows'), mine = $('.mine'), list = $('.b-list'), pin = $('.b-pin'), pinned = $('.b-pin .r');
+  const go = $('.practice'), busy = $('.b-busy'), btns = $('.b-btns');
+  let state = 'practice';              // home.js boardButton()
+  go.addEventListener('click', e => (state === 'start' ? start(e) : practice(e)));
   $('.levels').addEventListener('click', levels);
 
   // The Enter of the last answer may still be held: its key repeat would
@@ -163,86 +45,151 @@ export function createDailyBoard(root, { practice, levels, login }) {
     return r;
   }
 
-  // `date`; `t`, the day's try; `board`, {rows, total}, or null when it
-  // can't be had, and `note` says why; `name`, who is signed in, or null.
-  // Your own score is named as the try's owner (null: signed out, "You").
-  // The result over the board, as the finish screen's lines (daily.js
-  // resultParts): its title, its big time and its muted place; a line
-  // with nothing to say takes no room.
-  const result = $('.outcome');
-  function showResult(parts) {
-    result.hidden = !parts;
-    root.classList.toggle('has-outcome', !!parts);
-    for (const key of ['title', 'time', 'detail', 'place']) {
-      const line = result.querySelector(`.o-${key}`);
-      line.textContent = parts?.[key] ?? '';
-      line.hidden = !parts?.[key];
-    }
+  // The filled button as the day's try stands (home.js boardButton()), and
+  // whether a start is being checked (main.js openDaily(): it waits, once).
+  // Busy, in its place a line saying what to do, and Levels alone; the
+  // focus, if it was on the button, goes to Levels.
+  function showButton(next, waiting = false) {
+    const had = document.activeElement === go;
+    state = next;
+    go.textContent = state === 'start' ? 'Start' : 'Practice';
+    go.hidden = state === 'busy' || state === 'none';
+    busy.hidden = state !== 'busy';
+    btns.classList.toggle('alone', go.hidden);
+    if (had && go.hidden) $('.levels').focus({ preventScroll: true });
+    go.classList.toggle('waiting', waiting);
+    if (waiting) go.setAttribute('aria-busy', 'true');
+    else go.removeAttribute('aria-busy');
   }
 
-  // `practice`, a practice just played ({out, reached, totalMs}), shown over
-  // the board in place of the try's result; `place`, your place on it.
-  // Signed out, a try is never put on the board (spec §5): "Log in to be on
-  // tomorrow's board". Signed in, a try played signed out says so, in place
-  // of a place.
-  function show({ date, t, board, name, note = OFFLINE, practice = null, place: where = null }) {
-    showResult(resultParts(t, where, practice));
-    $('.title').textContent = dayLabel(date);
-    mine.replaceChildren();
+  // `date`; `t`, the day's try; `board`, {rows, total}, or null when it
+  // can't be had, and `note` says why, or while it is `loading` (nothing
+  // said yet, not even how many played); `name`, who is signed in, or null.
+  // Your own score is named as the try's owner (null: signed out, "You").
+  // Under the title, the date and how many played; just after a practice,
+  // its result on a line of its own under them, or, just after a try that
+  // went out, how it went out (daily.js resultParts): your row says the
+  // rest.
+  // `practice`, a practice just played ({out, reached, totalMs});
+  // `fresh`, the try just ended here. Signed out, a try is never put on the
+  // board (spec §5): "Log in to be on tomorrow's board". Signed in, a try
+  // played signed out says so, in place of a place. `button`, the filled
+  // button's state (home.js boardButton()); `waiting`, a start being checked.
+  function show({ date, t, board, name, note = OFFLINE, loading = false, practice = null, fresh = false, place: where = null, button = 'practice', waiting = false }) {
     const list = board?.rows ?? null;
+    const parts = practice || (fresh && t?.out) ? resultParts(t, where, practice) : null;
+    const said = parts ? (practice ? [parts.title, parts.time].filter(Boolean).join(' ') : parts.detail) : null;
+    const count = list ? `${board.total ?? list.length} played` : null;
+    $('.b-date').textContent = [dayLabel(date), count].filter(Boolean).join(' · ');
+    const result = $('.b-said');
+    result.textContent = said ?? '';
+    result.hidden = !said;
+    showButton(button, waiting);
+    mine.replaceChildren();
     const onIt = !!list?.some(r => r.you);
     if (t?.ended && !(name && onIt)) {
       const own = { name: t.name ?? 'You', totalMs: t.out ? null : t.totalMs, reached: t.reached };
       const r = row('div', own, '–', true);
       r.setAttribute('aria-label', `Your score: ${t.out ? `out at ${t.reached} of 20` : formatTime(t.totalMs)}`);
       mine.append(r);
-      if (!list) mine.append(el('p', 'note line wrap', note));
-      else if (!name) {
+      if (!list) {
+        if (!loading) mine.append(el('p', 'note', note));
+      } else if (!name) {
         const link = el('button', 'swap', 'Log in to be on tomorrow’s board');
         link.type = 'button';
         link.addEventListener('click', login);
         mine.append(link);
-      } else if (!t.name) mine.append(el('p', 'note line wrap', 'Played signed out: not on today’s board'));
-    }
+      } else if (!t.name) mine.append(el('p', 'note', 'Played signed out: not on today’s board'));
+    } else if (!list && !loading) mine.append(el('p', 'note', note));
     rows.hidden = !list;
     root.classList.toggle('no-rows', !list);
+    root.classList.toggle('has-mine', mine.childElementCount > 0);
+    root.classList.toggle('has-said', !!said);
+    // The same board again, while it stays on screen (asked again, or
+    // fetched by another tab), keeps its place; a new one, or the board
+    // opened afresh (open()), opens at its top.
+    const key = JSON.stringify([date, list]);
+    keepTop = key === shownKey ? rows.scrollTop : null;
+    shownKey = key;
     rows.replaceChildren(...(list ?? []).map(p => row('li', p, p.place, !!name && p.you)));
     // Places past 99 (your own row, after the first 200): the column as
     // wide as the longest, the same in every row.
     const widest = Math.max(2, ...(list ?? []).map(p => String(p.place).length));
-    if (widest > 2) rows.style.setProperty('--place-w', widest + 'ch');
-    else rows.style.removeProperty('--place-w');
+    if (widest > 2) root.style.setProperty('--place-w', widest + 'ch');
+    else root.style.removeProperty('--place-w');
+    const you = rows.querySelector('.you');
+    pinned.replaceChildren(...(you ? [...you.children].map(c => c.cloneNode(true)) : []));
+    pinned.classList.toggle('out', !!you?.classList.contains('out'));
     place();
   }
 
-  // A list too long for its room scrolls, a whole number of rows tall,
-  // opened with your row in the middle. Run after every layout.
-  let shownRows = null;
+  // A list too long for its room scrolls alone, a whole number of rows
+  // tall, opening at 1st place; your row, below its view, pinned at its
+  // foot after the "⋯" (home.js cutBoard()), and hidden there, its room
+  // kept, while you scroll it into the list's view. Run after every layout:
+  // a new board opens at its top, the same board keeps its place.
+  // A short board that just misses its room for the lines its own boards
+  // don't have (your score above it, a line under the date) has its rows a
+  // little shorter, down to FIT of their height, so it shows whole, as it
+  // would without them; a long board scrolls.
+  const FIT = 0.8;
+  let shownKey = null, keepTop = null, placedKey = null;
   function place() {
     if (!root.getClientRects().length) return;
-    const first = shownRows !== rows.firstElementChild;
-    shownRows = rows.firstElementChild;
-    const keep = rows.scrollTop;
+    const fresh = keepTop === null && placedKey !== shownKey;
+    const keep = keepTop ?? rows.scrollTop;
+    placedKey = shownKey;
+    keepTop = null;
     rows.classList.remove('scrolls');
+    list.classList.remove('pinned');
     rows.style.height = '';
-    // Side by side (styles.css .side) where the rows don't all show stacked
-    // and two columns of 300px fit, 40px apart, inside the gutters: the
-    // rows then have the whole height.
-    const over = () => !rows.hidden && rows.scrollHeight > rows.clientHeight + 1;
-    root.classList.remove('side');
-    if (over() && document.body.clientWidth >= SIDE_MIN) root.classList.add('side');
-    if (!over()) return;
-    rows.classList.add('scrolls');
-    const fit = Math.max(1, Math.floor(rows.clientHeight / ROW));
-    rows.style.height = fit * ROW + 2 + 'px';
+    for (const li of rows.children) li.style.height = '';
+    pin.hidden = true;
+    pin.classList.remove('away');
+    if (rows.hidden || !rows.firstElementChild) return;
+    const room = rows.clientHeight;
+    const count = rows.children.length;
+    const row = rows.firstElementChild.getBoundingClientRect().height;
+    if (count * row <= room + 0.5) return;
+    if (root.matches('.has-mine, .has-said') && count * row * FIT <= room + 0.5) {
+      const dpr = devicePixelRatio, h = Math.floor(room / count * dpr) / dpr;
+      for (const li of rows.children) li.style.height = h + 'px';
+      return;
+    }
     const you = rows.querySelector('.you');
-    if (first && you) rows.scrollTop = Math.max(0, Math.round((you.offsetTop - rows.firstElementChild.offsetTop) / ROW - (fit - 1) / 2)) * ROW;
-    else if (!first) rows.scrollTop = keep;
+    const at = you ? [...rows.children].indexOf(you) : -1;
+    pin.hidden = false;
+    const pinRoom = pin.getBoundingClientRect().height;
+    pin.hidden = true;
+    const cut = cutBoard({ count, at, room, row, pinRoom });
+    rows.classList.add('scrolls');
+    if (cut.pinned) {
+      pin.hidden = false;
+      list.classList.add('pinned');
+    }
+    rows.style.height = cut.shown * row + (rows.offsetHeight - rows.clientHeight) + 'px';
+    rows.scrollTop = fresh ? cut.start * row : keep;
+    away();
+  }
+  // Your pinned row hides, its room kept, while your row shows in the list.
+  function away() {
+    if (pin.hidden) return;
+    const you = rows.querySelector('.you');
+    const a = rows.getBoundingClientRect(), b = you.getBoundingClientRect();
+    pin.classList.toggle('away', b.top >= a.top - 0.5 && b.bottom <= a.bottom + 0.5);
+  }
+  rows.addEventListener('scroll', away);
+
+  // The filled button, or Levels where there is none, or `which`: 'levels',
+  // back from the selector it opened.
+  function focus(which = null) {
+    (which === 'levels' || go.hidden ? $('.levels') : go).focus({ preventScroll: true });
   }
 
-  function focus() {
-    $('.practice').focus({ preventScroll: true });
+  // Opened afresh (main.js showBoard()): its next drawing opens at the top.
+  function open() {
+    shownKey = placedKey = null;
   }
 
-  return { show, place, focus };
+  return { show, place, focus, open, waiting: on => showButton(state, on) };
 }

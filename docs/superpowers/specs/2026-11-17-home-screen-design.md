@@ -14,7 +14,9 @@ main screen, with some of it behind further pages. Everything they listed stays 
 - **Progress**: a new page with the per-topic progress.
 - **Settings**: a new page holding the account.
 - Breadcrumbs: "Home › Levels", "Home › Daily challenge" (the try and its board), "Home › Progress",
-  "Home › Settings"; a level reads "Levels › Subtraction 3", as now. Esc and the first link go up one.
+  "Home › Settings"; a level reads "Levels › Subtraction 3", as now. Levels opened from Progress or the
+  board reads "Progress › Levels" or "Daily challenge › Levels" and goes back there. Esc and the first
+  link go up one.
 
 ## 2. Home
 - **The title**, "Math Time" (two words), large, with no caret; the gear at the right of its line.

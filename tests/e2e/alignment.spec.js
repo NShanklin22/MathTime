@@ -2,8 +2,7 @@ import { test, expect, withAccount } from './fixtures.js';
 import { chromium } from 'playwright-core';
 import {
   open, freeze, resize, setProblem, rect, capture, ink, digitInk, digitBand, boxEdges,
-  boxInside, borderInner, showAnswer, layOut, fontSize, cssFontSize, TOL,
-} from './helpers.js';
+  boxInside, borderInner, showAnswer, layOut, fontSize, cssFontSize, TOL, toLevels } from './helpers.js';
 import { LEVELS, levelName } from '../../src/levels.js';
 
 // Space between the stage edges and what you see of the equation, from
@@ -364,7 +363,7 @@ test('the equation lands on whole device pixels at ratios that are not powers of
 
       await withAccount(page.context());
       await page.goto(baseURL + '/');
-      await page.waitForFunction(() => !document.documentElement.classList.contains('loading'));
+      await toLevels(page);
       await page.locator('.select .row[data-level="1"]').click();
       expect(await page.evaluate(() => devicePixelRatio)).toBe(dpr);
       await laidOutOnGrid(page);
@@ -436,7 +435,7 @@ test('fonts that arrive after the load timeout are measured again', async ({ pag
       await route.continue().catch(() => {});
     });
     await late.goto('/', { waitUntil: 'commit' });
-    await late.waitForFunction(() => !document.documentElement.classList.contains('loading'));
+    await toLevels(late);
     await late.locator('.select .row[data-level="1"]').click();
     // Precondition: the play screen's first layout really used a fallback
     // font (so the route still delays the font files and this test can't

@@ -1,11 +1,11 @@
 import { test, expect, withAccount } from './fixtures.js';
-import { playTo, answer, typeKeys, settle, levelRow } from './helpers.js';
+import { playTo, answer, typeKeys, settle, levelRow, toLevels } from './helpers.js';
 import { dailyProblems } from '../../src/daily.js';
 import { LEVELS } from '../../src/levels.js';
 
 // The daily challenge (2026-11-14-daily-challenge-design.md, the daily
-// mockup): the tile, the one scored try, Practice, the board and the
-// upload. The day is fixed: 10:00 on Sat 14 Nov 2026, in UTC. The API is
+// mockup; the home mockup): Home's daily challenge, the one scored try,
+// Practice, the board and the upload. The day is fixed: 10:00 on Sat 14 Nov 2026, in UTC. The API is
 // the fake in fixtures.js.
 
 const DATE = '2026-11-14';
@@ -29,7 +29,11 @@ async function home(page) {
   await loaded(page);
   await page.evaluate(() => window.mathtime.account.settled());
 }
-const tile = page => page.locator('.select .daily');
+// Home's daily challenge (the home screen spec §2), and its done line's
+// score and place.
+const tile = page => page.locator('.home .hero');
+const done = page => page.locator('.home .hero .res');
+const atHome = page => expect(page.locator('body')).toHaveClass(/\bat-home\b/);
 const atBoard = page => expect(page.locator('body')).toHaveClass(/\bat-daily\b/);
 const atSelect = page => expect(page.locator('body')).toHaveClass(/\bat-select\b/);
 const posts = api => api.requests.filter(r => r.path === '/api/daily' && r.method === 'POST');
@@ -37,10 +41,10 @@ const outbox = page => page.evaluate(() => JSON.parse(localStorage.getItem('math
 const kept = page => page.evaluate(d => JSON.parse(localStorage.getItem('mathtime.daily'))?.[d] ?? null, DATE);
 const rowsText = page => page.locator('.dboard .rows > li').evaluateAll(lis => lis.map(li => [...li.children].map(c => c.textContent).join(' ')));
 
-// The challenge from the tile, its first problem on screen.
+// The challenge from Home, its first problem on screen.
 async function start(page) {
   await tile(page).click();
-  await page.waitForFunction(() => !document.body.classList.contains('at-select') && window.mathtime.game.level.daily);
+  await page.waitForFunction(() => !document.body.classList.contains('at-home') && window.mathtime.game.level.daily);
 }
 // Finish the scored try: answered at once to question 20, the last typed.
 async function finish(page) {
@@ -71,39 +75,34 @@ async function leave(page, how) {
 }
 const problemsOnScreen = page => page.evaluate(() => window.mathtime.game.level.facts.map(f => `${f.a} ${f.level.op} ${f.b}`));
 
-test.describe('the tile', () => {
-  test('before the try: "Daily challenge", the date and the kinds; signed in', async ({ page }) => {
+test.describe('Home\'s daily challenge', () => {
+  test('before the try: "Daily challenge", the date and Start; signed in', async ({ page }) => {
     await home(page);
-    await expect(tile(page).locator('.title')).toHaveText('Daily challenge');
-    // "20 problems, one try"; "one try" alone where that doesn't fit.
-    await expect(tile(page).locator('.name')).toHaveText(/^Sat 14 Nov · (20 problems, )?one try$/);
-    await expect(tile(page).locator('.kinds')).toBeVisible();
-    await expect(tile(page).locator('.result')).toBeHidden();
-    await expect(tile(page)).toHaveAttribute('aria-label', 'Daily challenge, Sat 14 Nov: 20 problems, one try');
-    // Above the topics, and the first in the list.
-    const [t, first] = await page.evaluate(() => [document.querySelector('.select .daily'), document.querySelector('.select .group .row')].map(e => e.getBoundingClientRect().bottom));
-    expect(t).toBeLessThan(first);
+    await expect(tile(page).locator('.h-title')).toHaveText('Daily challenge');
+    await expect(tile(page).locator('.h-date')).toHaveText('Sat 14 Nov');
+    await expect(tile(page).locator('.h-cta')).toHaveText('Start');
+    await expect(tile(page)).toHaveAttribute('aria-label', 'Daily challenge, Sat 14 Nov: 20 problems, one try. Start');
+    // Home's first control after the gear.
+    const [t, next] = await page.evaluate(() => [document.querySelector('.home .hero'), document.querySelector('.home .btn.next')].map(e => e.getBoundingClientRect().bottom));
+    expect(t).toBeLessThan(next);
   });
 
-  test('after the try: the time and the place, with the check', async ({ page, api }) => {
+  test('after the try: "✓ Done", the time and the place', async ({ page, api }) => {
     api.seedDaily(DATE, [{ name: 'maya', totalMs: 1 }, { name: 'kit', totalMs: null, reached: 3 }]);
     await home(page);
     await start(page);
     await finish(page);
-    await page.locator('.dboard .levels').press('Enter');
-    await atSelect(page);
+    await page.keyboard.press('Escape');
+    await atHome(page);
     const t = await kept(page);
-    // As a finished row: the place under the title, the time under the check.
-    await expect(tile(page).locator('.name')).toHaveText(/^(Sat 14 Nov · )?2nd of 3$/);
-    await expect(tile(page).locator('.best')).toHaveText(new RegExp(`^${Math.floor(t.totalMs / 60000)}:\\d\\d\\.\\d$`));
-    await expect(tile(page)).toHaveClass(/\bfinished\b/);
-    await expect(tile(page).locator('.tick')).toBeVisible();
-    await expect(tile(page).locator('.kinds')).toBeHidden();
-    await expect(tile(page)).toHaveAttribute('aria-label', /^Daily challenge, Sat 14 Nov: \d:\d\d\.\d, 2nd of 3\. Show the board$/);
+    await expect(done(page)).toHaveText(new RegExp(`^${Math.floor(t.totalMs / 60000)}:\\d\\d\\.\\d · 2nd of 3$`));
+    await expect(tile(page).locator('.ok')).toHaveText('Done');
+    await expect(tile(page).locator('.ok .tick')).toBeVisible();
+    await expect(tile(page)).toHaveAttribute('aria-label', /^Daily challenge, Sat 14 Nov: done, \d:\d\d\.\d, 2nd of 3\. Show the board$/);
     await expect(tile(page)).toBeFocused();
   });
 
-  test('out: "Out at N of 20", the place and a lost heart', async ({ page, api }) => {
+  test('out: "Out at N" and the place', async ({ page, api }) => {
     api.seedDaily(DATE, [{ name: 'maya', totalMs: 60_000 }]);
     await home(page);
     await start(page);
@@ -111,10 +110,8 @@ test.describe('the tile', () => {
     await goOut(page);
     await atBoard(page);
     await page.keyboard.press('Escape');
-    await atSelect(page);
-    await expect(tile(page).locator('.name')).toHaveText(/^(Sat 14 Nov · )?2nd of 2$/);
-    await expect(tile(page).locator('.best')).toHaveText('Out at 4');
-    await expect(tile(page).locator('.heart')).toBeVisible();
+    await atHome(page);
+    await expect(done(page)).toHaveText(/^Out at 4 · 2nd( of 2)?$/);
   });
 
   test.describe('signed out', () => {
@@ -122,15 +119,13 @@ test.describe('the tile', () => {
 
     test('before, after and out: no place, as you aren\'t on the board', async ({ page }) => {
       await home(page);
-      await expect(tile(page).locator('.name')).toHaveText(/^Sat 14 Nov · (20 problems, )?one try$/);
-      await expect(tile(page)).not.toHaveClass(/\blocked\b/);
+      await expect(tile(page).locator('.h-cta')).toHaveText('Start');
       await start(page);
       await playTo(page, 12);
       await goOut(page);
       await atBoard(page);
       await page.keyboard.press('Escape');
-      await expect(tile(page).locator('.name')).toHaveText('Sat 14 Nov');
-      await expect(tile(page).locator('.best')).toHaveText('Out at 12');
+      await expect(done(page)).toHaveText('Out at 12');
     });
 
     test('after a finished try, the time alone', async ({ page }) => {
@@ -138,18 +133,18 @@ test.describe('the tile', () => {
       await start(page);
       await finish(page);
       await page.keyboard.press('Escape');
-      await expect(tile(page).locator('.name')).toHaveText('Sat 14 Nov');
-      await expect(tile(page).locator('.best')).toHaveText(/^\d:\d\d\.\d$/);
+      await expect(done(page)).toHaveText(/^\d:\d\d\.\d$/);
     });
   });
 });
 
 test.describe('the try', () => {
-  test('the run: "Levels › Daily challenge", 3 lives, "Question N of 20" and the bar', async ({ page }) => {
+  test('the run: "Home › Daily challenge", 3 lives, "Question N of 20" and the bar', async ({ page }) => {
     await home(page);
     await start(page);
     await expect(page.locator('.crumbs .here')).toHaveText('Daily challenge');
     await expect(page.locator('.crumbs .back')).toBeVisible();
+    await expect(page.locator('.crumbs .back')).toHaveText('Home');
     await expect(page.locator('.lives svg:not(.lost)')).toHaveCount(3);
     await expect(page.locator('#qnum')).toHaveText('Question 1 of 20');
     await expect(page.locator('.run > span')).toHaveCount(20);
@@ -178,18 +173,19 @@ test.describe('the try', () => {
     }
   });
 
-  test('one scored try: finished, the board shows, and the tile then opens the board', async ({ page, api }) => {
+  test('one scored try: finished, the board shows, and Home then opens the board', async ({ page, api }) => {
     await home(page);
     await start(page);
     await finish(page);
     await expect(page.locator('.crumbs .here')).toHaveText('Daily challenge');
-    await expect(page.locator('.dboard .title')).toHaveText('Sat 14 Nov');
+    await expect(page.locator('.dboard .s-title')).toHaveText('Daily challenge');
+    await expect(page.locator('.dboard .b-date')).toHaveText('Sat 14 Nov · 1 played');
     await expect(page.locator('.finish')).toBeHidden();
     await page.keyboard.press('Escape');
-    await atSelect(page);
+    await atHome(page);
     await tile(page).click();
     await atBoard(page);
-    await expect(page.locator('.dboard .practice')).toBeVisible();
+    await expect(page.locator('.dboard .practice')).toHaveText('Practice');
     expect(posts(api)).toHaveLength(1);
   });
 
@@ -199,25 +195,25 @@ test.describe('the try', () => {
     await start(page);
     await finish(page);
     expect(await page.evaluate(() => localStorage.getItem('mathtime.runs'))).toBe(runs);
-    await page.keyboard.press('Escape');
+    await page.locator('.dboard .levels').click();
+    await atSelect(page);
     for (const n of [1, 2, 3, 4]) await expect(levelRow(page, n)).not.toHaveClass(/\bfinished\b/);
   });
 
-  test('leaving partway by "Levels" counts as out at that question', async ({ page, api }) => {
+  test('leaving partway by "Home" counts as out at that question', async ({ page, api }) => {
     await home(page);
     await start(page);
     await playTo(page, 6);
-    await leave(page, 'Levels');
-    await atSelect(page);
+    await leave(page, 'Home');
+    await atHome(page);
     await expect(tile(page)).toBeFocused();
     await expect.poll(() => posts(api).length).toBe(1);
     const { record } = posts(api)[0].body;
     expect(record).toMatchObject({ daily: true, out: true, reached: 6 });
     expect(record.problems).toHaveLength(6);
-    await expect(tile(page).locator('.name')).toHaveText(/1st of 1$/);
-    await expect(tile(page).locator('.best')).toHaveText('Out at 6');
-    // The tile now opens the board, not a second try, once the double tap
-    // of the tap on "Levels" is over: a tap before then is ignored.
+    await expect(done(page)).toHaveText(/^Out at 6 · 1st( of 1)?$/);
+    // Home now opens the board, not a second try, once the double tap of
+    // the tap on "Home" is over: a tap before then is ignored.
     await expect(async () => {
       await tile(page).click();
       await expect(page.locator('body')).toHaveClass(/\bat-daily\b/, { timeout: 200 });
@@ -229,7 +225,7 @@ test.describe('the try', () => {
     await start(page);
     await answerOne(page);
     await leave(page, 'Escape');
-    await atSelect(page);
+    await atHome(page);
     expect(await kept(page)).toMatchObject({ ended: true, out: true, reached: 2, how: 'left' });
   });
 
@@ -243,7 +239,7 @@ test.describe('the try', () => {
     await page.waitForFunction(() => window.mathtime.game.state.lives === 2);
     await page.reload();
     await loaded(page);
-    await expect(tile(page).locator('.best')).toHaveText('Out at 3');
+    await expect(done(page)).toHaveText(/^Out at 3\b/);
     await expect.poll(() => posts(api).length).toBe(1);
     const { date, record } = posts(api)[0].body;
     expect(date).toBe(DATE);
@@ -257,8 +253,7 @@ test.describe('the try', () => {
     await start(page);
     await page.reload();
     await loaded(page);
-    await expect(tile(page).locator('.name')).toHaveText(/1st of 1$/);
-    await expect(tile(page).locator('.best')).toHaveText('Out at 1');
+    await expect(done(page)).toHaveText(/^Out at 1 · 1st( of 1)?$/);
   });
 
   test('the same 20 problems on the same date, in every browser', async ({ page, browser, baseURL }) => {
@@ -295,11 +290,24 @@ test.describe('the try', () => {
     await page.locator('.dboard .practice').click();
     await page.waitForFunction(() => !document.body.classList.contains('at-daily'));
     await page.keyboard.press('Escape');
-    await atSelect(page);
+    await atHome(page);
     expect(await kept(page)).toEqual(before);
     expect(posts(api)).toHaveLength(1);
-    await expect(tile(page).locator('.name')).toHaveText(/1st of 1$/);
-    await expect(tile(page).locator('.best')).toHaveText('Out at 3');
+    await expect(done(page)).toHaveText(/^Out at 3 · 1st( of 1)?$/);
+  });
+
+  test('before the try, the board (from Leaderboard) has Start in Practice\'s place, which plays the try', async ({ page, api }) => {
+    api.seedDaily(DATE, [{ name: 'maya', totalMs: 60_000 }]);
+    await home(page);
+    await page.locator('.home .to-board').click();
+    await atBoard(page);
+    await expect(page.locator('.dboard .b-date')).toHaveText('Sat 14 Nov · 1 played');
+    await expect(page.locator('.dboard .practice')).toHaveText('Start');
+    await page.locator('.dboard .practice').click();
+    await page.waitForFunction(() => window.mathtime.game.level.daily && !document.body.classList.contains('at-daily'));
+    await finish(page);
+    expect(posts(api)).toHaveLength(1);
+    await expect(page.locator('.dboard .practice')).toHaveText('Practice');
   });
 });
 
@@ -334,19 +342,21 @@ test.describe('the board', () => {
     expect((await rowsText(page)).slice(1)).toEqual(['2 maya Out at 4', '2 kit Out at 4', '4 jonah Out at 2']);
   });
 
-  test('a long board scrolls its rows alone, a whole number of rows, your row in view', async ({ page, api }) => {
-    api.seedDaily(DATE, Array.from({ length: 40 }, (_, i) => ({ name: `p${i}`, totalMs: i < 25 ? 1_000 * i : 999_000 + i })));
+  test('a long board scrolls its rows alone, a whole number of rows, from 1st place; your row pinned at the foot', async ({ page, api }) => {
+    // Forty all faster than sam's try: sam is last, below the list's view.
+    api.seedDaily(DATE, Array.from({ length: 40 }, (_, i) => ({ name: `p${i}`, totalMs: 0 })));
     await home(page);
     await start(page);
     await finish(page);
     const rows = page.locator('.dboard .rows');
     await expect(rows).toHaveClass(/\bscrolls\b/);
-    const m = await rows.evaluate(el => ({ h: el.clientHeight, top: el.scrollTop, you: el.querySelector('.you').offsetTop - el.firstElementChild.offsetTop }));
-    expect((m.h - 2) % 40, 'whole rows, and the 1px rules').toBe(0);
-    expect(m.you).toBeGreaterThanOrEqual(m.top);
-    expect(m.you + 40).toBeLessThanOrEqual(m.top + m.h);
+    const m = await rows.evaluate(el => ({ h: el.clientHeight, top: el.scrollTop, row: el.firstElementChild.getBoundingClientRect().height }));
+    expect(m.h / m.row, 'whole rows').toBeCloseTo(Math.round(m.h / m.row), 1);
+    expect(m.top).toBe(0);
+    await expect(page.locator('.dboard .b-pin .r')).toBeVisible();
+    await expect(page.locator('.dboard .b-pin .r .who')).toHaveText('sam');
     await expect(page.locator('.dboard .practice')).toBeInViewport({ ratio: 1 });
-    await expect(page.locator('.dboard .title')).toBeInViewport({ ratio: 1 });
+    await expect(page.locator('.dboard .s-title')).toBeInViewport({ ratio: 1 });
   });
 
   test('offline: your score, and "The board will show when you\'re back online"', async ({ page, api }) => {
@@ -360,6 +370,10 @@ test.describe('the board', () => {
     await expect(page.locator('.dboard .mine .r')).toHaveText(/–\s*sam\s*Out at 9/);
     await expect(page.locator('.dboard .rows')).toBeHidden();
     await expect(page.locator('.dboard .swap')).toHaveCount(0);
+    // Drawn again (another tab changed the day: a storage event), the note
+    // stays: the board is still not to be had.
+    await page.evaluate(() => dispatchEvent(new StorageEvent('storage', { key: 'mathtime.daily' })));
+    await expect(page.locator('.dboard .note')).toHaveText('The board will show when you’re back online');
   });
 
   test('offline with the board kept from before: the kept board', async ({ page, api }) => {
@@ -370,7 +384,7 @@ test.describe('the board', () => {
     api.answer[`/api/daily/${DATE}`] = () => 'down';
     await page.reload();
     await loaded(page);
-    await expect(tile(page).locator('.name')).toHaveText(/1st of 1$/);
+    await expect(done(page)).toHaveText(/1st of 1$/);
     await tile(page).click();
     await atBoard(page);
     await expect(page.locator('.dboard .rows > li.you')).toHaveCount(1);
@@ -471,7 +485,7 @@ test.describe('the upload', () => {
     await expect.poll(() => posts(api).length).toBe(2);
     expect(posts(api)[1].body).toEqual(posts(api)[0].body);
     await expect.poll(() => outbox(page)).toEqual([]);
-    await expect(tile(page).locator('.name')).toHaveText(/1st of 1$/);
+    await expect(done(page)).toHaveText(/1st of 1$/);
   });
 
   test('a 5xx waits too', async ({ page, api }) => {
@@ -505,23 +519,58 @@ test.describe('two tabs', () => {
     await answerOne(page);
     const other = await context.newPage();
     await home(other);
-    await expect(tile(other).locator('.name')).toHaveText(IN_PROGRESS);
-    await expect(tile(other)).toHaveAttribute('aria-label', `Daily challenge: ${IN_PROGRESS}`);
-    // A tap says so, and starts nothing; nor does Practice, the board's.
+    await expect(tile(other).locator('.h-cta')).toHaveText('Finish it in the other tab');
+    await expect(tile(other)).toHaveAttribute('aria-label', `Daily challenge, Sat 14 Nov: ${IN_PROGRESS}`);
+    // A tap says so, and starts nothing.
     await tile(other).click();
     await expect(other.locator('#status')).toHaveText(IN_PROGRESS);
-    await expect(other.locator('body')).toHaveClass(/\bat-select\b/);
-    await other.evaluate(() => window.mathtime.playDaily(true));
-    await expect(other.locator('body')).toHaveClass(/\bat-select\b/);
+    await expect(other.locator('body')).toHaveClass(/\bat-home\b/);
+    // Nor does the board: in Practice's place, what to do, as Home says it.
+    await other.locator('.home .to-board').click();
+    await expect(other.locator('body')).toHaveClass(/\bat-daily\b/);
+    await expect(other.locator('.dboard .practice')).toBeHidden();
+    await expect(other.locator('.dboard .b-busy')).toHaveText('Finish it in the other tab');
+    await expect(other.locator('.dboard .levels')).toBeVisible();
     expect(await kept(other)).toMatchObject({ started: true, ended: false, reached: 2 });
     expect(posts(api)).toHaveLength(0);
-    // The first tab plays on to the end; the other hears it.
+    // The first tab plays on to the end; the other's board hears it, live.
     await expect(page.locator('#qnum')).toHaveText('Question 2 of 20');
     await finish(page);
     await expect.poll(() => posts(api).length).toBe(1);
     expect(posts(api)[0].body.record).toMatchObject({ out: false, reached: 20 });
-    await expect(tile(other).locator('.name')).toHaveText(/1st of 1$/);
-    await expect(tile(other).locator('.best')).toHaveText(/^\d:\d\d\.\d$/);
+    await expect(other.locator('.dboard .practice')).toHaveText('Practice');
+    await expect(other.locator('.dboard .practice')).toBeVisible();
+    await expect(other.locator('.dboard .b-busy')).toBeHidden();
+    await other.keyboard.press('Escape');
+    await expect(done(other)).toHaveText(/^\d:\d\d\.\d · 1st of 1$/);
+  });
+
+  test('the board says "Finish it in the other tab" until that tab goes; closed, its try is out, and Practice comes back', async ({ page, context, api }) => {
+    await home(page);
+    await start(page);
+    await answerOne(page);
+    const other = await context.newPage();
+    await home(other);
+    await other.locator('.home .to-board').click();
+    await expect(other.locator('.dboard .b-busy')).toBeVisible();
+    await page.close();
+    await expect(other.locator('.dboard .b-busy')).toBeHidden();
+    await expect(other.locator('.dboard .practice')).toHaveText('Practice');
+    expect(await kept(other)).toMatchObject({ ended: true, out: true, reached: 2 });
+    await other.keyboard.press('Escape');
+    await expect(done(other)).toHaveText(/^Out at 2\b/);
+  });
+
+  test('Start focused on the board, another tab starts the try: the focus goes to Levels', async ({ page, context }) => {
+    await home(page);
+    await page.locator('.home .to-board').click();
+    await atBoard(page);
+    await expect(page.locator('.dboard .practice')).toBeFocused();
+    const other = await context.newPage();
+    await home(other);
+    await start(other);
+    await expect(page.locator('.dboard .b-busy')).toBeVisible();
+    await expect(page.locator('.dboard .levels')).toBeFocused();
   });
 
   test('a tab whose try another tab ended stops, and shows the board', async ({ page, context }) => {
@@ -541,13 +590,13 @@ test.describe('two tabs', () => {
     await expect(page.locator('.dboard .practice')).toBeVisible();
   });
 
-  test('a closed tab\'s try is cut off when another taps the tile, as its owner', async ({ page, context, api }) => {
+  test('a closed tab\'s try is cut off when another taps Home\'s daily challenge, as its owner', async ({ page, context, api }) => {
     await home(page);
     await start(page);
     await answerOne(page);
     const other = await context.newPage();
     await home(other);
-    await expect(tile(other).locator('.name')).toHaveText(IN_PROGRESS);
+    await expect(tile(other).locator('.h-cta')).toHaveText('Finish it in the other tab');
     await page.close();
     await tile(other).click();
     await atBoard(other);
@@ -573,7 +622,7 @@ test.describe('two tabs', () => {
 
 // ---------- The day: midnight, and the player's own time zone ----------
 
-test('at midnight the tile turns to the new day', async ({ browser, baseURL }) => {
+test('at midnight Home turns to the new day', async ({ browser, baseURL }) => {
   const context = await browser.newContext({ baseURL, timezoneId: 'UTC' });
   await onTheDay(context, new Date('2026-11-14T23:59:58Z'));
   const api = await withAccount(context);
@@ -581,9 +630,33 @@ test('at midnight the tile turns to the new day', async ({ browser, baseURL }) =
   const page = await context.newPage();
   try {
     await home(page);
-    await expect(tile(page).locator('.name')).toHaveText(/^Sat 14 Nov · (20 problems, )?one try$/);
-    await expect(tile(page).locator('.name')).toHaveText(/^Sun 15 Nov · /, { timeout: 10_000 });
-    await expect(tile(page)).toHaveAttribute('aria-label', 'Daily challenge, Sun 15 Nov: 20 problems, one try');
+    await expect(tile(page).locator('.h-date')).toHaveText('Sat 14 Nov');
+    await expect(tile(page).locator('.h-date')).toHaveText('Sun 15 Nov', { timeout: 10_000 });
+    await expect(tile(page)).toHaveAttribute('aria-label', 'Daily challenge, Sun 15 Nov: 20 problems, one try. Start');
+  } finally {
+    await context.close();
+  }
+});
+
+test('at midnight an open board stays the day it shows: asked again for that day, and no Start for it', async ({ browser, baseURL }) => {
+  const context = await browser.newContext({ baseURL, timezoneId: 'UTC' });
+  await onTheDay(context, new Date('2026-11-14T23:59:54Z'));
+  const api = await withAccount(context);
+  api.now = () => Date.parse('2026-11-14T23:59:54Z');
+  api.seedDaily(DATE, [{ name: 'maya', totalMs: 60_000 }]);
+  const page = await context.newPage();
+  try {
+    await home(page);
+    await page.locator('.home .to-board').click();
+    await atBoard(page);
+    await expect(page.locator('.dboard .practice')).toHaveText('Start');
+    const before = api.requests.length;
+    await expect(tile(page).locator('.h-date')).toHaveText('Sun 15 Nov', { timeout: 10_000 });
+    await expect(page.locator('.dboard .b-date')).toHaveText('Sat 14 Nov · 1 played');
+    await expect(page.locator('.dboard .practice')).toBeHidden();
+    await expect(page.locator('.dboard .levels')).toBeVisible();
+    await expect.poll(() => api.requests.slice(before).map(r => r.path)).toContain(`/api/daily/${DATE}`);
+    expect(api.requests.slice(before).map(r => r.path)).not.toContain('/api/daily/2026-11-15');
   } finally {
     await context.close();
   }
@@ -600,14 +673,14 @@ for (const [zone, at, date, label] of [['Pacific/Auckland', '2026-11-14T12:00:00
     const page = await context.newPage();
     try {
       await home(page);
-      await expect(tile(page).locator('.name')).toHaveText(new RegExp(`^${label} · `));
+      await expect(tile(page).locator('.h-date')).toHaveText(label);
       await start(page);
       expect(await problemsOnScreen(page)).toEqual(dailyProblems(date, LEVELS).map(p => `${p.a} ${p.level.op} ${p.b}`));
       await finish(page);
       await expect.poll(() => posts(api).length).toBe(1);
       expect(posts(api)[0].body.date).toBe(date);
       expect(api.daily.get(date)?.map(e => e.name)).toEqual(['sam']);
-      await expect(page.locator('.dboard .title')).toHaveText(label);
+      await expect(page.locator('.dboard .b-date')).toHaveText(new RegExp(`^${label} · `));
     } finally {
       await context.close();
     }
@@ -635,7 +708,7 @@ test('the API busy (429): "The board is busy: try again in a minute"', async ({ 
   await expect(page.locator('.dboard .rows')).toBeHidden();
 });
 
-test('past the first 200, your own row comes after them, at your place, and the tile says of how many', async ({ page, api }) => {
+test('past the first 200, your own row comes after them, at your place, and Home says of how many', async ({ page, api }) => {
   api.seedDaily(DATE, Array.from({ length: 250 }, (_, i) => ({ name: `p${i}`, totalMs: 60_000 + i })));
   await home(page);
   await start(page);
@@ -645,13 +718,12 @@ test('past the first 200, your own row comes after them, at your place, and the 
   const last = page.locator('.dboard .rows > li').last();
   await expect(last).toHaveClass(/\byou\b/);
   await expect(last.locator('.place')).toHaveText('251');
-  await expect(page.locator('.dboard .rows')).toHaveCSS('--place-w', '3ch');
+  await expect(page.locator('.dboard')).toHaveCSS('--place-w', '3ch');
   // Its place column as wide as 251, the same in every row.
   const [a, b] = await page.locator('.dboard .rows > li .who').evaluateAll(w => [w[0], w.at(-1)].map(e => e.getBoundingClientRect().left));
   expect(a).toBeCloseTo(b, 2);
   await page.keyboard.press('Escape');
-  await expect(tile(page).locator('.name')).toHaveText(/251st of 251$/);
-  await expect(tile(page).locator('.best')).toHaveText('Out at 1');
+  await expect(done(page)).toHaveText(/^Out at 1 · 251st( of 251)?$/);
 });
 
 test('a board kept by another account is never shown as yours', async ({ page, api }) => {
@@ -662,13 +734,12 @@ test('a board kept by another account is never shown as yours', async ({ page, a
   // Signed out, and the board can't be had: sam's kept board is not this one's.
   await page.keyboard.press('Escape');
   api.answer[`/api/daily/${DATE}`] = () => 'down';
-  await page.locator('.top .acct').click();
-  await page.locator('.top .acct').click();
-  await expect(page.locator('.top .acct')).toHaveText('Log in');
-  await expect(async () => {
-    await tile(page).click();
-    await expect(page.locator('body')).toHaveClass(/\bat-daily\b/, { timeout: 200 });
-  }).toPass();
+  await page.locator('.home .gear').click();
+  await page.locator('.settings .logout').click();
+  await expect(page.locator('.settings .who')).toHaveText('Not logged in');
+  await page.keyboard.press('Escape');
+  await tile(page).click();
+  await atBoard(page);
   await expect(page.locator('.dboard .note')).toHaveText('The board will show when you’re back online');
   await expect(page.locator('.dboard .rows')).toBeHidden();
   // Your own score, as the account it was played in.
@@ -720,29 +791,28 @@ test.describe('leaving a scored try asks first', () => {
     expect(await page.evaluate(() => window.mathtime.game.sofar().current.ms)).toBeGreaterThan(before);
     await page.keyboard.press('3');
     expect(await typed()).toBe('3');
-    // "Levels", then Stay: the same.
+    // "Home", then Stay: the same.
     await page.locator('.crumbs .back').click();
     await expect(prompt).toBeVisible();
     await prompt.locator('.stay').click();
     await expect(prompt).toBeHidden();
-    await expect(page.locator('body')).not.toHaveClass(/\bat-select\b/);
+    await expect(page.locator('body')).not.toHaveClass(/\bat-home\b/);
     expect(await kept(page)).toMatchObject({ ended: false });
   });
 
-  test('Leave ends it out, "Left at N" over the board', async ({ page }) => {
+  test('Leave ends it out, to Home; the board then has you "Out at N"', async ({ page }) => {
     await home(page);
     await start(page);
     await playTo(page, 5);
     await leave(page, 'Escape');
-    await atSelect(page);
+    await atHome(page);
+    await expect(done(page)).toHaveText(/^Out at 5 · 1st( of 1)?$/);
+    // Once Leave's double tap is over (a tap before then is ignored).
     await expect(async () => {
       await tile(page).click();
       await expect(page.locator('body')).toHaveClass(/\bat-daily\b/, { timeout: 200 });
     }).toPass();
-    await expect(page.locator('.dboard .o-title')).toHaveText('Daily challenge: out');
-    await expect(page.locator('.dboard .o-detail')).toHaveText('Left at 5');
-    await expect(page.locator('.dboard .o-time')).toBeHidden();
-    await expect(page.locator('.dboard .o-place')).toHaveText('1st of 1');
+    await expect(page.locator('.dboard .rows > li.you .score')).toHaveText('Out at 5');
   });
 
   test('Practice and the other levels never ask', async ({ page }) => {
@@ -750,13 +820,14 @@ test.describe('leaving a scored try asks first', () => {
     await start(page);
     await goOut(page);
     await atBoard(page);
-    await expect(page.locator('.dboard .o-title')).toHaveText('Daily challenge: out');
-    await expect(page.locator('.dboard .o-detail')).toHaveText('Out of lives at 1');
+    // Just out: how, beside the date.
+    await expect(page.locator('.dboard .b-said')).toHaveText('Out of lives at 1');
     await page.locator('.dboard .practice').click();
     await page.waitForFunction(() => !document.body.classList.contains('at-daily'));
     await page.keyboard.press('Escape');
-    await atSelect(page);
+    await atHome(page);
     await expect(page.locator('.leave')).toBeHidden();
+    await toLevels(page);
     await levelRow(page, 1).click();
     await page.keyboard.press('Escape');
     await atSelect(page);
@@ -765,22 +836,20 @@ test.describe('leaving a scored try asks first', () => {
 });
 
 test.describe('Practice shows as Practice', () => {
-  test('"Levels › Daily challenge › Practice", then "Practice" and its time over the board', async ({ page }) => {
+  test('"Home › Daily challenge › Practice", then "Practice" and its time beside the date', async ({ page }) => {
     await home(page);
     await start(page);
     await finish(page);
-    await expect(page.locator('.dboard .o-title')).toHaveText('Daily challenge complete');
-    await expect(page.locator('.dboard .o-time')).toHaveText(/^\d:\d\d\.\d$/);
-    await expect(page.locator('.dboard .o-place')).toHaveText('1st of 1');
+    await expect(page.locator('.dboard .b-date')).toHaveText('Sat 14 Nov · 1 played');
+    await expect(page.locator('.dboard .b-said')).toBeHidden();
+    await expect(page.locator('.dboard .rows > li.you .score')).toHaveText(/^\d:\d\d\.\d$/);
     await page.locator('.dboard .practice').click();
     await page.waitForFunction(() => !document.body.classList.contains('at-daily'));
     await expect(page.locator('.crumbs .here')).toBeVisible();
     await expect(page.locator('.crumbs span.sub')).toHaveText('Practice');
     await expect(page.locator('.crumbs span.sub')).toBeVisible();
     await finish(page);
-    await expect(page.locator('.dboard .o-title')).toHaveText('Practice');
-    await expect(page.locator('.dboard .o-time')).toHaveText(/^\d:\d\d\.\d$/);
-    await expect(page.locator('.dboard .o-place')).toBeHidden();
+    await expect(page.locator('.dboard .b-said')).toHaveText(/^Practice \d:\d\d\.\d$/);
     await expect(page.locator('.crumbs span.sub')).toBeHidden();
     // Out in practice: "Practice: out at N".
     await page.locator('.dboard .practice').click();
@@ -788,8 +857,7 @@ test.describe('Practice shows as Practice', () => {
     await playTo(page, 3);
     await goOut(page);
     await atBoard(page);
-    await expect(page.locator('.dboard .o-title')).toHaveText('Practice: out at 3');
-    await expect(page.locator('.dboard .o-time')).toBeHidden();
+    await expect(page.locator('.dboard .b-said')).toHaveText('Practice: out at 3');
   });
 
   test('the Practice crumb gives way as the others do: "‹ Daily › Practice" at the narrowest', async ({ page }) => {
@@ -812,43 +880,39 @@ test.describe('Practice shows as Practice', () => {
   });
 });
 
-test('the board keeps its scrollbar\'s room: the times end in the same place on a short board and a long one, the buttons\' edge less the row\'s padding', async ({ page, api }) => {
-  // Stacked both times: a window too narrow for the board side by side.
-  if (test.info().project.name === 'desktop') await page.setViewportSize({ width: 600, height: 900 });
+// The board as the home mockup draws it: the rows the buttons' width; a
+// long one, scrolling, beside the theme's scrollbar where it takes room,
+// the pinned row the list's full width.
+test('the rows are the buttons\' width; a long board\'s pinned row too', async ({ page, api }) => {
   await home(page);
   await start(page);
   await finish(page);
   const edges = () => page.evaluate(() => ({
-    score: document.querySelector('.dboard .rows > li .score').getBoundingClientRect().right,
     row: document.querySelector('.dboard .rows > li').getBoundingClientRect().right,
-    buttons: document.querySelector('.dboard .done-buttons').getBoundingClientRect().right,
+    pin: document.querySelector('.dboard .b-pin .r').getBoundingClientRect().right,
+    buttons: document.querySelector('.dboard .b-btns').getBoundingClientRect().right,
   }));
   const short = await edges();
   expect(short.row).toBeCloseTo(short.buttons, 2);
-  api.seedDaily(DATE, Array.from({ length: 60 }, (_, i) => ({ name: `p${i}`, totalMs: 90_000 + i })));
+  api.seedDaily(DATE, Array.from({ length: 60 }, (_, i) => ({ name: `p${i}`, totalMs: 0 })));   // all ahead: sam pinned
   await page.keyboard.press('Escape');
-  await expect(async () => {
-    await tile(page).click();
-    await expect(page.locator('body')).toHaveClass(/\bat-daily\b/, { timeout: 200 });
-  }).toPass();
+  await tile(page).click();
+  await atBoard(page);
   await expect(page.locator('.dboard .rows')).toHaveClass(/\bscrolls\b/);
+  await expect(page.locator('.dboard .b-pin .r')).toBeVisible();
   const long = await edges();
-  expect(long.score).toBeCloseTo(short.score, 2);
-  expect(long.row).toBeCloseTo(long.buttons, 2);
+  expect(long.pin).toBeCloseTo(long.buttons, 2);
 });
 
 // ---------- The server's score is the day's (the UI re-review) ----------
 
 test.describe('played on another device', () => {
-  test('signed in, the tile shows the score the API has, and opens the board, not a try', async ({ page, api }) => {
+  test('signed in, Home shows the score the API has, and opens the board, not a try', async ({ page, api }) => {
     api.seedDaily(DATE, [{ name: 'maya', totalMs: 9_000 }, { name: 'sam', totalMs: 10_000 }]);
     await home(page);
-    await expect(tile(page).locator('.best')).toHaveText('0:10.0');
-    await expect(tile(page).locator('.name')).toHaveText(/2nd of 2$/);
+    await expect(done(page)).toHaveText('0:10.0 · 2nd of 2');
     await tile(page).click();
     await atBoard(page);
-    await expect(page.locator('.dboard .o-title')).toHaveText('Daily challenge complete');
-    await expect(page.locator('.dboard .o-time')).toHaveText('0:10.0');
     await expect(page.locator('.dboard .rows > li.you .score')).toHaveText('0:10.0');
     expect(await page.evaluate(() => window.mathtime.game.level.daily ?? null)).toBe(null);
     expect(posts(api)).toHaveLength(0);
@@ -858,34 +922,70 @@ test.describe('played on another device', () => {
   test('an out there is an out here: "Out at N"', async ({ page, api }) => {
     api.seedDaily(DATE, [{ name: 'sam', reached: 7 }]);
     await home(page);
-    await expect(tile(page).locator('.best')).toHaveText('Out at 7');
+    await expect(done(page)).toHaveText(/^Out at 7 · 1st( of 1)?$/);
     await tile(page).click();
     await atBoard(page);
-    await expect(page.locator('.dboard .o-detail')).toHaveText('Out at 7');
+    await expect(page.locator('.dboard .rows > li.you .score')).toHaveText('Out at 7');
   });
 
   test('played there after this tab loaded: checked again before the try starts', async ({ page, api }) => {
     await home(page);
-    await expect(tile(page).locator('.name')).toHaveText(/one try$/);
+    await expect(tile(page).locator('.h-cta')).toHaveText('Start');
     api.seedDaily(DATE, [{ name: 'sam', totalMs: 10_000 }]);
     await tile(page).click();
     await atBoard(page);
-    await expect(page.locator('.dboard .o-time')).toHaveText('0:10.0');
+    await expect(page.locator('.dboard .rows > li.you .score')).toHaveText('0:10.0');
     expect(posts(api)).toHaveLength(0);
   });
 
-  test('a try the API refuses (409: it keeps the first) gives way to the API\'s score, on the board and the tile', async ({ page, api }) => {
+  test('played there after this tab loaded: the board\'s Start checks again too', async ({ page, api }) => {
+    await home(page);
+    await page.locator('.home .to-board').click();
+    await atBoard(page);
+    await expect(page.locator('.dboard .practice')).toHaveText('Start');
+    api.seedDaily(DATE, [{ name: 'sam', totalMs: 10_000 }]);
+    await page.locator('.dboard .practice').click();
+    await expect(page.locator('.dboard .rows > li.you .score')).toHaveText('0:10.0');
+    await expect(page.locator('.dboard .practice')).toHaveText('Practice');
+    await atBoard(page);
+    expect(await page.evaluate(() => window.mathtime.game.level.daily ?? null)).toBe(null);
+    expect(posts(api)).toHaveLength(0);
+  });
+
+  test('a tap on Start waits for the check, says so, takes no second tap, and starts nothing once you have left', async ({ page, api }) => {
+    let release;
+    const held = new Promise(r => { release = r; });
+    await page.route(`**/api/daily/${DATE}`, async route => {
+      await held;
+      await route.fallback();
+    });
+    await home(page);
+    await tile(page).click();
+    await expect(tile(page)).toHaveAttribute('aria-busy', 'true');
+    await expect(tile(page)).toHaveClass(/\bwaiting\b/);
+    await tile(page).click({ force: true });             // ignored: still checking
+    await page.locator('.home .gear').click();
+    await expect(page.locator('body')).toHaveClass(/\bat-settings\b/);
+    release();
+    await page.waitForTimeout(1_800);                     // the check's longest wait, and more
+    await expect(page.locator('body')).toHaveClass(/\bat-settings\b/);
+    expect(await kept(page)).toBeNull();
+    await page.keyboard.press('Escape');
+    await expect(tile(page)).not.toHaveAttribute('aria-busy', 'true');
+    await expect(tile(page).locator('.h-cta')).toHaveText('Start');
+  });
+
+  test('a try the API refuses (409: it keeps the first) gives way to the API\'s score, on the board and Home', async ({ page, api }) => {
     await home(page);
     await start(page);
     // Played on another device meanwhile.
     api.seedDaily(DATE, [{ name: 'sam', totalMs: 10_000 }]);
     await finish(page);
     await expect.poll(() => posts(api).length).toBe(1);
-    await expect(page.locator('.dboard .o-time')).toHaveText('0:10.0');
     await expect(page.locator('.dboard .rows > li.you .score')).toHaveText('0:10.0');
     expect(await kept(page)).toMatchObject({ ended: true, totalMs: 10_000 });
     await page.keyboard.press('Escape');
-    await expect(tile(page).locator('.best')).toHaveText('0:10.0');
+    await expect(done(page)).toHaveText('0:10.0 · 1st of 1');
     await expect.poll(() => outbox(page)).toEqual([]);
   });
 
@@ -894,13 +994,13 @@ test.describe('played on another device', () => {
     test('this browser\'s own state stands', async ({ page, api }) => {
       api.seedDaily(DATE, [{ name: 'sam', totalMs: 10_000 }]);
       await home(page);
-      await expect(tile(page).locator('.name')).toHaveText(/one try$/);
+      await expect(tile(page).locator('.h-cta')).toHaveText('Start');
     });
   });
 });
 
-// A board of seven: it never scrolls on a laptop or a desktop (side by side
-// where it wouldn't show whole stacked); a phone may scroll it.
+// A board of seven: it never scrolls on a laptop or a desktop; a phone may
+// scroll it.
 test.describe('a board of seven', () => {
   test.beforeEach(({}, info) => test.skip(info.project.name === 'phone', 'own contexts, from the desktop browser'));
   for (const [width, height, dpr] of [[1366, 657, 1], [1280, 610, 1.5], [1536, 730, 1.25], [1440, 900, 1], [1920, 1080, 1]]) {
@@ -938,8 +1038,9 @@ test.describe('a board of seven', () => {
 const SIZES = [[375, 812, 2], [320, 640, 2], [844, 390, 3], [1366, 657, 1], [1536, 730, 1.25], [1280, 610, 1.5], [1440, 900, 1], [1920, 1080, 1]];
 // What may scroll by design: the selector on a phone (its one stacked
 // column, or its topic columns held sideways: selector.js), and the
-// board's rows; what clips: the problem area and the live region,
-// and a name too long for its row, which ends in "…".
+// board's rows; what clips: the problem area and the live region, the
+// board's column (its rows scroll inside it), and a name too long for its
+// row, which ends in "…".
 const overflowing = page => page.evaluate(() => {
   const name = el => el.tagName.toLowerCase() + [...el.classList].map(c => `.${c}`).join('');
   const found = [];
@@ -950,10 +1051,10 @@ const overflowing = page => page.evaluate(() => {
     const scrolls = (can(cs.overflowY) && el.scrollHeight > el.clientHeight) || (can(cs.overflowX) && el.scrollWidth > el.clientWidth);
     const designed = el.matches('.dboard .rows.scrolls') || (el.matches('.select') && matchMedia('(pointer: coarse)').matches);
     if (scrolls && !designed) found.push(`${name(el)} scrolls`);
-    if (el.matches('.stage, .sr-only, .dboard .who') || cs.visibility === 'hidden') continue;
+    if (el.matches('.stage, .sr-only, .dboard .who, .dboard') || cs.visibility === 'hidden') continue;
     if ((clips(cs.overflowY) && el.scrollHeight > el.clientHeight + 1) || (clips(cs.overflowX) && el.scrollWidth > el.clientWidth + 1)) found.push(`${name(el)} clips`);
     const r = el.getBoundingClientRect();
-    if (r.right > innerWidth + 0.5 && !el.closest('.crumbs, .acct, .sr-only')) found.push(`${name(el)} past the right edge`);
+    if (r.right > innerWidth + 0.5 && !el.closest('.crumbs, .sr-only')) found.push(`${name(el)} past the right edge`);
   }
   const doc = document.scrollingElement;
   if (doc.scrollHeight > doc.clientHeight || doc.scrollWidth > doc.clientWidth) found.push('the document scrolls');
@@ -964,7 +1065,7 @@ test.describe('fits', () => {
   test.beforeEach(({}, info) => test.skip(info.project.name === 'phone', 'own contexts, from the desktop browser (real scrollbars)'));
 
   for (const [width, height, dpr] of SIZES) {
-    test(`${width}×${height}@${dpr}: the tile, the play screen and the board`, async ({ browser, baseURL }) => {
+    test(`${width}×${height}@${dpr}: Home, the play screen and the board`, async ({ browser, baseURL }) => {
       const context = await browser.newContext({ viewport: { width, height }, deviceScaleFactor: dpr, baseURL, timezoneId: 'UTC', isMobile: width < 900 && dpr > 1, hasTouch: width < 900 && dpr > 1 });
       await onTheDay(context);
       const api = await withAccount(context);
@@ -974,14 +1075,7 @@ test.describe('fits', () => {
       try {
         await home(page);
         await settle(page);
-        expect(await overflowing(page), 'the selector, before').toEqual([]);
-        // The line under the tile's title keeps 15px clear of the kinds.
-        const clear = await tile(page).evaluate(t => {
-          const range = document.createRange();
-          range.selectNodeContents(t.querySelector('.name'));
-          return t.querySelector('.kinds > span').getBoundingClientRect().left - range.getBoundingClientRect().right;
-        });
-        expect(clear, 'the tile\'s line clear of the kinds').toBeGreaterThanOrEqual(15);
+        expect(await overflowing(page), 'Home, before').toEqual([]);
         await start(page);
         // The question to leave fits too, and Stay plays on.
         await page.keyboard.press('Escape');
@@ -1014,7 +1108,7 @@ test.describe('fits', () => {
         expect(await overflowing(page), 'the board after practice').toEqual([]);
         await page.keyboard.press('Escape');
         await settle(page);
-        expect(await overflowing(page), 'the selector, after').toEqual([]);
+        expect(await overflowing(page), 'Home, after').toEqual([]);
       } finally {
         await context.close();
       }

@@ -1,7 +1,6 @@
 import { test, expect } from './fixtures.js';
 import {
-  open, levelRow, setProblem, playTo, answer, finishRun, rect, capture, ink, freeze, typeKeys, note, resize, TOL, MUTED, FAINT,
-} from './helpers.js';
+  open, levelRow, setProblem, playTo, answer, finishRun, rect, capture, ink, freeze, typeKeys, note, resize, TOL, MUTED, FAINT, toLevels } from './helpers.js';
 import { LEVELS, levelName } from '../../src/levels.js';
 
 // The breadcrumb and the way back to the level selector (Level 2 spec §4),
@@ -46,7 +45,7 @@ const shownCrumbs = page => page.locator('.crumbs').evaluate(crumbs => [...crumb
 // whole breadcrumb fits for every level.
 test('each level\'s breadcrumb reads "Levels › <topic> <number in it>", the level the current crumb', async ({ page }) => {
   await page.goto('/');
-  await page.waitForFunction(() => !document.documentElement.classList.contains('loading'));
+  await toLevels(page);
   const read = [];
   for (const level of LEVELS) {
     await levelRow(page, level.n).click();
@@ -87,9 +86,9 @@ test('Esc goes back too, but not while an input method is composing', async ({ p
   await expect(page.locator('.select')).toBeVisible();
   await expect(levelRow(page, 1)).toHaveClass(/\bcurrent\b/);
   await expect(levelRow(page, 1)).toBeFocused();
-  await page.keyboard.press('Escape');                        // on the selector: nothing
-  await expect(page.locator('.select')).toBeVisible();
-  await expect(levelRow(page, 1)).toBeFocused();
+  await page.keyboard.press('Escape');                        // on the selector: up to Home
+  await expect(page.locator('body')).toHaveClass(/\bat-home\b/);
+  await expect(page.locator('.home .btn.levels')).toBeFocused();
 });
 
 // The finish screen shows the breadcrumb, and Esc is its link's shortcut.

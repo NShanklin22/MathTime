@@ -12,7 +12,7 @@
 </head>
 <!-- data-kind: the kind of level being played, which shows its play screen
      (main.js): "fact", the equation; "column", the column board. -->
-<body class="at-select" data-kind="fact">
+<body class="at-home" data-kind="fact">
   <header class="top">
     <div class="where">
       <!-- "Levels › Addition 1": the way back, and the level by its topic and
@@ -23,12 +23,15 @@
            The chevron is the separator mirrored and moved 0.25px left, so
            its ink (the stroke, with its round caps and join) runs from 3px
            to 8px of its box: header.js puts the box on a whole device pixel
-           at the header's edge, and so the ink starts on one too. -->
+           at the header's edge, and so the ink starts on one too.
+           Above a level, the way back is "Home" (the home screen spec §1):
+           "Home › Levels", "Home › Daily challenge", "Home › Progress",
+           "Home › Settings" (main.js sets the words). -->
       <nav class="crumbs" aria-label="Breadcrumb">
         <a class="back" href="#" aria-label="Levels" aria-keyshortcuts="Escape" tabindex="-1"><span class="word">Levels</span><svg class="chevron" viewBox="0 0 12 12" aria-hidden="true"><path d="M7.25 2.5L3.75 6l3.5 3.5"/></svg></a>
         <svg class="sep" viewBox="0 0 12 12" aria-hidden="true"><path d="M4.5 2.5L8 6l-3.5 3.5"/></svg>
         <span class="here" aria-current="step">Addition 1</span>
-        <!-- Practice of the daily challenge: "Levels › Daily challenge › Practice" (main.js). -->
+        <!-- Practice of the daily challenge: "Home › Daily challenge › Practice" (main.js). -->
         <svg class="sep sub" viewBox="0 0 12 12" aria-hidden="true"><path d="M4.5 2.5L8 6l-3.5 3.5"/></svg>
         <span class="sub">Practice</span>
         <span class="home" aria-current="page">Levels</span>
@@ -39,10 +42,53 @@
       <svg viewBox="2 3 20 18" aria-hidden="true"><path d="M19.5 12.572l-7.5 7.428l-7.5 -7.428a5 5 0 1 1 7.5 -6.566a5 5 0 1 1 7.5 6.572"/></svg>
       <svg viewBox="2 3 20 18" aria-hidden="true"><path d="M19.5 12.572l-7.5 7.428l-7.5 -7.428a5 5 0 1 1 7.5 -6.566a5 5 0 1 1 7.5 6.572"/></svg>
     </div>
-    <!-- The account link (accounts spec §4), on the level selector only:
-         "Log in", or your name, which a tap turns to "Log out" (login.js). -->
-    <button class="acct" type="button">Log in</button>
   </header>
+
+  <!-- The home screen (2026-11-17-home-screen-design.md §2), run by
+       homeview.js: the title and the gear (Settings), the daily challenge
+       (Start, or the done line, which opens the board), Next lesson and
+       Levels, and the two quiet links. No header: the title is the page's. -->
+  <div class="home" role="region" aria-label="Home">
+    <div class="stack">
+      <div class="mid">
+        <div class="markrow">
+          <h1 class="mark">Math Time</h1>
+          <!-- The gear (Tabler's "settings"), its viewBox cropped to its ink, stroke included. -->
+          <button class="gear" type="button" aria-label="Settings"><svg viewBox="2.25 2.25 19.5 19.5" aria-hidden="true"><path d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 0 0 2.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 0 0 1.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 0 0-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 0 0-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 0 0-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 0 0-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 0 0 1.066-2.573c-.94-1.543.826-3.31 2.37-2.37c1 .608 2.296.07 2.572-1.065z"/><circle cx="12" cy="12" r="3"/></svg></button>
+        </div>
+        <button class="hero" type="button"></button>
+        <div class="btns">
+          <button class="btn next" type="button"></button>
+          <button class="btn levels" type="button"></button>
+        </div>
+      </div>
+      <nav class="links" aria-label="More">
+        <a class="to-board" href="#">Leaderboard</a>
+        <a class="to-progress" href="#">Progress</a>
+      </nav>
+    </div>
+  </div>
+
+  <!-- Progress (the home screen spec §3a): a row per topic, built by
+       homeview.js; a row opens Levels. -->
+  <div class="progress" role="region" aria-labelledby="p-title">
+    <div class="in">
+      <h1 class="s-title" id="p-title">Progress</h1>
+      <div class="rows"></div>
+    </div>
+  </div>
+
+  <!-- Settings (the home screen spec §4): the account only. -->
+  <div class="settings" role="region" aria-labelledby="s-title">
+    <div class="in">
+      <h1 class="s-title" id="s-title">Settings</h1>
+      <section class="sect" aria-labelledby="s-acct">
+        <h2 class="s-head" id="s-acct">Account</h2>
+        <p class="who"></p>
+        <div class="buttons"></div>
+      </section>
+    </div>
+  </div>
 
   <main class="stage">
     <div class="eq" id="eq">
@@ -87,25 +133,26 @@
     </div>
   </div>
 
-  <!-- The daily challenge's board (daily spec §4), filled in by
-       dailyview.js: the date, your score above the rows where you aren't
-       on them, the rows, and Practice and Levels. Only the rows scroll. -->
+  <!-- The daily challenge's board (daily spec §4, the home screen spec
+       §3b), filled in by dailyview.js: the title, the date and how many
+       played, your score above the rows where you aren't on them, the rows
+       (which alone scroll, your row pinned at their foot when it is below
+       their view), and Practice and Levels. -->
   <div class="dboard" role="region" aria-labelledby="db-title">
-    <!-- The try's result, or the practice's, as the finish screen's lines. -->
-    <div class="outcome" hidden>
-      <p class="line o-title"></p>
-      <p class="line o-time"></p>
-      <p class="line o-detail"></p>
-      <p class="line o-place"></p>
-    </div>
-    <div class="head">
-      <h1 class="line title" id="db-title"></h1>
+    <div class="in">
+      <h1 class="s-title" id="db-title">Daily challenge</h1>
+      <p class="b-date"></p>
+      <p class="b-said" hidden></p>
       <div class="mine"></div>
-    </div>
-    <ol class="rows" aria-label="Today's board"></ol>
-    <div class="done-buttons">
-      <button class="practice"><span class="line">Practice</span></button>
-      <button class="levels"><span class="line">Levels</span></button>
+      <div class="b-list">
+        <ol class="rows" aria-label="Today's board"></ol>
+        <div class="b-pin" aria-hidden="true" hidden><div class="b-gap"><span>⋯</span></div><div class="r you pinned"></div></div>
+      </div>
+      <div class="b-btns">
+        <button class="practice fill" type="button">Practice</button>
+        <p class="b-busy" hidden>Finish it in the other tab</p>
+        <button class="levels" type="button">Levels</button>
+      </div>
     </div>
   </div>
   <!-- The log-in screen (accounts spec §3), run by login.js: Log in, or
@@ -121,7 +168,7 @@
     </div>
   </div>
   <div class="login" role="region" aria-labelledby="login-title">
-    <h1 class="sr-only" id="login-title">Log in</h1>
+    <h1 class="s-title" id="login-title">Log in</h1>
     <form novalidate>
       <div class="fields">
         <div class="field" data-for="signup" hidden>
