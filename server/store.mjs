@@ -220,6 +220,11 @@ export function dailyCount(db, date) {
   return db.prepare('SELECT COUNT(*) AS n FROM daily WHERE date = ?').get(date).n;
 }
 
+// Every account's name, lower-cased, so made-up players never take one.
+export function userNamesLc(db) {
+  return new Set(db.prepare('SELECT name_lc FROM users').all().map((u) => u.name_lc));
+}
+
 // One player's score for the date, shaped as a board row, or undefined.
 export function dailyScore(db, date, userId) {
   return db
