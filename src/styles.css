@@ -935,7 +935,7 @@ body.at-settings .settings, body.at-progress .progress, body.at-daily .dboard { 
 .home .hero:active .h-cta.done { background: transparent; }
 .home .h-cta .ok { display: flex; align-items: center; gap: 0.45em; color: var(--good); }
 .home .h-cta .ok, .home .h-cta .res { flex: none; }
-.home .h-cta .res { display: flex; align-items: center; gap: calc(10 * var(--u)); font-variant-numeric: tabular-nums; }
+.home .h-cta .res { display: flex; align-items: center; gap: max(10px, calc(10 * var(--u))); font-variant-numeric: tabular-nums; }
 .home .h-cta .chev, .home .btn .chev { flex: none; height: calc(18 * var(--u)); color: var(--ink); }
 .home .tick { display: block; height: 0.8em; width: auto; aspect-ratio: 20 / 14.5; overflow: visible; }
 .home .tick path { fill: none; stroke: currentColor; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }

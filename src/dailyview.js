@@ -128,10 +128,10 @@ export function createDailyBoard(root, { practice, start, levels, login }) {
   // foot after the "⋯" (home.js cutBoard()), and hidden there, its room
   // kept, while you scroll it into the list's view. Run after every layout:
   // a new board opens at its top, the same board keeps its place.
-  // A short board that just misses its room for the lines its own boards
-  // don't have (your score above it, a line under the date) has its rows a
-  // little shorter, down to FIT of their height, so it shows whole, as it
-  // would without them; a long board scrolls.
+  // A board that just misses its room (ten players on a big window, or a
+  // line above it: your score, a note under the date) has its rows a little
+  // shorter, down to FIT of their height, so it shows whole; a long board
+  // scrolls.
   const FIT = 0.8;
   let shownKey = null, keepTop = null, placedKey = null;
   function place() {
@@ -151,7 +151,7 @@ export function createDailyBoard(root, { practice, start, levels, login }) {
     const count = rows.children.length;
     const row = rows.firstElementChild.getBoundingClientRect().height;
     if (count * row <= room + 0.5) return;
-    if (root.matches('.has-mine, .has-said') && count * row * FIT <= room + 0.5) {
+    if (count * row * FIT <= room + 0.5) {
       const dpr = devicePixelRatio, h = Math.floor(room / count * dpr) / dpr;
       for (const li of rows.children) li.style.height = h + 'px';
       return;
