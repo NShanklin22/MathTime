@@ -2,7 +2,7 @@
 // createApp returns a node:http request handler; server.mjs listens with it, the tests too.
 import { hashPassword, verifyPassword, DUMMY_HASH, newToken, hashToken } from './auth.mjs';
 import * as store from './store.mjs';
-import { FAKE_ROWS, fakesFor, compareScores } from './fakes.mjs';
+import { SHOWN, NO_CROWD, crowdSize, crowdFor, crowdBetter, crowdTop, compareScores } from './crowd.mjs';
 
 export const COOKIE = 'mt_session';
 export const BODY_LIMIT = 64 * 1024;
@@ -143,7 +143,7 @@ export function dayNumber(date) {
 // trustProxy: take the caller's address from X-Real-IP, which only nginx (or scripts/serve.mjs) sets.
 // Without it, the socket's address, so a caller can't name a new address for each try.
 // addressLimit: tries a minute per address (default RATE_LIMIT); the tests raise it to reach the name limit.
-export function createApp({ db, now = Date.now, cookieSecure = true, trustProxy = false, addressLimit = RATE_LIMIT, fakeRows = FAKE_ROWS }) {
+export function createApp({ db, now = Date.now, cookieSecure = true, trustProxy = false, addressLimit = RATE_LIMIT, crowd = true }) {
   const limits = rateLimiter(now);
 
   // Expired sessions go when the app starts, then once a day, on the first request after.
@@ -323,27 +323,25 @@ export function createApp({ db, now = Date.now, cookieSecure = true, trustProxy 
       const me = optionalUserId(req);
       const row = (r, place) =>
         ({ place, name: r.name, totalMs: r.out ? null : r.total_ms, reached: r.reached, you: me !== null && r.user_id === me });
-      // Made-up players fill the board (fake board spec): each real score pushes the worst one left off.
-      const real = store.dailyCount(db, date);
-      // None on a date no one can have played yet, past tomorrow on the server's clock.
+      // The crowd (crowd spec): 10,000 made-up players and 100 more an account, all counted in the
+      // places, the best ten shown. None on a date no one can have played yet, past tomorrow on the
+      // server's clock.
       const playable = dayNumber(date) <= Math.floor(now() / store.DAY) + 1;
-      const fakes = real < fakeRows && playable ? fakesFor(date, store.userNamesLc(db)).slice(0, fakeRows - real) : [];
+      const taken = crowd && playable ? store.userNamesLc(db) : null;
+      const many = taken ? crowdFor(date, crowdSize(taken.size)) : NO_CROWD;
+      const real = store.dailyBoard(db, date);
       // A stable sort with the real scores first, so a real player goes above a made-up one on a tie.
-      const board = [...store.dailyBoard(db, date), ...fakes].sort(compareScores).slice(0, store.BOARD_ROWS);
-      let place = 0;
-      let prev = null;
-      const rows = board.map((r, i) => {
-        const score = `${r.out}:${r.out ? r.reached : r.total_ms}`;
-        if (score !== prev) place = i + 1;
-        prev = score;
-        return row(r, place);
-      });
-      // Past the first rows, the caller's own score still shows, last, with its real place.
+      const board = [...real, ...(taken ? crowdTop(many, taken) : [])].sort(compareScores)
+        .slice(0, taken ? SHOWN : store.BOARD_ROWS);
+      // A place: 1 + everyone strictly better. The real scores better than one shown are all in `real`.
+      const better = (r) => real.filter((x) => compareScores(x, r) < 0).length;
+      const rows = board.map((r) => row(r, 1 + crowdBetter(many, r) + better(r)));
+      // Past the rows shown, the caller's own score still shows, last, with its real place.
       if (me !== null && !rows.some((r) => r.you)) {
         const mine = store.dailyScore(db, date, me);
-        if (mine) rows.push(row(mine, store.dailyPlace(db, date, mine) + fakes.filter((f) => compareScores(f, mine) < 0).length));
+        if (mine) rows.push(row(mine, crowdBetter(many, mine) + store.dailyPlace(db, date, mine)));
       }
-      return [200, { date, total: real + fakes.length, rows }];
+      return [200, { date, total: store.dailyCount(db, date) + many.size, rows }];
     },
 
     'GET /api/healthz': async () => {

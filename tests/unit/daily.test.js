@@ -122,6 +122,8 @@ test('a finished record has its time and reached 20; an out has neither time nor
 test('places and scores in words', () => {
   assert.deepEqual([1, 2, 3, 4, 11, 12, 13, 21, 22, 23, 101, 111].map(ordinal),
     ['1st', '2nd', '3rd', '4th', '11th', '12th', '13th', '21st', '22nd', '23rd', '101st', '111th']);
+  assert.equal(ordinal(2443), '2,443rd');
+  assert.equal(ordinal(10_111), '10,111th');
   assert.equal(rowScore({ totalMs: 64_200, reached: 20 }), '1:04.2');
   assert.equal(rowScore({ totalMs: null, reached: 12 }), 'Out at 12');
   assert.equal(tryScore({ out: true, reached: 12 }), 'Out at 12 of 20');

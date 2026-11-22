@@ -1,3 +1,5 @@
+> Superseded by 2026-11-22-crowd-design.md.
+
 # Made-up players on the daily board
 
 Decided 2026-11-18, in conversation. The owner asked for made-up names and times on the leaderboard, enough

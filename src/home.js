@@ -1,5 +1,5 @@
 import { formatTime } from './finish.js';
-import { ordinal, dayLabel, IN_PROGRESS } from './daily.js';
+import { ordinal, count, dayLabel, IN_PROGRESS } from './daily.js';
 
 // The home screen (2026-11-17-home-screen-design.md), with no DOM: what
 // Next lesson starts, the progress per topic, the daily challenge's done
@@ -31,10 +31,10 @@ export function topicProgress(levels, finished) {
 // - before the try, 'start';
 // - started and not ended, 'busy': being played in another tab, `res` what
 //   to do about it;
-// - after it, 'done', with `res`, the score and the place, "1:12.6 · 5th
-//   of 9" (the score alone where there is no place; out, "Out at 12"), and
-//   `short`, as much as a narrow Done row has room for: an out's place
-//   without "of N", "Out at 12 · 9th" (a time and a place fit whole).
+// - after it, 'done', with `res`, the score and the place, "1:58.3 ·
+//   2,443rd" (the score alone where there is no place; out, "Out at 12"),
+//   without "of 10,101": the board says how many played, and the row has
+//   no room for it. `short`, for a narrow row, is the same.
 // `label` is the hero's accessible name.
 export const OTHER_TAB = 'Finish it in the other tab';
 export function heroParts(date, t, place) {
@@ -42,9 +42,9 @@ export function heroParts(date, t, place) {
   if (t?.started && !t.ended) return { state: 'busy', day, res: OTHER_TAB, short: OTHER_TAB, label: `Daily challenge, ${day}: ${IN_PROGRESS}` };
   if (!t?.ended) return { state: 'start', day, res: null, short: null, label: `Daily challenge, ${day}: 20 problems, one try. Start` };
   const score = t.out ? `Out at ${t.reached}` : formatTime(t.totalMs);
-  const res = place ? `${score} · ${ordinal(place.place)} of ${place.of}` : score;
-  const short = place && t.out ? `${score} · ${ordinal(place.place)}` : res;
-  return { state: 'done', day, res, short, label: `Daily challenge, ${day}: done, ${res.replace(' · ', ', ')}. Show the board` };
+  const res = place ? `${score} · ${ordinal(place.place)}` : score;
+  const where = place ? `, ${ordinal(place.place)} of ${count(place.of)}` : '';
+  return { state: 'done', day, res, short: res, label: `Daily challenge, ${day}: done, ${score}${where}. Show the board` };
 }
 
 // The board's filled button (spec §3b), for the board of `date` (today is

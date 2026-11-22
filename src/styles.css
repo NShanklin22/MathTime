@@ -1053,6 +1053,10 @@ body.at-daily .dboard { overflow: hidden; align-content: stretch; }
   display: grid; grid-template-columns: var(--place-w, 2ch) minmax(0, 1fr) auto; column-gap: calc(16 * var(--u)); align-items: center;
   height: calc(40 * var(--u)); padding: 0 calc(14 * var(--u)) 0 calc(8 * var(--u)); font-size: calc(16 * var(--u)); letter-spacing: 0.02em; white-space: nowrap;
 }
+/* The "⋯" before your own row, far below the rows above it: a row's
+   height, as the pin's break, muted and centred. */
+.dboard .r.gap { display: flex; justify-content: center; height: calc(28 * var(--u)); font-size: calc(24 * var(--u)); line-height: 1; color: var(--muted); }
+.dboard .r.gap span { letter-spacing: 0.1em; }
 .dboard .r .place { text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; }
 .dboard .r .who { overflow: hidden; text-overflow: ellipsis; }
 .dboard .r .score { text-align: right; font-variant-numeric: tabular-nums; }

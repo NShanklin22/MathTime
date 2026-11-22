@@ -43,14 +43,14 @@ test('the daily challenge on Home: Start before the try, the done line after it'
   assert.equal(heroParts(date, null, null).label, 'Daily challenge, Tue 17 Nov: 20 problems, one try. Start');
   const t = { started: true, ended: true, out: false, totalMs: 72_600, reached: 20 };
   assert.deepEqual(heroParts(date, t, { place: 5, of: 9 }), {
-    state: 'done', day: 'Tue 17 Nov', res: '1:12.6 · 5th of 9', short: '1:12.6 · 5th of 9', label: 'Daily challenge, Tue 17 Nov: done, 1:12.6, 5th of 9. Show the board',
+    state: 'done', day: 'Tue 17 Nov', res: '1:12.6 · 5th', short: '1:12.6 · 5th', label: 'Daily challenge, Tue 17 Nov: done, 1:12.6, 5th of 9. Show the board',
   });
   // Offline (no place): the time alone. Out: where it went out.
   assert.equal(heroParts(date, t, null).res, '1:12.6');
-  assert.equal(heroParts(date, { ...t, totalMs: 604_700 }, { place: 10, of: 12 }).res, '10:04.7 · 10th of 12');
+  assert.equal(heroParts(date, { ...t, totalMs: 604_700 }, { place: 2443, of: 10101 }).res, '10:04.7 · 2,443rd');
+  assert.equal(heroParts(date, t, { place: 2443, of: 10101 }).label, 'Daily challenge, Tue 17 Nov: done, 1:12.6, 2,443rd of 10,101. Show the board');
   const out = heroParts(date, { ...t, out: true, totalMs: null, reached: 12 }, { place: 8, of: 9 });
-  assert.equal(out.res, 'Out at 12 · 8th of 9');
-  // Narrow, an out's place without "of N".
+  assert.equal(out.res, 'Out at 12 · 8th');
   assert.equal(out.short, 'Out at 12 · 8th');
   assert.equal(heroParts(date, { ...t, out: true, totalMs: null, reached: 12 }, null).short, 'Out at 12');
   // Started and not ended: another tab's, and what to do.

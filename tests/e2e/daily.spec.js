@@ -95,7 +95,7 @@ test.describe('Home\'s daily challenge', () => {
     await page.keyboard.press('Escape');
     await atHome(page);
     const t = await kept(page);
-    await expect(done(page)).toHaveText(new RegExp(`^${Math.floor(t.totalMs / 60000)}:\\d\\d\\.\\d · 2nd of 3$`));
+    await expect(done(page)).toHaveText(new RegExp(`^${Math.floor(t.totalMs / 60000)}:\\d\\d\\.\\d · 2nd$`));
     await expect(tile(page).locator('.ok')).toHaveText('Done');
     await expect(tile(page).locator('.ok .tick')).toBeVisible();
     await expect(tile(page)).toHaveAttribute('aria-label', /^Daily challenge, Sat 14 Nov: done, \d:\d\d\.\d, 2nd of 3\. Show the board$/);
@@ -359,6 +359,29 @@ test.describe('the board', () => {
     await expect(page.locator('.dboard .s-title')).toBeInViewport({ ratio: 1 });
   });
 
+  test('the crowd: the best ten, then a "⋯" row and your own far below, places with thousands marked', async ({ page, api }) => {
+    await home(page);
+    await start(page);
+    const ten = Array.from({ length: 10 }, (_, i) => ({ place: i + 1, name: `c${i}`, totalMs: 40_000 + i * 1000, reached: 20, you: false }));
+    api.answer[`/api/daily/${DATE}`] = (body, method) => (method === 'GET'
+      ? { status: 200, body: { date: DATE, total: 10_101, rows: [...ten, { place: 1240, name: 'sam', totalMs: 118_300, reached: 20, you: true }] } }
+      : undefined);
+    await finish(page);
+    await expect(page.locator('.dboard .b-date')).toContainText('10,101 played');
+    const items = page.locator('.dboard .rows > li');
+    await expect(items).toHaveCount(12);
+    await expect(items.nth(10)).toHaveClass(/\bgap\b/);
+    await expect(items.nth(10)).toHaveAttribute('aria-hidden', 'true');
+    await expect(items.nth(11)).toHaveClass(/\byou\b/);
+    await expect(items.nth(11).locator('.place')).toHaveText('1,240');
+    // In view, every row shows, or the list scrolls with your row pinned after its "⋯".
+    if (await page.locator('.dboard .rows').evaluate(el => el.classList.contains('scrolls'))) {
+      await expect(page.locator('.dboard .b-pin .r .place')).toHaveText('1,240');
+    } else {
+      await expect(items.nth(11)).toBeInViewport({ ratio: 1 });
+    }
+  });
+
   test('offline: your score, and "The board will show when you\'re back online"', async ({ page, api }) => {
     api.answer[`/api/daily/${DATE}`] = () => 'down';
     await home(page);
@@ -384,7 +407,7 @@ test.describe('the board', () => {
     api.answer[`/api/daily/${DATE}`] = () => 'down';
     await page.reload();
     await loaded(page);
-    await expect(done(page)).toHaveText(/1st of 1$/);
+    await expect(done(page)).toHaveText(/1st$/);
     await tile(page).click();
     await atBoard(page);
     await expect(page.locator('.dboard .rows > li.you')).toHaveCount(1);
@@ -485,7 +508,7 @@ test.describe('the upload', () => {
     await expect.poll(() => posts(api).length).toBe(2);
     expect(posts(api)[1].body).toEqual(posts(api)[0].body);
     await expect.poll(() => outbox(page)).toEqual([]);
-    await expect(done(page)).toHaveText(/1st of 1$/);
+    await expect(done(page)).toHaveText(/1st$/);
   });
 
   test('a 5xx waits too', async ({ page, api }) => {
@@ -542,7 +565,7 @@ test.describe('two tabs', () => {
     await expect(other.locator('.dboard .practice')).toBeVisible();
     await expect(other.locator('.dboard .b-busy')).toBeHidden();
     await other.keyboard.press('Escape');
-    await expect(done(other)).toHaveText(/^\d:\d\d\.\d · 1st of 1$/);
+    await expect(done(other)).toHaveText(/^\d:\d\d\.\d · 1st$/);
   });
 
   test('the board says "Finish it in the other tab" until that tab goes; closed, its try is out, and Practice comes back', async ({ page, context, api }) => {
@@ -708,13 +731,14 @@ test('the API busy (429): "The board is busy: try again in a minute"', async ({ 
   await expect(page.locator('.dboard .rows')).toBeHidden();
 });
 
-test('past the first 200, your own row comes after them, at your place, and Home says of how many', async ({ page, api }) => {
+test('past the first 200, your own row comes after them, at your place, after a "⋯" row', async ({ page, api }) => {
   api.seedDaily(DATE, Array.from({ length: 250 }, (_, i) => ({ name: `p${i}`, totalMs: 60_000 + i })));
   await home(page);
   await start(page);
   await goOut(page);
   await atBoard(page);
-  await expect(page.locator('.dboard .rows > li')).toHaveCount(201);
+  await expect(page.locator('.dboard .rows > li')).toHaveCount(202);
+  await expect(page.locator('.dboard .rows > li').nth(200)).toHaveClass(/\bgap\b/);
   const last = page.locator('.dboard .rows > li').last();
   await expect(last).toHaveClass(/\byou\b/);
   await expect(last.locator('.place')).toHaveText('251');
@@ -723,7 +747,7 @@ test('past the first 200, your own row comes after them, at your place, and Home
   const [a, b] = await page.locator('.dboard .rows > li .who').evaluateAll(w => [w[0], w.at(-1)].map(e => e.getBoundingClientRect().left));
   expect(a).toBeCloseTo(b, 2);
   await page.keyboard.press('Escape');
-  await expect(done(page)).toHaveText(/^Out at 1 · 251st( of 251)?$/);
+  await expect(done(page)).toHaveText('Out at 1 · 251st');
 });
 
 test('a board kept by another account is never shown as yours', async ({ page, api }) => {
@@ -910,7 +934,7 @@ test.describe('played on another device', () => {
   test('signed in, Home shows the score the API has, and opens the board, not a try', async ({ page, api }) => {
     api.seedDaily(DATE, [{ name: 'maya', totalMs: 9_000 }, { name: 'sam', totalMs: 10_000 }]);
     await home(page);
-    await expect(done(page)).toHaveText('0:10.0 · 2nd of 2');
+    await expect(done(page)).toHaveText('0:10.0 · 2nd');
     await tile(page).click();
     await atBoard(page);
     await expect(page.locator('.dboard .rows > li.you .score')).toHaveText('0:10.0');
@@ -985,7 +1009,7 @@ test.describe('played on another device', () => {
     await expect(page.locator('.dboard .rows > li.you .score')).toHaveText('0:10.0');
     expect(await kept(page)).toMatchObject({ ended: true, totalMs: 10_000 });
     await page.keyboard.press('Escape');
-    await expect(done(page)).toHaveText('0:10.0 · 1st of 1');
+    await expect(done(page)).toHaveText('0:10.0 · 1st');
     await expect.poll(() => outbox(page)).toEqual([]);
   });
 
