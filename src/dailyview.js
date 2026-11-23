@@ -1,6 +1,6 @@
 import { formatTime } from './finish.js';
 import { cutBoard } from './home.js';
-import { dayLabel, resultParts, rowScore } from './daily.js';
+import { dayLabel, resultParts, rowScore, count } from './daily.js';
 
 // The daily challenge's board (2026-11-14-daily-challenge-design.md §4),
 // as the home mockup (2026-11-17) draws it (the home screen spec §3b).
@@ -41,7 +41,7 @@ export function createDailyBoard(root, { practice, start, levels, login }) {
   function row(tag, p, place, you) {
     const r = el(tag, `r${p.totalMs == null ? ' out' : ''}${you ? ' you' : ''}`);
     if (you && tag === 'li') r.setAttribute('aria-current', 'true');
-    r.append(el('span', 'place', String(place)), el('span', 'who', p.name), el('span', 'score', rowScore(p)));
+    r.append(el('span', 'place', typeof place === 'number' ? count(place) : place), el('span', 'who', p.name), el('span', 'score', rowScore(p)));
     return r;
   }
 
@@ -79,8 +79,8 @@ export function createDailyBoard(root, { practice, start, levels, login }) {
     const list = board?.rows ?? null;
     const parts = practice || (fresh && t?.out) ? resultParts(t, where, practice) : null;
     const said = parts ? (practice ? [parts.title, parts.time].filter(Boolean).join(' ') : parts.detail) : null;
-    const count = list ? `${board.total ?? list.length} played` : null;
-    $('.b-date').textContent = [dayLabel(date), count].filter(Boolean).join(' · ');
+    const played = list ? `${count(board.total ?? list.length)} played` : null;
+    $('.b-date').textContent = [dayLabel(date), played].filter(Boolean).join(' · ');
     const result = $('.b-said');
     result.textContent = said ?? '';
     result.hidden = !said;
@@ -111,10 +111,20 @@ export function createDailyBoard(root, { practice, start, levels, login }) {
     const key = JSON.stringify([date, list]);
     keepTop = key === shownKey ? rows.scrollTop : null;
     shownKey = key;
-    rows.replaceChildren(...(list ?? []).map(p => row('li', p, p.place, !!name && p.you)));
+    const items = (list ?? []).map(p => row('li', p, p.place, !!name && p.you));
+    // Your own row, added after the first rows with players between (the
+    // crowd, or a board past 200): a "⋯" row before it, as the pin's.
+    const n = items.length, last = list?.[n - 1];
+    if (last?.you && last.place > n) {
+      const gap = el('li', 'r gap');
+      gap.setAttribute('aria-hidden', 'true');
+      gap.append(el('span', null, '⋯'));
+      items.splice(n - 1, 0, gap);
+    }
+    rows.replaceChildren(...items);
     // Places past 99 (your own row, after the first 200): the column as
     // wide as the longest, the same in every row.
-    const widest = Math.max(2, ...(list ?? []).map(p => String(p.place).length));
+    const widest = Math.max(2, ...(list ?? []).map(p => count(p.place).length));
     if (widest > 2) root.style.setProperty('--place-w', widest + 'ch');
     else root.style.removeProperty('--place-w');
     const you = rows.querySelector('.you');
@@ -146,16 +156,23 @@ export function createDailyBoard(root, { practice, start, levels, login }) {
     for (const li of rows.children) li.style.height = '';
     pin.hidden = true;
     pin.classList.remove('away');
+    pinned.style.paddingRight = '';
     if (rows.hidden || !rows.firstElementChild) return;
     const room = rows.clientHeight;
     const count = rows.children.length;
     const row = rows.firstElementChild.getBoundingClientRect().height;
-    if (count * row <= room + 0.5) return;
-    if (count * row * FIT <= room + 0.5) {
-      const dpr = devicePixelRatio, h = Math.floor(room / count * dpr) / dpr;
-      for (const li of rows.children) li.style.height = h + 'px';
+    // The "⋯" row, where there is one, is shorter than a row while every
+    // row shows; in a list that scrolls it is a row's height, as cutBoard()
+    // counts it.
+    const gap = rows.querySelector('.gap');
+    const gapH = gap ? gap.getBoundingClientRect().height : 0, real = count - (gap ? 1 : 0);
+    if (real * row + gapH <= room + 0.5) return;
+    if (real * row * FIT + gapH <= room + 0.5) {
+      const dpr = devicePixelRatio, h = Math.floor((room - gapH) / real * dpr) / dpr;
+      for (const li of rows.children) if (li !== gap) li.style.height = h + 'px';
       return;
     }
+    if (gap) gap.style.height = row + 'px';
     const you = rows.querySelector('.you');
     const at = you ? [...rows.children].indexOf(you) : -1;
     pin.hidden = false;
@@ -166,6 +183,10 @@ export function createDailyBoard(root, { practice, start, levels, login }) {
     if (cut.pinned) {
       pin.hidden = false;
       list.classList.add('pinned');
+      // The list's scrollbar narrows its rows: your pinned row, the area's
+      // full width, has its time end where theirs do.
+      const bar = rows.getBoundingClientRect().right - rows.firstElementChild.getBoundingClientRect().right;
+      if (bar > 0.5) pinned.style.paddingRight = `calc(14 * var(--u) + ${bar}px)`;
     }
     rows.style.height = cut.shown * row + (rows.offsetHeight - rows.clientHeight) + 'px';
     rows.scrollTop = fresh ? cut.start * row : keep;

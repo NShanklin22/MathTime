@@ -73,19 +73,19 @@ test.describe('Home', () => {
     await at(page, 'home');
     await expect(hero(page).locator('.h-cta')).toHaveClass(/\bdone\b/);
     await expect(hero(page).locator('.ok')).toHaveText('Done');
-    await expect(hero(page).locator('.res')).toHaveText(/^\d:\d\d\.\d · 1st of 1$/);
+    await expect(hero(page).locator('.res')).toHaveText(/^\d:\d\d\.\d · 1st$/);
     await expect(hero(page)).toBeFocused();
     // The done line opens the board.
     await hero(page).click();
     await at(page, 'daily');
   });
 
-  test('after the try: the time and the place, "1:12.6 · 3rd of 4"', async ({ page, api }) => {
+  test('after the try: the time and the place, "1:12.6 · 3rd"', async ({ page, api }) => {
     api.seedDaily(DATE, [{ name: 'alex', totalMs: 58_700 }, { name: 'bea', totalMs: 61_900 }, { name: 'kit', totalMs: 84_100 }]);
     api.daily.get(DATE).push({ name: 'sam', totalMs: 72_600, reached: 20, id: 'try-1' });
     await keepTry(page, 72_600);
     await open(page);
-    await expect(hero(page).locator('.res')).toHaveText('1:12.6 · 3rd of 4');
+    await expect(hero(page).locator('.res')).toHaveText('1:12.6 · 3rd');
     await expect(hero(page)).toHaveAccessibleName('Daily challenge, Tue 17 Nov: done, 1:12.6, 3rd of 4. Show the board');
   });
 

@@ -118,7 +118,12 @@ export function dailyRecord({ id, finishedAt, out, reached, totalMs, problems })
 // 1st, 2nd, 3rd, 4th, … 11th, 12th, 13th, 21st.
 export function ordinal(n) {
   const teen = n % 100 > 10 && n % 100 < 14;
-  return n + ((!teen && { 1: 'st', 2: 'nd', 3: 'rd' }[n % 10]) || 'th');
+  return count(n) + ((!teen && { 1: 'st', 2: 'nd', 3: 'rd' }[n % 10]) || 'th');
+}
+
+// A count as the board shows it, with thousands marked: "10,101".
+export function count(n) {
+  return n.toLocaleString('en-US');
 }
 
 // A score as a board row shows it: the time, or "Out at 12".
@@ -153,7 +158,7 @@ export function tileParts(date, t, place) {
   if (!t?.ended) {
     return { line: `${day} · 20 problems, one try`, short: `${day} · one try`, best: null, label: `Daily challenge, ${day}: 20 problems, one try` };
   }
-  const where = place ? `${ordinal(place.place)} of ${place.of}` : null;
+  const where = place ? `${ordinal(place.place)} of ${count(place.of)}` : null;
   const line = where ? `${day} · ${where}` : day;
   const best = t.out ? `Out at ${t.reached}` : formatTime(t.totalMs);
   return { line, short: where ?? day, best, label: `Daily challenge, ${day}: ${tryScore(t)}${where ? `, ${where}` : ''}. Show the board` };
@@ -174,7 +179,7 @@ export function resultParts(t, place, practice = null) {
       : { title: 'Practice', time: formatTime(practice.totalMs), detail: null, place: null };
   }
   if (!t?.ended) return null;
-  const where = place ? `${ordinal(place.place)} of ${place.of}` : null;
+  const where = place ? `${ordinal(place.place)} of ${count(place.of)}` : null;
   if (!t.out) return { title: 'Daily challenge complete', time: formatTime(t.totalMs), detail: null, place: where };
   const how = { lives: 'Out of lives', left: 'Left' }[t.how] ?? 'Out';
   return { title: 'Daily challenge: out', time: null, detail: `${how} at ${t.reached}`, place: where };
