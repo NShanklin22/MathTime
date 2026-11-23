@@ -113,6 +113,46 @@ docker compose exec api node cli.mjs reset <name>
 docker compose exec api node cli.mjs users
 ```
 
+## Google sign-in
+
+"Continue with Google" shows on the log-in screen only once the API has its three settings. Open sign-up
+(a name and a password) works without them.
+
+1. **The OAuth client.** In Google Cloud Console, APIs & Services › Credentials › Create credentials ›
+   OAuth client ID. Type: Web application. Authorised redirect URI:
+   `https://math.nshanklin.com/api/google/callback`. The consent screen needs no scopes beyond the
+   defaults: MathTime asks for `openid` only and keeps Google's account id, nothing else.
+
+2. **The settings**, on mainframe, in `~/apps/mathtime/deploy/secrets.env` (not `deploy/.env`, which
+   `deploy.sh` rewrites each time). It is in `.gitignore`, so it never reaches git:
+
+   ```
+   GOOGLE_CLIENT_ID=<the client id>
+   GOOGLE_CLIENT_SECRET=<the client secret>
+   PUBLIC_URL=https://math.nshanklin.com
+   ```
+
+   Then make it readable by you alone:
+
+   ```bash
+   chmod 600 ~/apps/mathtime/deploy/secrets.env
+   ```
+
+3. **Deploy again**, so the container picks them up:
+
+   ```bash
+   ~/apps/mathtime/deploy/deploy.sh
+   ```
+
+   `docker compose logs api` then says "Google sign-in on". It never prints the secret.
+
+`compose.yaml` loads `secrets.env` with `env_file: { path, required: false }`, which needs Docker Compose
+2.24 or later (`docker compose version`). Without the file, the API runs with Google sign-in off.
+
+**Closing sign-up again.** Add `OPEN_SIGNUP=0` to `secrets.env` and deploy again: sign-up then needs an
+invite code, as before. Google sign-in still works for accounts already linked, and still makes new ones;
+remove its three settings too to stop that.
+
 ## Trying the API on the PC
 
 ```bash
