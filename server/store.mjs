@@ -1,5 +1,5 @@
-// The API's data: accounts, sessions, invite and reset codes, and runs, in one SQLite file
-// (accounts spec §6). Every function here is synchronous; only password hashing (auth.mjs) waits.
+// The API's data: accounts, sessions, identities, pending sign-ups, invite and reset codes, and runs,
+// in one SQLite file (accounts spec §6, open sign-up spec §3). Every function here is synchronous; only password hashing (auth.mjs) waits.
 import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
@@ -8,6 +8,7 @@ import { randomInt } from 'node:crypto';
 export const DAY = 24 * 60 * 60 * 1000;
 export const CODE_LIFE = 14 * DAY;        // an invite or reset code works once, for 14 days
 export const SESSION_LIFE = 365 * DAY;    // a session lasts a year from its last renewal
+export const PENDING_LIFE = 15 * 60 * 1000;   // a Google sign-up waits 15 minutes for its name
 
 export function openDb(path) {
   if (path !== ':memory:') mkdirSync(dirname(path), { recursive: true });
@@ -63,6 +64,21 @@ export function openDb(path) {
       record      TEXT NOT NULL,
       received_at INTEGER NOT NULL,
       PRIMARY KEY (date, user_id)
+    );
+    -- Google sign-in (open sign-up spec §3): an account's link to a provider's account id, and a
+    -- sign-up waiting for its name. Only the id (sub) is kept: no email, no real name.
+    CREATE TABLE IF NOT EXISTS identities (
+      provider   TEXT NOT NULL,              -- 'google'
+      subject    TEXT NOT NULL,              -- the provider's account id (sub)
+      user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      created_at INTEGER NOT NULL,
+      PRIMARY KEY (provider, subject)
+    );
+    CREATE TABLE IF NOT EXISTS pending (
+      token_hash TEXT PRIMARY KEY,           -- SHA-256 of the mt_pending cookie
+      provider   TEXT NOT NULL,
+      subject    TEXT NOT NULL,
+      expires_at INTEGER NOT NULL
     );
   `);
   return db;
@@ -137,6 +153,35 @@ export function setPassword(db, userId, pwHash) {
 
 export function listUsers(db) {
   return db.prepare('SELECT name, created_at FROM users ORDER BY name_lc').all();
+}
+
+/* ---------- Identities and pending sign-ups ---------- */
+
+export function addIdentity(db, { provider, subject, userId, now }) {
+  db.prepare('INSERT INTO identities (provider, subject, user_id, created_at) VALUES (?, ?, ?, ?)')
+    .run(provider, subject, userId, now);
+}
+
+// The account linked to the provider's account id, or undefined.
+export function userByIdentity(db, provider, subject) {
+  return db
+    .prepare('SELECT u.* FROM identities i JOIN users u ON u.id = i.user_id WHERE i.provider = ? AND i.subject = ?')
+    .get(provider, subject);
+}
+
+// Expired rows go whenever a new one is written, so the table holds only the last 15 minutes' worth.
+export function addPending(db, { tokenHash, provider, subject, expiresAt, now }) {
+  db.prepare('DELETE FROM pending WHERE expires_at <= ?').run(now);
+  db.prepare('INSERT INTO pending (token_hash, provider, subject, expires_at) VALUES (?, ?, ?, ?)')
+    .run(tokenHash, provider, subject, expiresAt);
+}
+
+export function findPending(db, tokenHash, now) {
+  return db.prepare('SELECT * FROM pending WHERE token_hash = ? AND expires_at > ?').get(tokenHash, now);
+}
+
+export function deletePending(db, tokenHash) {
+  db.prepare('DELETE FROM pending WHERE token_hash = ?').run(tokenHash);
 }
 
 /* ---------- Sessions ---------- */
