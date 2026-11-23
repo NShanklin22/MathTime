@@ -56,10 +56,9 @@ describe('POST /api/signup', () => {
     assert.equal((await signup({ invite, name: 'sam', password: 'password1' })).status, 201);
   });
 
-  test('403 invite when the code is unknown, missing, used or expired', async () => {
+  test('403 invite when the code is unknown, used or expired', async () => {
     assert.deepEqual((await signup({ invite: 'MATH-AAAA-BBBB', name: 'sam', password: 'password1' })).json,
       { error: 'invite' });
-    assert.equal((await signup({ name: 'sam', password: 'password1' })).status, 403);
 
     const used = api.invite();
     assert.equal((await signup({ invite: used, name: 'sam', password: 'password1' })).status, 201);
@@ -91,6 +90,82 @@ describe('POST /api/signup', () => {
 
   test('an invite code shaped like MATH-XXXX-XXXX', () => {
     assert.match(api.invite(), /^MATH-[A-Z2-9]{4}-[A-Z2-9]{4}$/);
+  });
+});
+
+describe('open sign-up (open sign-up spec §1)', () => {
+  test('sign-up with no invite makes an account', async () => {
+    const res = await signup({ name: 'open_1', password: 'password1' });
+    assert.equal(res.status, 201);
+    assert.deepEqual(res.json, { name: 'open_1' });
+    assert.deepEqual((await me(cookieOf(res))).json, { name: 'open_1' });
+  });
+
+  test('an empty invite counts as none', async () => {
+    assert.equal((await signup({ invite: '  ', name: 'open_2', password: 'password1' })).status, 201);
+    assert.equal((await signup({ invite: null, name: 'open_3', password: 'password1' })).status, 201);
+  });
+
+  test('an open sign-up still gets 409 taken, 400 name and 400 password', async () => {
+    await api.signup('Sam');
+    assert.deepEqual((await signup({ name: 'sAM', password: 'password1' })).json, { error: 'taken' });
+    assert.deepEqual((await signup({ name: 'x', password: 'password1' })).json, { error: 'name' });
+    assert.deepEqual((await signup({ name: 'pat', password: 'short' })).json, { error: 'password' });
+  });
+
+  test('with OPEN_SIGNUP off, no invite is 403 invite, and an invite still works', async () => {
+    const closed = await startApi({ openSignup: false });
+    try {
+      const res = await closed.call('POST', '/api/signup', { body: { name: 'nope', password: 'password1' } });
+      assert.equal(res.status, 403);
+      assert.deepEqual(res.json, { error: 'invite' });
+      const empty = await closed.call('POST', '/api/signup', { body: { invite: '', name: 'nope', password: 'password1' } });
+      assert.equal(empty.status, 403);
+      assert.equal((await closed.call('POST', '/api/signup',
+        { body: { invite: closed.invite(), name: 'nope', password: 'password1' } })).status, 201);
+    } finally {
+      await closed.close();
+    }
+  });
+
+  test('a filled honeypot is 400 name and makes nothing', async () => {
+    const res = await signup({ name: 'bot_1', password: 'password1', website: 'http://x' });
+    assert.equal(res.status, 400);
+    assert.deepEqual(res.json, { error: 'name' });
+    assert.equal(cookieOf(res), undefined);
+    assert.equal((await login({ name: 'bot_1', password: 'password1' })).status, 401);
+    assert.equal((await signup({ name: 'bot_1', password: 'password1', website: '' })).status, 201,
+      'an empty honeypot, as the form sends it, is fine');
+  });
+
+  test('an address makes at most 5 accounts an hour', async () => {
+    const at = (name, over = {}) => signup({ name, password: 'password1', ...over }, { ip: '192.0.2.9' });
+    // Spaced 61 seconds apart, so the 10-a-minute limit never bites.
+    const later = () => { api.clock.t += 61 * 1000; };
+    for (let i = 0; i < 5; i++) {
+      assert.equal((await at(`many_${i}`)).status, 201);
+      later();
+    }
+    const sixth = await at('many_5');
+    assert.equal(sixth.status, 429);
+    assert.deepEqual(sixth.json, { error: 'rate' });
+    assert.equal((await signup({ name: 'many_5', password: 'password1' }, { ip: '192.0.2.10' })).status, 201,
+      'another address is fine');
+    later();
+    assert.equal((await at('many_6', { invite: api.invite() })).status, 201, 'an invite is not limited by the hour');
+    api.clock.t += 60 * 60 * 1000;
+    assert.equal((await at('many_7')).status, 201, 'an hour later it works again');
+  });
+
+  test('failed sign-ups do not count against the hour', async () => {
+    const at = (name, password = 'password1') => signup({ name, password }, { ip: '192.0.2.11' });
+    await api.signup('taken');
+    for (let i = 0; i < 6; i++) {
+      assert.equal((await at('taken')).status, 409);
+      assert.equal((await at(`short_${i}`, 'short')).status, 400);
+      api.clock.t += 61 * 1000;
+    }
+    assert.equal((await at('fine_1')).status, 201);
   });
 });
 

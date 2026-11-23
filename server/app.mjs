@@ -18,7 +18,11 @@ export const RATE_LIMIT = 10;
 // Reading a daily board is cheap and needs no session: a loose limit, per address, only against floods.
 // 300, so a class behind one school address doesn't reach it.
 export const BOARD_RATE_LIMIT = 300;
+// Open sign-up (open sign-up spec §1): an address makes at most 5 accounts an hour. Only accounts made
+// count, so a typo or a taken name costs nothing; tries are still under the 10 a minute above.
+export const SIGNUP_HOUR_LIMIT = 5;
 const RATE_WINDOW = 60 * 1000;
+const HOUR = 60 * 60 * 1000;
 const NAME = /^[A-Za-z0-9_-]{3,20}$/;
 const MIN_PASSWORD = 8;
 const MAX_AGE = store.SESSION_LIFE / 1000;
@@ -31,17 +35,18 @@ class HttpError extends Error {
   }
 }
 
-// Hits per key in the last minute, in memory: a restart forgets them, which is fine at this size.
-function rateLimiter(now) {
+// Hits per key in the last window (a minute unless given), in memory: a restart forgets them, which is
+// fine at this size.
+function rateLimiter(now, window = RATE_WINDOW) {
   const hits = new Map();   // key -> times of the hits in the window, oldest first
   let lastSweep = 0;
   function recent(key) {
     const t = now();
-    if (t - lastSweep > RATE_WINDOW) {
-      for (const [k, times] of hits) if (!times.length || times.at(-1) <= t - RATE_WINDOW) hits.delete(k);
+    if (t - lastSweep > window) {
+      for (const [k, times] of hits) if (!times.length || times.at(-1) <= t - window) hits.delete(k);
       lastSweep = t;
     }
-    const times = (hits.get(key) || []).filter((when) => when > t - RATE_WINDOW);
+    const times = (hits.get(key) || []).filter((when) => when > t - window);
     hits.set(key, times);
     return times;
   }
@@ -143,8 +148,11 @@ export function dayNumber(date) {
 // trustProxy: take the caller's address from X-Real-IP, which only nginx (or scripts/serve.mjs) sets.
 // Without it, the socket's address, so a caller can't name a new address for each try.
 // addressLimit: tries a minute per address (default RATE_LIMIT); the tests raise it to reach the name limit.
-export function createApp({ db, now = Date.now, cookieSecure = true, trustProxy = false, addressLimit = RATE_LIMIT, crowd = true }) {
+// openSignup: sign-up with no code makes an account; false (OPEN_SIGNUP=0) asks for an invite again.
+export function createApp({ db, now = Date.now, cookieSecure = true, trustProxy = false, addressLimit = RATE_LIMIT, crowd = true,
+  openSignup = true }) {
   const limits = rateLimiter(now);
+  const hourly = rateLimiter(now, HOUR);
 
   // Expired sessions go when the app starts, then once a day, on the first request after.
   let sweptAt = now();
@@ -223,16 +231,28 @@ export function createApp({ db, now = Date.now, cookieSecure = true, trustProxy 
 
   const routes = {
     'POST /api/signup': async (req, res, body) => {
-      const { invite, name, password } = body ?? {};
+      const { invite, name, password, website } = body ?? {};
       limitAddress(req);
+      // The honeypot: a field people can't see or tab to, so only a bot fills it. It gets the answer a
+      // bad name gets, which tells it nothing.
+      if (website) throw new HttpError(400, { error: 'name' });
       if (typeof name !== 'string' || !NAME.test(name)) throw new HttpError(400, { error: 'name' });
       if (typeof password !== 'string' || [...password].length < MIN_PASSWORD) {
         throw new HttpError(400, { error: 'password' });
       }
+      // No code, or an empty one: an open sign-up, which makes a new account.
+      const open = typeof invite !== 'string' || !invite.trim();
+      if (open && !openSignup) throw new HttpError(403, { error: 'invite' });
+      const hourKey = `signup:${callerOf(req)}`;
       // What the code allows: a new account, or a new password for the account it was made for.
       // Checked before the slow hash, so a wrong code costs nothing, and again in the transaction,
-      // since another request may have used the code meanwhile.
+      // since another request may have used the code (or the name, or the hour's last account) meanwhile.
       const check = () => {
+        if (open) {
+          if (hourly.full(hourKey, SIGNUP_HOUR_LIMIT)) throw new HttpError(429, { error: 'rate' });
+          if (store.findUser(db, name)) throw new HttpError(409, { error: 'taken' });
+          return {};
+        }
         const code = store.usableCode(db, invite, now());
         if (!code) throw new HttpError(403, { error: 'invite' });
         if (code.user_id !== null) {
@@ -248,6 +268,11 @@ export function createApp({ db, now = Date.now, cookieSecure = true, trustProxy 
       const user = store.transaction(db, () => {
         const t = now();
         const { code, target } = check();
+        if (open) {
+          // Counted here, with no wait since the check above, so two at once can't both take the last one.
+          hourly.hit(hourKey);
+          return { id: store.createUser(db, { name, pwHash, now: t }), name };
+        }
         store.useCode(db, code.code, t);
         if (target) {
           store.setPassword(db, target.id, pwHash);   // which also ends its other sessions

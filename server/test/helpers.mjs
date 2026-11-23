@@ -5,9 +5,9 @@ import { createApp } from '../app.mjs';
 import { buildRecord } from '../../src/record.js';
 
 // trustProxy is on by default, as behind nginx, so each call can come from its own X-Real-IP.
-export async function startApi({ cookieSecure = true, trustProxy = true, addressLimit, crowd = false, db = openDb(':memory:'), t = Date.parse('2026-11-09T12:00:00Z') } = {}) {
+export async function startApi({ cookieSecure = true, trustProxy = true, addressLimit, crowd = false, openSignup, google, fetch: fetchFn, db = openDb(':memory:'), t = Date.parse('2026-11-09T12:00:00Z') } = {}) {
   const clock = { t };
-  const server = createServer(createApp({ db, now: () => clock.t, cookieSecure, trustProxy, addressLimit, crowd }));
+  const server = createServer(createApp({ db, now: () => clock.t, cookieSecure, trustProxy, addressLimit, crowd, openSignup, google, fetch: fetchFn }));
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
   const base = `http://127.0.0.1:${server.address().port}`;
   let ipCount = 0;

@@ -3,6 +3,7 @@
 //   PORT, HOST       where to listen (default 127.0.0.1:3006; the Dockerfile sets HOST=0.0.0.0)
 //   TRUST_PROXY=1    the caller's address is X-Real-IP, as nginx sets it (deploy/compose.yaml sets this)
 //   COOKIE_INSECURE=1  drops the cookie's Secure flag, for local http development only
+//   OPEN_SIGNUP=0    sign-up needs an invite code again (open sign-up spec §1); on by default
 import { createServer } from 'node:http';
 import { openDb } from './store.mjs';
 import { createApp } from './app.mjs';
@@ -12,16 +13,18 @@ const port = Number(process.env.PORT) || 3006;
 const host = process.env.HOST || '127.0.0.1';
 const trustProxy = process.env.TRUST_PROXY === '1';
 const cookieSecure = process.env.COOKIE_INSECURE !== '1';
+const openSignup = process.env.OPEN_SIGNUP !== '0';
 
 const db = openDb(dbPath);
-const server = createServer({ requestTimeout: 30_000, headersTimeout: 10_000 }, createApp({ db, cookieSecure, trustProxy }));
+const server = createServer({ requestTimeout: 30_000, headersTimeout: 10_000 }, createApp({ db, cookieSecure, trustProxy, openSignup }));
 
 server.on('error', (err) => {
   console.error(err.code === 'EADDRINUSE' ? `Port ${port} is already in use. Set PORT to use another.` : err.message);
   process.exit(1);
 });
 server.listen(port, host, () => {
-  const notes = [trustProxy && 'trusting X-Real-IP', !cookieSecure && 'cookie without Secure'].filter(Boolean);
+  const notes = [trustProxy && 'trusting X-Real-IP', !cookieSecure && 'cookie without Secure',
+    !openSignup && 'sign-up by invite only'].filter(Boolean);
   console.log(`MathTime API on ${host}:${port}, data in ${dbPath}${notes.length ? ` (${notes.join(', ')})` : ''}`);
 });
 
