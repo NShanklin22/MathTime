@@ -1,5 +1,6 @@
 import { levelName } from './levels.js';
 import { TIMING, RED_MS, reducedMotion, createEffects, inkOver, redLine, strikeGeometry, fadeOut, fadeIn, cancelOn } from './fx.js';
+import { paintRun } from './runbar.js';
 
 // Draws game state into the page and plays the feedback animations
 // (fx.js: inked over, the in-place reprint, the red-line).
@@ -65,11 +66,11 @@ export function createView(dom, layout, level) {
     slot.classList.toggle('full', typed.length >= cap);
   }
 
-  // The run bar (runs spec §2): a segment filled for each correct answer.
-  // (The Level 2 play mockup, a record of its design, has no bar.)
+  // The run bar (runs spec §2, runbar.js): a segment filled for each
+  // correct answer, the streak's glowing. (The Level 2 play mockup, a
+  // record of its design, has no bar.)
   function renderRun(state) {
-    if (!run) return;
-    [...run.children].forEach((seg, i) => seg.classList.toggle('done', i < state.solved));
+    paintRun(run, state);
   }
 
   // The problem's own level: the daily challenge's each have theirs (its
@@ -146,15 +147,15 @@ export function createView(dom, layout, level) {
     redLine(effects, { parent: slot, s, ghost, ended: () => eq.classList.remove('struck') });
   }
 
-  // Right: inked over (150ms), the closed green frame held 90ms, faded out
-  // (80ms); the next problem drawn and placed while unseen, centred on its
-  // own ink, then faded in (120ms) where it sits. Input is locked until
-  // the swap, 320ms. The fade-out is timed from the frame now shown
+  // Right: inked over (130ms), held 20ms, faded out (60ms); the next problem
+  // drawn and placed while unseen, centred on its own ink, then faded in
+  // (90ms) where it sits. Input is locked until the swap, 210ms, quicker on
+  // a streak (fx.js setPace()). The fade-out is timed from the frame now shown
   // (fx.js), and the swap waits for it to end, not for a timer, so it is
   // never cut short. The fade-in starts fresh, from its own first frame:
   // drawing and placing the next problem comes just before it. Under
   // reduced motion there is neither: the inked state shows at once and
-  // the swap is at 320ms. The long timer is only a last resort for a
+  // the swap is at the same lock. The long timer is only a last resort for a
   // fade-out that never ends.
   async function showCorrect(state, next) {
     const token = runToken;

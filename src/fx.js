@@ -6,12 +6,13 @@ import { snap, onLayoutGrid } from './ink.js';
 // docs/superpowers/specs/2026-11-06-animation-ideas.md).
 //
 //   Inked over: on a right answer, a green pen line traces the answer's
-//     frame clockwise from its top left corner (150ms), and its digits go
+//     frame clockwise from its top left corner (130ms), and its digits go
 //     green as it closes. Then the frame's own border is green and the pen
 //     goes.
-//   In-place reprint: the closed green frame holds 90ms, the problem fades
-//     out (80ms), the next one is drawn where it will sit and fades in
-//     (120ms). Input is locked 320ms. Nothing moves.
+//   In-place reprint: as the frame closes, the problem fades out (60ms),
+//     and the next one is drawn where it will sit and fades in (90ms).
+//     Input is locked 210ms. Nothing moves. A streak quickens all of it
+//     (setPace(), docs/superpowers/specs/2026-11-23-momentum-design.md §3).
 //   Red-line: a wrong answer is struck through by a solid warm-red line
 //     ~0.07em thick, drawn left to right (140ms), held (240ms) and cleared
 //     with the struck digits (120ms). On the board an empty
@@ -29,14 +30,28 @@ import { snap, onLayoutGrid } from './ink.js';
 // pixel: every edge of them is on one too, as the page paints the frame.
 
 export const TIMING = {
-  trace: 150, traceEase: 'cubic-bezier(.3,.1,.5,1)',
-  digitsAt: 100, digits: 50,       // the digits go green as the pen closes the frame
-  hold: 240, out: 80, in: 120,     // the fade out starts 90ms after the trace
+  trace: 130, traceEase: 'cubic-bezier(.3,.1,.5,1)',
+  digitsAt: 80, digits: 50,        // the digits go green as the pen closes the frame
+  hold: 150, out: 60, in: 90,      // the fade out starts 20ms after the trace
   draw: 140, drawEase: 'cubic-bezier(.3,0,.4,1)', redHold: 240, clear: 120,
   still: 400,                      // the strike under reduced motion
 };
-export const LOCK_MS = TIMING.hold + TIMING.out;                          // 320
+export const LOCK_MS = TIMING.hold + TIMING.out;                          // 210
 export const RED_MS = TIMING.draw + TIMING.redHold + TIMING.clear;        // 500
+
+// A right answer's timings by the streak it makes (momentum spec §3): from
+// 5 in a row the lock is 170ms, from 10, 140ms. Every right answer and
+// redraw sets them (runbar.js), the column board's too. The trace ends
+// 20ms before the hold, so the frame is closed before the fade starts.
+export const PACES = [
+  { from: 0, trace: 130, hold: 150, out: 60, in: 90 },
+  { from: 5, trace: 100, hold: 120, out: 50, in: 80 },
+  { from: 10, trace: 80, hold: 100, out: 40, in: 70 },
+];
+export function setPace(streak) {
+  const { trace, hold, out, in: fadeIn } = PACES.findLast(p => streak >= p.from);
+  Object.assign(TIMING, { trace, hold, out, in: fadeIn, digitsAt: trace - TIMING.digits });
+}
 
 export const reducedMotion = () => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 const SVG = 'http://www.w3.org/2000/svg';

@@ -749,7 +749,7 @@ test('start() moves between column and fact levels, the one state object holding
   game.start(LEVEL1);
   assert.equal(game.state, state);
   for (const key of ['x', 'cells', 'step', 'focus', 'done', 'bad', 'struck']) assert.ok(!(key in state), key);
-  assert.deepEqual(Object.keys(state).sort(), ['lives', 'phase', 'problem', 'question', 'solved', 'typed']);
+  assert.deepEqual(Object.keys(state).sort(), ['lives', 'phase', 'problem', 'question', 'solved', 'streak', 'streakFrom', 'typed']);
   assert.equal(game.tap('O'), 'ignored');
   assert.equal(game.press('ArrowUp'), 'ignored');
   game.start(LEVEL7);

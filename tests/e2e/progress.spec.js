@@ -7,6 +7,11 @@ import {
 // bar of 20 segments, one filled on each correct answer.
 
 const filled = page => page.locator('.run span.done').count();
+// The gap before segment i: 2px, and 8px between the groups of five
+// (momentum spec §2), the extra 6px whole device pixels.
+const gapBefore = (i, dpr) => 2 + (i % 5 === 0 ? Math.round(6 * dpr) / dpr : 0);
+// No streak, so no glow: plain green, as before the momentum spec.
+const cool = page => page.evaluate(() => { const { game, view } = window.mathtime; game.state.streak = 0; view.render(game.state); });
 const segments = page => page.evaluate(() => [...document.querySelectorAll('.run span')].map(s => {
   const r = s.getBoundingClientRect();
   return { left: r.left, right: r.right, top: r.top, bottom: r.bottom, width: r.width, height: r.height };
@@ -57,6 +62,7 @@ test('a wrong answer fills nothing', async ({ page }) => {
 
 test('empty segments are faint and filled ones green', async ({ page }) => {
   await playTo(page, 4);
+  await cool(page);
   expect(await filled(page)).toBe(3);
   await expect(page.locator('.run span').nth(2)).toHaveCSS('background-color', 'rgb(143, 240, 192)');
   await expect(page.locator('.run span').nth(3)).toHaveCSS('background-color', 'rgb(111, 149, 204)');
@@ -101,7 +107,8 @@ test.describe('alignment', () => {
     return ink(await capture(page), { left: r.left, right: r.right, top: seg.top - 2, bottom: seg.bottom + 2 }, FAINT);
   }
 
-  test('the bar is centred over the keypad, 16px above its keys, 318px wide', async ({ page }) => {
+  test('the bar is centred over the keypad, 16px above its keys, 336px wide', async ({ page }) => {
+    const dpr = await page.evaluate(() => devicePixelRatio);
     const bar = await barInk(page);
     const middle = await rect(page, '.pad button[data-k="2"]');
     const off = bar.midX - (middle.left + middle.right) / 2;
@@ -109,10 +116,10 @@ test.describe('alignment', () => {
     expect(Math.abs(off)).toBeLessThanOrEqual(TOL);
     note('bar → keys', middle.top - bar.bottom);
     expect(Math.abs(middle.top - bar.bottom - 16)).toBeLessThanOrEqual(TOL);
-    expect(Math.abs(bar.right - bar.left - 318)).toBeLessThanOrEqual(TOL);
+    expect(Math.abs(bar.right - bar.left - (318 + 3 * Math.round(6 * dpr) / dpr))).toBeLessThanOrEqual(TOL);
   });
 
-  test('every segment is 14px by 6px, 2px apart, on whole device pixels', async ({ page }) => {
+  test('every segment is 14px by 6px, 2px apart in groups of five 8px apart, on whole device pixels', async ({ page }) => {
     const dpr = await page.evaluate(() => devicePixelRatio);
     const segs = await segments(page);
     expect(segs).toHaveLength(20);
@@ -121,15 +128,15 @@ test.describe('alignment', () => {
       for (const edge of [s.left, s.top]) {
         expect(Math.abs(edge * dpr - Math.round(edge * dpr)), `segment ${i}`).toBeLessThan(0.02);
       }
-      if (i) expect(Math.abs(s.left - segs[i - 1].right - 2), `gap before segment ${i}`).toBeLessThan(0.01);
+      if (i) expect(Math.abs(s.left - segs[i - 1].right - gapBefore(i, dpr)), `gap before segment ${i}`).toBeLessThan(0.01);
     });
   });
 
-  // Where the bar has less room than its 318px (inside its 16px gutters),
-  // its segments are 12px wide, and under 278px 10px: still whole pixels,
-  // 2px apart, and inside the gutters. Sideways on the smallest phone, and
+  // Where the bar has less room than its 338px (inside its 16px gutters),
+  // its segments are 12px wide, under 298px 10px and under 258px 9px: whole pixels,
+  // 2px apart in groups 8px apart, and inside the gutters. Sideways on the smallest phone, and
   // upright at 320 and 280 wide.
-  for (const [width, height, seg] of [[568, 320, 12], [320, 640, 12], [280, 700, 10]]) test(`at ${width}×${height} the segments are ${seg}px wide, on whole device pixels, inside the gutters`, async ({ page }) => {
+  for (const [width, height, seg] of [[568, 320, 10], [320, 640, 10], [280, 700, 9]]) test(`at ${width}×${height} the segments are ${seg}px wide, on whole device pixels, inside the gutters`, async ({ page }) => {
     await resize(page, width, height);
     const dpr = await page.evaluate(() => devicePixelRatio);
     const segs = await segments(page);
@@ -137,7 +144,7 @@ test.describe('alignment', () => {
     segs.forEach((s, i) => {
       expect([s.width, s.height], `segment ${i}`).toEqual([seg, 6]);
       expect(Math.abs(s.left * dpr - Math.round(s.left * dpr)), `segment ${i}`).toBeLessThan(0.02);
-      if (i) expect(Math.abs(s.left - segs[i - 1].right - 2), `gap before segment ${i}`).toBeLessThan(0.01);
+      if (i) expect(Math.abs(s.left - segs[i - 1].right - gapBefore(i, dpr)), `gap before segment ${i}`).toBeLessThan(0.01);
     });
     note('left gutter', segs[0].left - run.left);
     note('right gutter', run.right - segs[19].right);
@@ -161,6 +168,7 @@ test.describe('alignment', () => {
   for (const size of [null, [1439, 900], [667, 375]]) test(`no segment's edge pixels are partly covered${size ? ` at ${size.join('×')}` : ''}`, async ({ page }) => {
     if (size) await resize(page, ...size);
     await playTo(page, 8);                 // filled and empty segments both
+    await cool(page);                      // no glow, which paints round them by design
     const shot = await capture(page);
     const segs = await page.evaluate(() => [...document.querySelectorAll('.run span')].map(s => {
       const r = s.getBoundingClientRect();

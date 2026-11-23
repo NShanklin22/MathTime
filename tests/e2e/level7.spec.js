@@ -222,12 +222,12 @@ test('the tens may be left empty where they are 0: Enter checks the empty cell a
   await expect(page.locator('#status')).toHaveText('Right. Tens column.');
   const done = await page.evaluate(() => new Promise(resolve => {
     document.querySelector('#ans').dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
-    // Once the frames have faded (0.2s), before the swap (0.32s): the frames'
-    // own opacity, whatever the board's fade.
+    // As the frames end their fade (0.2s), before the swap (0.21s): the
+    // frames' own opacity, whatever the board's fade, near its end.
     setTimeout(() => {
-      const frame = id => getComputedStyle(document.querySelector(`.board .cell[data-tap="${id}"] .frame`)).opacity;
+      const frame = id => String(Math.round(Number(getComputedStyle(document.querySelector(`.board .cell[data-tap="${id}"] .frame`)).opacity)));
       resolve({ T: frame('T'), O: frame('O'), B: frame('B'), status: document.querySelector('#status').textContent });
-    }, 280);
+    }, 195);
   }));
   expect(done).toEqual({ T: '0', O: '1', B: '0', status: 'Correct' });
   await expect(page.locator('.board .qlabel')).toHaveText('Question 2 of 20');

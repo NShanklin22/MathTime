@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { penGeometry, strikeGeometry, TIMING, LOCK_MS, RED_MS } from '../../src/fx.js';
+import { penGeometry, strikeGeometry, TIMING, LOCK_MS, RED_MS, setPace } from '../../src/fx.js';
+import { streakTier } from '../../src/runbar.js';
 
 // The feedback's geometry (docs/superpowers/specs/2026-11-06-animations-mockup.html,
 // "New"): every edge on a whole device pixel, at every pixel ratio the
@@ -8,12 +9,12 @@ import { penGeometry, strikeGeometry, TIMING, LOCK_MS, RED_MS } from '../../src/
 const RATIOS = [1, 1.25, 1.5, 2, 3];
 const onPixel = (v, dpr, what) => assert.ok(Math.abs(v * dpr - Math.round(v * dpr)) < 1e-6, `${what} ${v} is on a device pixel at ${dpr}x`);
 
-test('the timings are the mockup\'s: a 320ms lock, a 500ms red-line', () => {
-  assert.equal(TIMING.trace, 150);
-  assert.equal(TIMING.hold, 240);           // the trace, then the closed frame held 90ms
-  assert.equal(TIMING.out, 80);
-  assert.equal(TIMING.in, 120);
-  assert.equal(LOCK_MS, 320);
+test('the timings are the momentum spec\'s: a 210ms lock, a 500ms red-line', () => {
+  assert.equal(TIMING.trace, 130);
+  assert.equal(TIMING.hold, 150);           // the fade out starts 20ms after the trace
+  assert.equal(TIMING.out, 60);
+  assert.equal(TIMING.in, 90);
+  assert.equal(LOCK_MS, 210);
   assert.equal(TIMING.draw, 140);
   assert.equal(RED_MS, 500);
   assert.equal(TIMING.still, 400);
@@ -78,4 +79,19 @@ for (const dpr of RATIOS) {
 test('a tiny strike is still one device pixel thick', () => {
   const s = strikeGeometry({ left: 0, right: 10, mid: 5, size: 4 }, 1);
   assert.equal(s.sw, 1);
+});
+
+test('a streak quickens the lock: 210ms, 170ms from 5 in a row, 140ms from 10', () => {
+  const lock = streak => { setPace(streak); return [TIMING.trace, TIMING.hold + TIMING.out, TIMING.in, TIMING.digitsAt]; };
+  assert.deepEqual(lock(0), [130, 210, 90, 80]);
+  assert.deepEqual(lock(4), [130, 210, 90, 80]);
+  assert.deepEqual(lock(5), [100, 170, 80, 50]);
+  assert.deepEqual(lock(9), [100, 170, 80, 50]);
+  assert.deepEqual(lock(10), [80, 140, 70, 30]);
+  assert.deepEqual(lock(19), [80, 140, 70, 30]);
+  setPace(0);
+});
+
+test('the streak glows from 3 in a row, more at 6 and at 10', () => {
+  assert.deepEqual([0, 1, 2, 3, 5, 6, 9, 10, 20].map(streakTier), [0, 0, 0, 1, 1, 2, 2, 3, 3]);
 });

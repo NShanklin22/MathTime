@@ -121,7 +121,7 @@ test('a whole problem worked right, a column at a time: each turns green and the
   await expect(field(page)).toHaveAttribute('aria-label', 'Ones, answer');
 });
 
-test('right: the answer is inked over, its segment fills, then the board fades out and the next fades in, 0.32s after the hundreds', async ({ page }) => {
+test('right: the answer is inked over, its segment fills, then the board fades out and the next fades in, 0.21s after the hundreds', async ({ page }) => {
   await setColumns(page, 75, 38);
   await typeKeys(page, ['3', '1', '1']);   // 113: the tens' carry goes straight into the hundreds, and checks the tens
   await expect(page.locator('#status')).toHaveText('Right. Tens column.');
@@ -139,15 +139,17 @@ test('right: the answer is inked over, its segment fills, then the board fades o
     log.pen = !!board.querySelector('svg.fx.pen');
     log.focus = board.querySelectorAll('.cell.focus').length;
     log.segments = document.querySelectorAll('.run span.done').length;
-    setTimeout(() => { log.inked = [...board.querySelectorAll('.cell')].every(c => c.classList.contains('ok')); }, 225);
+    setTimeout(() => { log.inked = [...board.querySelectorAll('.cell')].every(c => c.classList.contains('ok')); }, 148);
   }));
   expect(t.green, 'the earlier column green; the answer not yet').toEqual(['C', 'O']);
   expect(t.pen, 'the pen is tracing').toBe(true);
   expect(t.inked, 'every cell green once traced').toBe(true);
   expect(t.focus, 'no cursor').toBe(0);
   expect(t.segments, 'its segment filled').toBe(1);
-  expect(Math.abs(t.out - t.start - 240), `fades out after ${(t.out - t.start).toFixed(0)}ms`).toBeLessThanOrEqual(40);
-  expect(Math.abs(t.in - t.start - 320), `the next fades in after ${(t.in - t.start).toFixed(0)}ms`).toBeLessThanOrEqual(40);
+  expect(Math.abs(t.out - t.start - 150), `fades out after ${(t.out - t.start).toFixed(0)}ms`).toBeLessThanOrEqual(40);
+  // The next board is built and laid out before it fades in: a frame or
+  // three on the phone, so 60ms of slack here.
+  expect(Math.abs(t.in - t.start - 210), `the next fades in after ${(t.in - t.start).toFixed(0)}ms`).toBeLessThanOrEqual(60);
   // Its fade-in over, the board lets go of it.
   await expect(page.locator('.board')).not.toHaveClass(/\bin\b/);
   await expect(page.locator('.board')).toHaveClass('board');
