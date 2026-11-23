@@ -5,9 +5,9 @@ import { createApp } from '../app.mjs';
 import { buildRecord } from '../../src/record.js';
 
 // trustProxy is on by default, as behind nginx, so each call can come from its own X-Real-IP.
-export async function startApi({ cookieSecure = true, trustProxy = true, addressLimit, crowd = false, openSignup, google, fetch: fetchFn, db = openDb(':memory:'), t = Date.parse('2026-11-09T12:00:00Z') } = {}) {
+export async function startApi({ cookieSecure = true, trustProxy = true, addressLimit, crowd = false, openSignup, google, fetch: fetchFn, log, db = openDb(':memory:'), t = Date.parse('2026-11-09T12:00:00Z') } = {}) {
   const clock = { t };
-  const server = createServer(createApp({ db, now: () => clock.t, cookieSecure, trustProxy, addressLimit, crowd, openSignup, google, fetch: fetchFn }));
+  const server = createServer(createApp({ db, now: () => clock.t, cookieSecure, trustProxy, addressLimit, crowd, openSignup, google, fetch: fetchFn, log }));
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
   const base = `http://127.0.0.1:${server.address().port}`;
   let ipCount = 0;
@@ -18,7 +18,8 @@ export async function startApi({ cookieSecure = true, trustProxy = true, address
     base,
     // Each call comes from a new address unless one is given, so rate limits only bite where tested.
     async call(method, path, { body, cookie, ip, headers = {}, raw } = {}) {
-      const init = { method, headers: { 'X-Real-IP': ip || `10.0.0.${++ipCount % 250}`, ...headers } };
+      // Redirects are answers to check, not to follow (Google sign-in's go to Google, or to the page).
+      const init = { method, redirect: 'manual', headers: { 'X-Real-IP': ip || `10.0.0.${++ipCount % 250}`, ...headers } };
       if (cookie) init.headers.Cookie = cookie;
       if (raw !== undefined) init.body = raw;
       else if (body !== undefined) {
