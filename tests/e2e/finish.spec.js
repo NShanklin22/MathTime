@@ -35,7 +35,7 @@ async function missOnce(page) {
   await typeKeys(page, [String((right + 1) % 10), 'Enter']);
 }
 
-test('the 20th correct answer is inked over, fills the bar, and the finish screen comes 0.24s later', async ({ page }) => {
+test('the 20th correct answer is inked over, fills the bar, and the finish screen comes 0.1s later (the hold, on a streak of 20)', async ({ page }) => {
   await open(page);
   await playTo(page, 20);
   await page.evaluate(() => {
@@ -55,7 +55,7 @@ test('the 20th correct answer is inked over, fills the bar, and the finish scree
   expect(log.green).toBe(20);
   const ms = log.finish - log.enter;
   note('green → finish', ms, 'ms');
-  expect(Math.abs(ms - 240)).toBeLessThanOrEqual(40);
+  expect(Math.abs(ms - 100)).toBeLessThanOrEqual(40);
 });
 
 test('the finish screen: the level, the time, "New best" on a first run, the misses; "Again" focused', async ({ page }) => {

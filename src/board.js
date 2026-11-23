@@ -2,6 +2,7 @@ import { snap, onLayoutGrid } from './ink.js';
 import { fitHeader } from './header.js';
 import { centreKeys } from './keypad.js';
 import { placeRun } from './layout.js';
+import { paintRun } from './runbar.js';
 import { levelName } from './levels.js';
 import { TIMING, RED_MS, reducedMotion, createEffects, inkOver, redLine, redFrame, strikeGeometry, fadeOut, fadeIn, cancelOn } from './fx.js';
 
@@ -266,9 +267,10 @@ export function createBoard(dom, scan) {
     update();
   }
 
-  // The run bar (runs spec §2): a segment filled for each problem done.
+  // The run bar (runs spec §2, runbar.js): a segment filled for each
+  // problem done, the streak's glowing.
   function renderRun(state) {
-    [...run.children].forEach((seg, i) => seg.classList.toggle('done', i < state.solved));
+    paintRun(run, state);
   }
 
   // What screen readers hear for a cell: its name, and, for a method that
@@ -516,9 +518,10 @@ export function createBoard(dom, scan) {
   }
 
   // The problem right, as the view's: the written answer inked over, the
-  // board held 90ms and faded out (80ms), the next problem built and placed
-  // while unseen, then faded in (120ms) where it sits. Input is locked
-  // until the swap, 320ms; under reduced motion nothing fades.
+  // board faded out (60ms), the next problem built and placed while
+  // unseen, then faded in (90ms) where it sits. Input is locked until the
+  // swap, 210ms, quicker on a streak (fx.js setPace()); under reduced
+  // motion nothing fades.
   async function showCorrect(state, next) {
     const token = runToken;
     stop();

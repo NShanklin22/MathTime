@@ -125,22 +125,22 @@ test('the next problem fades in with its box already white, not fading from gree
   expect(fadeIn.border).toBe('rgb(238, 245, 255)');      // --ink
 });
 
-test('the answer is inked in 0.15s, the closed frame holds, and it fades out 0.24s after Enter', async ({ page }) => {
+test('the answer is inked in 0.13s, the closed frame holds, and it fades out 0.15s after Enter', async ({ page }) => {
   await record(page);
   await typeKeys(page, ['7', 'Enter']);
   const enter = await seen(page, { type: 'key', key: 'Enter' });
   const inked = await seen(page, { type: 'add', name: 'inked' });
-  near(inked.t - enter.t, 150);
+  near(inked.t - enter.t, 130);
   expect(inked.border).toBe('rgb(143, 240, 192)');      // --good, the moment the pen goes
   const out = await seen(page, { type: 'add', name: 'out' });
-  near(out.t - enter.t, 240);
+  near(out.t - enter.t, 150);
 });
 
-test('the fade-out takes 0.08s and the fade-in 0.12s', async ({ page }) => {
+test('the fade-out takes 0.06s and the fade-in 0.09s', async ({ page }) => {
   await record(page);
   await typeKeys(page, ['7', 'Enter']);
-  near(await lasted(page, 'out'), 80);
-  near(await lasted(page, 'in'), 120);
+  near(await lasted(page, 'out'), 60);
+  near(await lasted(page, 'in'), 90);
 });
 
 test('the next problem waits for the fade-out to finish', async ({ page }) => {
@@ -167,7 +167,7 @@ test('the next problem waits for the fade-out to finish', async ({ page }) => {
   expect(await page.evaluate(() => window.atSwap)).toEqual({ fade: 'finished', opacity: '0' });
 });
 
-test('under reduced motion, the next problem arrives 0.32s after Enter, with no fade', async ({ page }) => {
+test('under reduced motion, the next problem arrives 0.21s after Enter, with no fade', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await record(page);
   await typeKeys(page, ['7', 'Enter']);
@@ -176,7 +176,7 @@ test('under reduced motion, the next problem arrives 0.32s after Enter, with no 
   expect(inked.t - enter.t, 'inked at once').toBeLessThan(TIME_TOL);
   await expect(page.locator('#qnum')).toHaveText('Question 2 of 20');
   const swap = await seen(page, { type: 'status', text: await problemSaid(page) });
-  near(swap.t - enter.t, 320);
+  near(swap.t - enter.t, 210);
   expect(await entries(page, { type: 'add', name: 'in' })).toEqual([]);
 });
 
@@ -214,8 +214,8 @@ test('you can type as the next problem fades in: the key ends the fade at once',
 
 test('digits are ignored and do not flash while a correct answer is locked in', async ({ page }) => {
   await record(page);
-  // While inked (at once and 0.2s in), then during the fade-out.
-  await pressWhenSaid(page, 'Correct', [['5', 0], ['6', 200]]);
+  // While inked (at once and 0.1s in), then during the fade-out.
+  await pressWhenSaid(page, 'Correct', [['5', 0], ['6', 100]]);
   await page.evaluate(() => {
     const eq = document.querySelector('#eq');
     const watch = new MutationObserver(() => {

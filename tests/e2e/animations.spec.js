@@ -76,11 +76,11 @@ test.describe('Level 1, the answer box', () => {
     await setProblem(page, 3, 4);
   });
 
-  test('a right answer is inked over, locks input 320ms and fades the next problem in where it sits, with no transform', async ({ page }) => {
+  test('a right answer is inked over, locks input 210ms and fades the next problem in where it sits, with no transform', async ({ page }) => {
     await probeBox(page);
     await typeKeys(page, ['7']);
-    const log = await watchRight(page, '#eq', { start: 5, trace: 70, inked: 225 });
-    near(log.swap, 320, 'lock ');
+    const log = await watchRight(page, '#eq', { start: 5, trace: 70, inked: 165 });
+    near(log.swap, 210, 'lock ');
     expect(log.opacityAtSwap, 'faded out by the swap').toBe('0');
     expect(log.transforms, 'the equation never moves').toEqual(['none']);
     // Mid-trace: the pen over the box's frame, on whole device pixels; the border still white.
@@ -158,12 +158,12 @@ test.describe('Level 1, the answer box', () => {
   test.describe('under reduced motion', () => {
     test.beforeEach(async ({ page }) => { await page.emulateMedia({ reducedMotion: 'reduce' }); });
 
-    test('a right answer shows inked at once, still locks 320ms, and the next problem shows at once', async ({ page }) => {
+    test('a right answer shows inked at once, still locks 210ms, and the next problem shows at once', async ({ page }) => {
       await probeBox(page);
       await typeKeys(page, ['7']);
       const log = await watchRight(page, '#eq', { at: 10 });
       expect(log.probes.at).toMatchObject({ overlays: 0, border: GOOD, digits: GOOD, pen: null });
-      near(log.swap, 320, 'lock ');
+      near(log.swap, 210, 'lock ');
       expect(log.opacityAtSwap, 'nothing fades').toBe('1');
       expect(log.transforms).toEqual(['none']);
       expect(await page.evaluate(() => document.querySelector('#eq').getAnimations({ subtree: true })
@@ -216,13 +216,13 @@ test.describe('the column board', () => {
     };
   });
 
-  test('Level 6: the answer row is inked over as one frame, the lock is 320ms, the next problem fades in, nothing moves', async ({ page }) => {
+  test('Level 6: the answer row is inked over as one frame, the lock is 210ms, the next problem fades in, nothing moves', async ({ page }) => {
     await open(page, 6);
     await setColumns(page, 47, 38, { cells: { O: '5', C: '1' }, done: [true, false], step: 1 });
     await probeBoard(page);
     await typeKeys(page, ['8']);
-    const log = await watchRight(page, '.board', { trace: 70, divider: 120, inked: 225 });
-    near(log.swap, 320, 'lock ');
+    const log = await watchRight(page, '.board', { trace: 50, divider: 110, inked: 165 });
+    near(log.swap, 210, 'lock ');
     expect(log.opacityAtSwap).toBe('0');
     expect(log.transforms).toEqual(['none']);
     const mid = log.probes.trace;
@@ -254,7 +254,7 @@ test.describe('the column board', () => {
     const log = await watchRight(page, '.board', { trace: 70 });
     const mid = log.probes.trace;
     expectFramed({ ...mid, frame: mid.frames.O }, 'mid-trace');
-    near(log.swap, 320, 'lock ');
+    near(log.swap, 210, 'lock ');
   });
 
   test('Level 6: a wrong digit is struck through, the carry left alone; a key clears it at once and is typed', async ({ page }) => {
@@ -348,7 +348,7 @@ test.describe('the column board', () => {
   test.describe('under reduced motion', () => {
     test.beforeEach(async ({ page }) => { await page.emulateMedia({ reducedMotion: 'reduce' }); });
 
-    test('Level 6: a right answer is inked at once, the lock is 320ms, nothing fades', async ({ page }) => {
+    test('Level 6: a right answer is inked at once, the lock is 210ms, nothing fades', async ({ page }) => {
       await open(page, 6);
       await setColumns(page, 47, 38, { cells: { O: '5', C: '1' }, done: [true, false], step: 1 });
       await probeBoard(page);
@@ -356,7 +356,7 @@ test.describe('the column board', () => {
       const log = await watchRight(page, '.board', { at: 10 });
       expect(log.probes.at).toMatchObject({ overlays: 0, pen: null, digit: GOOD });
       expect(log.probes.at.border.T).toBe(GOOD);
-      near(log.swap, 320, 'lock ');
+      near(log.swap, 210, 'lock ');
       expect(log.opacityAtSwap).toBe('1');
       expect(log.transforms).toEqual(['none']);
       await expect(page.locator('.board .qlabel')).toHaveText('Question 2 of 20');

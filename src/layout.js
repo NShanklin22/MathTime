@@ -25,6 +25,7 @@ export function placeRun(run) {
   const dpr = devicePixelRatio;
   run.style.removeProperty('--run-dx');
   run.style.removeProperty('--run-dy');
+  run.style.setProperty('--run-group', Math.round(6 * dpr) / dpr + 'px');   // the groups' extra gap, whole device pixels
   const r = first.getBoundingClientRect();
   run.style.setProperty('--run-dx', px(snap(r.left, dpr) - r.left));
   run.style.setProperty('--run-dy', px(snap(r.top, dpr) - r.top));

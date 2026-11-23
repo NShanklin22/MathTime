@@ -16,6 +16,9 @@
 //        'left'     – the player left for the level selector; locked until start()
 //
 // `solved` counts the run's correct answers, each from the moment it is right.
+// `streak` counts the right answers in a row since the last miss, and
+// `streakFrom` is the index of its first (momentum spec §3): a miss ends it,
+// and the right answer after it starts a new one at 1.
 //
 // `now` is the clock, in ms (runs spec §4); tests pass their own. Nothing
 // shows it. A problem is drawn exactly when the view shows it, so each is
@@ -52,7 +55,7 @@ export function createGame(level, rng = Math.random, now = () => performance.now
   let startedAt = 0;        // when the run's first problem was shown
   let shownAt = 0;          // when the problem on screen was
   let result = null;
-  const state = { phase: 'playing', question: 1, solved: 0, lives: 0, typed: '', problem: null };
+  const state = { phase: 'playing', question: 1, solved: 0, streak: 0, streakFrom: 0, lives: 0, typed: '', problem: null };
 
   // A new problem: one of the facts not yet asked, each equally likely, or
   // the one of them the level's pick() chooses. A column level's starts
@@ -85,6 +88,8 @@ export function createGame(level, rng = Math.random, now = () => performance.now
     const at = now();
     const { a, b } = state.problem;
     asked.push({ a, b, ms: at - shownAt, misses: current.livesPerProblem - state.lives });
+    if (state.streak === 0) state.streakFrom = state.solved;
+    state.streak += 1;
     state.solved += 1;
     if (state.solved < current.problemsPerRun) {
       state.phase = 'correct';
@@ -128,6 +133,7 @@ export function createGame(level, rng = Math.random, now = () => performance.now
       if (Number(state.typed) === state.problem.answer) return answered();
       state.typed = '';
       state.lives -= 1;
+      state.streak = 0;
       if (state.lives === 0) {
         state.phase = 'out';
         return 'out';
@@ -226,6 +232,7 @@ export function createGame(level, rng = Math.random, now = () => performance.now
       return 'step';
     }
     state.lives -= 1;
+    state.streak = 0;
     for (const id of bad) state.cells[id] = '';
     const after = method.afterWrong?.(state.step, bad, state.x);
     state.focus = after ? after.focus : bad[0];
@@ -276,6 +283,8 @@ export function createGame(level, rng = Math.random, now = () => performance.now
     result = null;
     state.question = 1;
     state.solved = 0;
+    state.streak = 0;
+    state.streakFrom = 0;
     fresh();
     startedAt = shownAt;
   }

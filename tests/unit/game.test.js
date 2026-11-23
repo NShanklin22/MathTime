@@ -557,10 +557,27 @@ test('leave() after the last answer keeps the finished run\'s result, but not it
 test('a fact level\'s state holds only its own play, and tap() does nothing on it', () => {
   for (const level of [LEVEL1, LEVEL2, LEVEL3, LEVEL4, LEVEL5]) {
     const game = createGame(level, () => 0.25);
-    assert.deepEqual(Object.keys(game.state).sort(), ['lives', 'phase', 'problem', 'question', 'solved', 'typed']);
+    assert.deepEqual(Object.keys(game.state).sort(), ['lives', 'phase', 'problem', 'question', 'solved', 'streak', 'streakFrom', 'typed']);
     const before = structuredClone(game.state);
     for (const id of ['O', 'C', 'T', 'H', 'B']) assert.equal(game.tap(id), 'ignored');
     for (const key of ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight']) assert.equal(game.press(key), 'ignored');
     assert.deepEqual(game.state, before);
   }
+});
+
+test('the streak counts right answers in a row; a miss ends it, and the next right answer starts one at 1', () => {
+  const game = createGame(LEVEL1);
+  assert.deepEqual([game.state.streak, game.state.streakFrom], [0, 0]);
+  for (let q = 1; q <= 4; q++) { solve(game); game.next(); }
+  assert.deepEqual([game.state.streak, game.state.streakFrom], [4, 0]);
+  missAny(game);
+  assert.equal(game.state.streak, 0);
+  solve(game);
+  assert.deepEqual([game.state.streak, game.state.streakFrom], [1, 4], 'the 5th answer, after a miss, starts it');
+  game.next();
+  solve(game);
+  assert.deepEqual([game.state.streak, game.state.streakFrom], [2, 4]);
+  game.next();
+  game.start();
+  assert.deepEqual([game.state.streak, game.state.streakFrom], [0, 0], 'a new run starts with none');
 });
