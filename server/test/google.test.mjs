@@ -399,3 +399,54 @@ describe('POST /api/google/name', () => {
     assert.equal((await api.call('POST', '/api/login', { body: { name: 'gina', password: 'password1' } })).status, 200);
   });
 });
+
+describe('POST /api/google/name, as a sign-up', () => {
+  test('with OPEN_SIGNUP off, a new account is 403 invite, and nothing is made', async () => {
+    await api.close();
+    api = await startApi({ openSignup: false, google: GOOGLE, fetch: (...args) => stub.fetch(...args), log: (line) => logs.push(String(line)) });
+    const back = await signIn();
+    const res = await pickName('gina', pair(back, 'mt_pending'));
+    assert.equal(res.status, 403);
+    assert.deepEqual(res.json, { error: 'invite' });
+    assert.equal(cookieOf(res), undefined);
+    assert.equal(count('users'), 0);
+  });
+
+  test('counts against the address\'s 5 accounts an hour, with password sign-ups', async () => {
+    const ip = '192.0.2.40';
+    const later = () => { api.clock.t += 61 * 1000; };
+    for (let i = 0; i < 3; i++) {
+      assert.equal((await api.call('POST', '/api/signup', { body: { name: `pw_${i}`, password: 'password1' }, ip })).status, 201);
+      later();
+    }
+    const name = async (n, sub) => {
+      stub.sub = sub;
+      const back = await signIn();
+      later();
+      return api.call('POST', '/api/google/name', { body: { name: n }, cookie: pair(back, 'mt_pending'), ip });
+    };
+    assert.equal((await name('gg_0', 'g-10')).status, 201);
+    later();
+    assert.equal((await name('gg_1', 'g-11')).status, 201);
+    later();
+    const sixth = await name('gg_2', 'g-12');
+    assert.equal(sixth.status, 429);
+    assert.deepEqual(sixth.json, { error: 'rate' });
+    assert.equal(count('users'), 5);
+    const sixthSignup = await api.call('POST', '/api/signup', { body: { name: 'pw_9', password: 'password1' }, ip });
+    assert.equal(sixthSignup.status, 429);
+  });
+});
+
+test('a password check against a Google-only account takes as long as a real one', async () => {
+  const { DUMMY_HASH } = await import('../auth.mjs');
+  const time = async (stored) => {
+    const t = performance.now();
+    for (let i = 0; i < 3; i++) await verifyPassword('password1', stored);
+    return performance.now() - t;
+  };
+  await time(DUMMY_HASH);                                 // warm
+  const real = await time(DUMMY_HASH), google = await time('!');
+  assert.equal(await verifyPassword('password1', '!'), false);
+  assert.ok(google > real / 2, `'!' took ${google.toFixed(1)}ms, a real hash ${real.toFixed(1)}ms`);
+});

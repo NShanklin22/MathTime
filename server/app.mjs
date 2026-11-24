@@ -46,8 +46,9 @@ class HttpError extends Error {
 }
 
 // Hits per key in the last window (a minute unless given), in memory: a restart forgets them, which is
-// fine at this size.
-function rateLimiter(now, window = RATE_WINDOW) {
+// fine at this size. A key is kept only while it has hits in the window, so asking about one stores
+// nothing.
+export function rateLimiter(now, window = RATE_WINDOW) {
   const hits = new Map();   // key -> times of the hits in the window, oldest first
   let lastSweep = 0;
   function recent(key) {
@@ -57,12 +58,15 @@ function rateLimiter(now, window = RATE_WINDOW) {
       lastSweep = t;
     }
     const times = (hits.get(key) || []).filter((when) => when > t - window);
-    hits.set(key, times);
+    if (times.length) hits.set(key, times);
+    else hits.delete(key);
     return times;
   }
   return {
     full: (key, max = RATE_LIMIT) => recent(key).length >= max,
-    hit: (key) => recent(key).push(now()),
+    hit: (key) => hits.set(key, [...recent(key), now()]),
+    // How many keys are kept (tests).
+    size: () => hits.size,
   };
 }
 
@@ -406,12 +410,15 @@ export function createApp({ db, now = Date.now, cookieSecure = true, trustProxy 
     },
 
     // A new Google account's name. Its pending sign-up is checked again in the transaction, since
-    // another tab may have used it (or linked the same Google account) meanwhile.
+    // another tab may have used it (or linked the same Google account) meanwhile. A new account is an
+    // open sign-up: off with OPEN_SIGNUP=0, and one of the address's accounts for the hour, checked and
+    // counted in the transaction as /api/signup's are.
     'POST /api/google/name': async (req, res, body) => {
       requireGoogle();
       const { name } = body ?? {};
       limitAddress(req);
       if (typeof name !== 'string' || !NAME.test(name)) throw new HttpError(400, { error: 'name' });
+      const hourKey = `signup:${callerOf(req)}`;
       const token = readCookie(req, PENDING_COOKIE, TOKEN_SHAPE);
       const tokenHash = token && hashToken(token);
       const user = store.transaction(db, () => {
@@ -423,7 +430,10 @@ export function createApp({ db, now = Date.now, cookieSecure = true, trustProxy 
           store.deletePending(db, tokenHash);
           return { ...linked, existing: true };
         }
+        if (!openSignup) throw new HttpError(403, { error: 'invite' });
+        if (hourly.full(hourKey, SIGNUP_HOUR_LIMIT)) throw new HttpError(429, { error: 'rate' });
         if (store.findUser(db, name)) throw new HttpError(409, { error: 'taken' });
+        hourly.hit(hourKey);
         // '!' is no scrypt hash, so no password ever matches it (auth.mjs verifyPassword).
         const id = store.createUser(db, { name, pwHash: '!', now: t });
         store.addIdentity(db, { provider: pending.provider, subject: pending.subject, userId: id, now: t });

@@ -150,8 +150,9 @@ docker compose exec api node cli.mjs users
 2.24 or later (`docker compose version`). Without the file, the API runs with Google sign-in off.
 
 **Closing sign-up again.** Add `OPEN_SIGNUP=0` to `secrets.env` and deploy again: sign-up then needs an
-invite code, as before. Google sign-in still works for accounts already linked, and still makes new ones;
-remove its three settings too to stop that.
+invite code, as before. Google sign-in still works for accounts already linked, but makes no new ones:
+picking a name for a new Google account gets the same "invite" refusal. A new Google account also counts
+toward an address's 5 accounts an hour, as a sign-up does.
 
 ## Trying the API on the PC
 

@@ -528,3 +528,18 @@ describe('expired sessions are swept', () => {
     }
   });
 });
+
+test('a rate limiter keeps no key with no hits in its window', async () => {
+  const { rateLimiter } = await import('../app.mjs');
+  let t = 0;
+  const limiter = rateLimiter(() => t, 1000);
+  assert.equal(limiter.full('never', 5), false);
+  assert.equal(limiter.size(), 0, 'asking does not store a key');
+  limiter.hit('once');
+  assert.equal(limiter.size(), 1);
+  t = 500;
+  assert.equal(limiter.full('once', 1), true);
+  t = 1500;
+  assert.equal(limiter.full('once', 1), false);
+  assert.equal(limiter.size(), 0, 'its hits gone, so is the key');
+});
