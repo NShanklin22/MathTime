@@ -602,6 +602,8 @@ test('Pick a name sends the name alone to /api/google/name; a 401 is the sign-up
   const b = setup({}, { '/api/google/name': body => (body.name === 'sam' ? { status: 409, body: { error: 'taken' } } : { status: 401, body: { error: 'google' } }) });
   assert.deepEqual(await b.account.enter('name', { name: 'sam' }), { error: 'taken' });
   assert.deepEqual(await b.account.enter('name', { name: 'gina' }), { error: 'expired' });
+  const c = setup({}, { '/api/google/name': { status: 404, body: { error: 'not found' } } });
+  assert.deepEqual(await c.account.enter('name', { name: 'gina' }), { error: 'expired' }, 'a 404 too');
   assert.equal(ERRORS.expired, 'Google sign-in expired: try again');
   assert.equal(ERRORS.google, "Google sign-in didn't work");
 });

@@ -254,7 +254,8 @@ export function createAccount({ queue, storage = browserStorage(), fetch = (...a
 
   // Log in or sign up (`mode`), with what was typed; or, `name` mode, Pick
   // a name after Google (POST /api/google/name), where a 401 is the
-  // pending sign-up gone ('expired'). Resolves to {name} or
+  // pending sign-up gone ('expired'), and so is a 404 (Google sign-in
+  // turned off meanwhile). Resolves to {name} or
   // {error} (loginResult()), or {stale: true} if a log out came first.
   // Once in, the runs go up without waiting. A sign-up sends its code
   // (`invite`) only if one was typed: with none it is an open sign-up (the
@@ -271,7 +272,7 @@ export function createAccount({ queue, storage = browserStorage(), fetch = (...a
     try {
       const route = { signup: '/api/signup', name: '/api/google/name' }[mode] ?? '/api/login';
       const { status, body } = await call('POST', route, mode === 'name' ? { name: typed.trim() } : data);
-      result = mode === 'name' && status === 401 ? { error: 'expired' } : loginResult(status, body);
+      result = mode === 'name' && (status === 401 || status === 404) ? { error: 'expired' } : loginResult(status, body);
     } catch {
       result = { error: 'offline' };
     }
@@ -284,6 +285,12 @@ export function createAccount({ queue, storage = browserStorage(), fetch = (...a
     return result;
   }
   let done = Promise.resolve();
+
+  // Back from Google signed in (?auth=in): a log out still pending is
+  // older than this new session, and sending it would end it.
+  function forgetLogout() {
+    remove(LOGOUT);
+  }
 
   // Log out: signed out here at once, and kept so until the server says
   // the session is over (sent again on the next load if it can't be now).
@@ -486,7 +493,7 @@ export function createAccount({ queue, storage = browserStorage(), fetch = (...a
     get name() { return name; },
     // f(name) after the name changes, or the bests do.
     onChange: f => listeners.add(f),
-    check, enter, config, logout, keep, keepDaily, flush, bests,
+    check, enter, config, logout, forgetLogout, keep, keepDaily, flush, bests,
     best: n => bests()(n),
     // Settles once the upload and bests that follow a log in are done (tests).
     settled: () => Promise.all([done, sending]),

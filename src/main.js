@@ -235,6 +235,7 @@ account.onChange(showAccount);
 // will say, on Home; `name`: Pick a name; `failed`: Log in, with the error.
 const auth = new URLSearchParams(location.search).get('auth');
 if (auth) history.replaceState(null, '', location.pathname + location.hash);
+if (auth === 'in') account.forgetLogout();
 account.check().catch(err => console.error(err)).then(name => {
   if (auth === 'in' && name && on('at-home')) dom.status.textContent = `Signed in as ${name}`;
   refreshDaily();

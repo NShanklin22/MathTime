@@ -24,7 +24,9 @@ export function createLogin(root, scan, { enter, done, onMode = () => {} }) {
   const form = $('form'), err = $('.error'), title = $('#login-title');
   // Not in the older mockups' copies of the screen: stand-ins, never shown.
   const stand = (sel, tag) => $(sel) ?? document.createElement(tag);
-  const google = stand('.google', 'a'), gErr = stand('.g-error', 'p'), or = stand('.or', 'p');
+  const google = stand('.google', 'a'), gErr = stand('.g-error', 'p'), or = stand('.or', 'p'), lede = stand('.lede', 'p');
+  // Pick a name's line, and the one once its sign-up has expired.
+  const LEDE = lede.textContent, EXPIRED = 'Your sign-in timed out. Start again with Google.';
   const f = { invite: $('#f-invite'), name: $('#f-name'), pass: $('#f-pass'), website: $('input[name="website"]') };
   // Optional: the older mockups (docs/superpowers/specs) run this on their
   // own copies of the screen, from before open sign-up.
@@ -44,6 +46,7 @@ export function createLogin(root, scan, { enter, done, onMode = () => {} }) {
     form.classList.toggle('name-mode', naming);
     root.classList.toggle('name-mode', naming);
     form.classList.remove('expired');
+    lede.textContent = LEDE;
     for (const node of form.querySelectorAll('[data-for="signup"]')) node.hidden = !up;
     f.pass.autocomplete = up ? 'new-password' : 'current-password';
     f.name.setAttribute('aria-describedby', up ? 'h-name f-error' : 'f-error');
@@ -156,10 +159,18 @@ export function createLogin(root, scan, { enter, done, onMode = () => {} }) {
   // and the focus goes to the field to fix, or the button to try again.
   function showError(code) {
     if (code === 'invite' && !codeOpen) setCode(true);    // a code is wanted after all
+    // Pick a name's sign-up gone: Continue with Google is all that's left,
+    // its error under it, as on Log in; the line above says why.
+    if (code === 'expired') {
+      form.classList.add('expired');
+      lede.textContent = EXPIRED;
+      err.textContent = '';
+      gErr.textContent = ERRORS.expired;
+      place();
+      return google.focus();
+    }
     err.textContent = ERRORS[code];
-    // Pick a name's sign-up gone: Google again, under the error.
-    form.classList.toggle('expired', code === 'expired');
-    const fix = { mismatch: f.pass, invite: f.invite, taken: f.name, name: f.name, password: f.pass, expired: google }[code];
+    const fix = { mismatch: f.pass, invite: f.invite, taken: f.name, name: f.name, password: f.pass }[code];
     if (!['offline', 'rate', 'name'].includes(code)) f.pass.value = '';
     place();
     if (fix) fix.focus();
