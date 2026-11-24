@@ -1,0 +1,446 @@
+<!doctype html>
+<html lang="en" class="loading">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Open sign-up mockup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<!-- The Google Fonts stylesheet (IBM Plex Mono and Sans) is added by src/fonts.js so it can be timed out. -->
+<link rel="stylesheet" href="/src/styles.css">
+<script type="module" src="/src/main.js"></script>
+</head>
+<!-- data-kind: the kind of level being played, which shows its play screen
+     (main.js): "fact", the equation; "column", the column board. -->
+<body class="at-home" data-kind="fact">
+  <header class="top">
+    <div class="where">
+      <!-- "Levels › Addition 1": the way back, and the level by its topic and
+           its number within it (view.js, board.js). Where the whole of it,
+           with the widest level name, doesn't fit beside the hearts, every
+           level's way back is its chevron alone, the separator pointing
+           left, "‹ Addition 1" (header.js); it is still the link "Levels".
+           The chevron is the separator mirrored and moved 0.25px left, so
+           its ink (the stroke, with its round caps and join) runs from 3px
+           to 8px of its box: header.js puts the box on a whole device pixel
+           at the header's edge, and so the ink starts on one too.
+           Above a level, the way back is "Home" (the home screen spec §1):
+           "Home › Levels", "Home › Daily challenge", "Home › Progress",
+           "Home › Settings" (main.js sets the words). -->
+      <nav class="crumbs" aria-label="Breadcrumb">
+        <a class="back" href="#" aria-label="Levels" aria-keyshortcuts="Escape" tabindex="-1"><span class="word">Levels</span><svg class="chevron" viewBox="0 0 12 12" aria-hidden="true"><path d="M7.25 2.5L3.75 6l3.5 3.5"/></svg></a>
+        <svg class="sep" viewBox="0 0 12 12" aria-hidden="true"><path d="M4.5 2.5L8 6l-3.5 3.5"/></svg>
+        <span class="here" aria-current="step">Addition 1</span>
+        <!-- Practice of the daily challenge: "Home › Daily challenge › Practice" (main.js). -->
+        <svg class="sep sub" viewBox="0 0 12 12" aria-hidden="true"><path d="M4.5 2.5L8 6l-3.5 3.5"/></svg>
+        <span class="sub">Practice</span>
+        <span class="home" aria-current="page">Levels</span>
+      </nav>
+    </div>
+    <div class="lives" role="img" aria-label="3 lives left">
+      <svg viewBox="2 3 20 18" aria-hidden="true"><path d="M19.5 12.572l-7.5 7.428l-7.5 -7.428a5 5 0 1 1 7.5 -6.566a5 5 0 1 1 7.5 6.572"/></svg>
+      <svg viewBox="2 3 20 18" aria-hidden="true"><path d="M19.5 12.572l-7.5 7.428l-7.5 -7.428a5 5 0 1 1 7.5 -6.566a5 5 0 1 1 7.5 6.572"/></svg>
+      <svg viewBox="2 3 20 18" aria-hidden="true"><path d="M19.5 12.572l-7.5 7.428l-7.5 -7.428a5 5 0 1 1 7.5 -6.566a5 5 0 1 1 7.5 6.572"/></svg>
+    </div>
+  </header>
+
+  <!-- The home screen (2026-11-17-home-screen-design.md §2), run by
+       homeview.js: the title and the gear (Settings), the daily challenge
+       (Start, or the done line, which opens the board), Next lesson and
+       Levels, and the two quiet links. No header: the title is the page's. -->
+  <div class="home" role="region" aria-label="Home">
+    <div class="stack">
+      <div class="mid">
+        <div class="markrow">
+          <h1 class="mark">Math Time</h1>
+          <!-- The gear (Tabler's "settings"), its viewBox cropped to its ink, stroke included. -->
+          <button class="gear" type="button" aria-label="Settings"><svg viewBox="2.25 2.25 19.5 19.5" aria-hidden="true"><path d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 0 0 2.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 0 0 1.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 0 0-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 0 0-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 0 0-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 0 0-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 0 0 1.066-2.573c-.94-1.543.826-3.31 2.37-2.37c1 .608 2.296.07 2.572-1.065z"/><circle cx="12" cy="12" r="3"/></svg></button>
+        </div>
+        <button class="hero" type="button"></button>
+        <div class="btns">
+          <button class="btn next" type="button"></button>
+          <button class="btn levels" type="button"></button>
+        </div>
+      </div>
+      <nav class="links" aria-label="More">
+        <a class="to-board" href="#">Leaderboard</a>
+        <a class="to-progress" href="#">Progress</a>
+      </nav>
+    </div>
+  </div>
+
+  <!-- Progress (the home screen spec §3a): a row per topic, built by
+       homeview.js; a row opens Levels. -->
+  <div class="progress" role="region" aria-labelledby="p-title">
+    <div class="in">
+      <h1 class="s-title" id="p-title">Progress</h1>
+      <div class="rows"></div>
+    </div>
+  </div>
+
+  <!-- Settings (the home screen spec §4): the account only. -->
+  <div class="settings" role="region" aria-labelledby="s-title">
+    <div class="in">
+      <h1 class="s-title" id="s-title">Settings</h1>
+      <section class="sect" aria-labelledby="s-acct">
+        <h2 class="s-head" id="s-acct">Account</h2>
+        <p class="who"></p>
+        <div class="buttons"></div>
+      </section>
+    </div>
+  </div>
+
+  <main class="stage">
+    <div class="eq" id="eq">
+      <span class="qnum" id="qnum">Question 1 of 20</span>
+      <span id="a">7</span>
+      <span class="op">+</span>
+      <span id="b">5</span>
+      <span class="op">=</span>
+      <span class="slot empty" id="slot">
+        <span class="shown" aria-hidden="true"><span id="shown"></span><span class="caret"></span></span>
+        <input id="ans" inputmode="none" maxlength="2" autocomplete="off" aria-label="Answer">
+      </span>
+    </div>
+    <!-- A column level's play screen (Levels 6–7), drawn by board.js. On a
+         column level the answer field above is moved in after it (main.js). -->
+    <div class="board" id="board" aria-hidden="true"></div>
+  </main>
+
+  <!-- How far through the run you are (runs spec §2): a segment per
+       problem, built by view.js. Screen readers hear "Question N of 20"
+       instead. -->
+  <div class="run" aria-hidden="true"></div>
+
+  <!-- Outside .stage so announcements survive the switch to the level selector. -->
+  <p class="sr-only" role="status" id="status"></p>
+
+  <!-- The level selector: a row per level, built by selector.js. A landmark
+       of its own, as the only <main> is the problem area, hidden here. -->
+  <div class="select" role="region" aria-label="Levels"></div>
+
+  <!-- The finish screen (runs spec §3), filled in by finish.js, which
+       centres each line on its ink. -->
+  <div class="finish" role="region" aria-labelledby="done-title">
+    <h1 class="line done-title" id="done-title"></h1>
+    <p class="line done-time"></p>
+    <p class="line done-best"></p>
+    <p class="line done-misses"></p>
+    <!-- Part 2 puts the key field here (runs spec §6). -->
+    <div class="done-buttons">
+      <button class="again"><span class="line">Again</span></button>
+      <button class="levels"><span class="line">Levels</span></button>
+    </div>
+  </div>
+
+  <!-- The daily challenge's board (daily spec §4, the home screen spec
+       §3b), filled in by dailyview.js: the title, the date and how many
+       played, your score above the rows where you aren't on them, the rows
+       (which alone scroll, your row pinned at their foot when it is below
+       their view), and Practice and Levels. -->
+  <div class="dboard" role="region" aria-labelledby="db-title">
+    <div class="in">
+      <h1 class="s-title" id="db-title">Daily challenge</h1>
+      <p class="b-date"></p>
+      <p class="b-said" hidden></p>
+      <div class="mine"></div>
+      <div class="b-list">
+        <ol class="rows" aria-label="Today's board"></ol>
+        <div class="b-pin" aria-hidden="true" hidden><div class="b-gap"><span>⋯</span></div><div class="r you pinned"></div></div>
+      </div>
+      <div class="b-btns">
+        <button class="practice fill" type="button">Practice</button>
+        <p class="b-busy" hidden>Finish it in the other tab</p>
+        <button class="levels" type="button">Levels</button>
+      </div>
+    </div>
+  </div>
+  <!-- The log-in screen (accounts spec §3), run by login.js: Log in, or
+       Sign up with the invite code shown too. No keypad: the system's own
+       keyboard types here. -->
+  <!-- Leaving a scored daily try partway asks first (main.js): it counts as out. -->
+  <div class="leave" role="alertdialog" aria-modal="true" aria-labelledby="leave-head" aria-describedby="leave-text" hidden>
+    <h2 class="line l-head" id="leave-head">Leave?</h2>
+    <p class="line l-text" id="leave-text"></p>
+    <div class="done-buttons">
+      <button class="stay"><span class="line">Stay</span></button>
+      <button class="go-leave"><span class="line">Leave</span></button>
+    </div>
+  </div>
+  <div class="login" role="region" aria-labelledby="login-title">
+    <h1 class="s-title" id="login-title">Log in</h1>
+    <form novalidate>
+      <div class="fields">
+        <div class="field" data-for="signup" hidden>
+          <div class="labels"><label for="f-invite">Invite code</label></div>
+          <input id="f-invite" name="invite" type="text" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" enterkeyhint="next" aria-describedby="f-error">
+        </div>
+        <div class="field">
+          <div class="labels"><label for="f-name">Name</label><span class="hint" id="h-name" data-for="signup" hidden>3–20 letters, digits, _&nbsp;-</span></div>
+          <input id="f-name" name="username" type="text" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" maxlength="20" enterkeyhint="next" aria-describedby="f-error">
+        </div>
+        <div class="field">
+          <div class="labels"><label for="f-pass">Password</label><span class="hint" id="h-pass" data-for="signup" hidden>8 or more characters</span></div>
+          <input id="f-pass" name="password" type="password" autocomplete="current-password" enterkeyhint="go" aria-describedby="f-error">
+        </div>
+      </div>
+      <div class="actions">
+        <button class="submit" type="submit"><span class="line">Log in</span></button>
+        <p class="error" id="f-error" role="alert"></p>
+        <p class="switch"><span class="ask">Have an invite?</span> <button class="swap" type="button">Sign up</button></p>
+      </div>
+    </form>
+  </div>
+
+  <div class="pad" role="group" aria-label="Keypad">
+    <button tabindex="-1" data-k="1"><span class="kl">1</span></button>
+    <button tabindex="-1" data-k="2"><span class="kl">2</span></button>
+    <button tabindex="-1" data-k="3"><span class="kl">3</span></button>
+    <button tabindex="-1" data-k="4"><span class="kl">4</span></button>
+    <button tabindex="-1" data-k="5"><span class="kl">5</span></button>
+    <button tabindex="-1" data-k="6"><span class="kl">6</span></button>
+    <button tabindex="-1" data-k="7"><span class="kl">7</span></button>
+    <button tabindex="-1" data-k="8"><span class="kl">8</span></button>
+    <button tabindex="-1" data-k="9"><span class="kl">9</span></button>
+    <button tabindex="-1" data-k="Backspace" aria-label="Delete"><svg viewBox="0 0 24 24" aria-hidden="true"><g transform="translate(-0.5 0)"><path d="M20 6H9l-5 6l5 6h11a1 1 0 0 0 1-1V7a1 1 0 0 0-1-1z"/><path d="M12.25 10.25l3.5 3.5m0-3.5l-3.5 3.5"/></g></svg></button>
+    <button tabindex="-1" data-k="0"><span class="kl">0</span></button>
+    <button tabindex="-1" data-k="Enter" class="go" aria-label="Check answer"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 12.5l5.5 5.5l11.5-11.5"/></svg></button>
+  </div>
+<!-- ===================== Open sign-up mockup (2026-11-23) =====================
+     The real log-in screen (src/, unchanged), with the open sign-up design
+     (2026-11-23-open-signup-design.md) laid over it from this page:
+       1. Sign up is Name and Password; the code field, now "Code", is behind
+          a quiet link under the button, "Have a code?". Opened, the field
+          shows under Password (nothing above it moves) and takes the focus,
+          and the link goes. "No code", in the Code label row, shuts it.
+       2. Log in's line reads "New here? Sign up".
+       3. Under the form's button and its link: a thin rule with "or", then
+          "Continue with Google", the app's own outline button, as wide and
+          as tall as the button above it, a plain G in the text colour.
+          Once "Have a code?" is opened the account will be a password one,
+          so the "or" and Google go (and the screen keeps its room).
+       4. Pick a name (after Google, for a new account): the Name field and
+          its hint only, "Continue", no swap line and no Google button, and
+          a line under the title on why.
+       Google's error sits under the Google button; the two buttons' focus
+       rings are inside them; every state's breadcrumb is "Home >".
+       5. The honeypot field `website`, off the screen (left:-10000px), never
+          display:none, out of the Tab order.
+     URL params:
+       ?state=login | signup | signup-code | name | login-google-failed
+       &bare            no state switcher (screenshots) -->
+<style>
+  /* Have a code?: the quiet link, right under Password, where the Code
+     field opens. Muted, the way back's faint underline. */
+  .login .have-code { display: block; margin: calc(-6 * var(--u)) 0 0; font-size: calc(14 * var(--u)); font-weight: 500; letter-spacing: 0.02em; white-space: nowrap; text-box: trim-both cap alphabetic; }
+  .login .have-code button, .login .no-code button {
+    position: relative; margin: 0; padding: 0; border: 0; background: none;
+    font: inherit; letter-spacing: inherit; color: var(--muted);
+    text-decoration: underline; text-decoration-color: var(--faint);
+    text-decoration-thickness: 1px; text-underline-offset: 4px;
+    cursor: pointer; touch-action: manipulation;
+  }
+  .login .have-code button::after, .login .no-code button::after { content: ""; position: absolute; inset: -15px -8px; }
+  @media (hover: hover) { .login .have-code button:hover, .login .no-code button:hover { color: var(--ink); text-decoration-color: currentColor; } }
+  .login .have-code button:focus-visible, .login .no-code button:focus-visible { outline: 2px solid var(--ink); outline-offset: 4px; }
+  /* No code: in the Code label row, where the hints sit. */
+  .login .no-code { font-weight: 500; }
+  .login form:not(.code-open) .code-field, .login form.code-open .have-code { display: none !important; }
+  /* With a code (an invite or a reset), the account is a password one: the
+     Google way goes until "No code". */
+  .login form.code-open .or, .login form.code-open .google, .login form.code-open .g-error { display: none !important; }
+
+  /* or: a 1px rule each side in the line colour, the word muted; the same
+     gap above and below it in every state. */
+  .login { --or-gap: calc(24 * var(--u)); }
+  .login .or {
+    display: flex; align-items: center; gap: calc(14 * var(--u));
+    margin: var(--or-gap) 0 0;
+    font-size: calc(14 * var(--u)); letter-spacing: 0.02em; color: var(--muted);
+  }
+  .login .or::before, .login .or::after { content: ""; flex: 1; height: 1px; background: var(--faint); }
+  .login .or span { display: block; text-box: trim-both ex alphabetic; }
+
+  /* Continue with Google: the app's outline, the fields' ring, as tall as
+     the button above; a plain G in the text colour, the G and the words
+     centred as one group. */
+  .login .google {
+    display: flex; align-items: center; justify-content: center;
+    width: 100%; height: calc(60 * var(--u));
+    margin-top: var(--or-gap);
+    background: transparent; box-shadow: var(--key-ring);
+    color: var(--ink); text-decoration: none;
+    font: 600 calc(18 * var(--u))/1 var(--font); letter-spacing: 0.02em;
+    touch-action: manipulation;
+  }
+  .login .google .in { display: inline-flex; align-items: center; gap: 0.6em; }
+  .login .google svg { width: 1em; height: 1em; fill: currentColor; flex: none; }
+  .login .google .line { display: block; text-box: trim-both cap alphabetic; margin-right: -0.02em; }
+  .login .google:active { background: rgba(238, 245, 255, 0.1); }
+  /* Focus rings inside the buttons, so the column's edges stay true. */
+  .login .google:focus-visible { outline: 2px solid var(--ink); outline-offset: -6px; }
+  .login .submit:focus-visible { outline: 2px solid var(--bg); outline-offset: -6px; }
+  /* Google's error: under its own button, in the error's red. */
+  .login .g-error { display: block; text-box: trim-both cap alphabetic; letter-spacing: 0.02em; margin: calc(16 * var(--u)) 0 0; font-size: calc(14 * var(--u)); line-height: 1.5; color: var(--redline); text-wrap: pretty; }
+  .login .g-error:empty { display: none; }
+
+  /* The honeypot: off the screen, never display:none (bots skip those). */
+  .login .hp { position: absolute; left: -10000px; top: 0; width: 1px; height: 1px; overflow: hidden; }
+
+  /* Pick a name: a line on why, then the Name field only. */
+  .login .lede { display: none; }
+  .login.name-mode .lede { display: block; margin: 0 0 calc(32 * var(--u)); font-size: calc(15 * var(--u)); line-height: 1.5; letter-spacing: 0.02em; color: var(--muted); text-wrap: pretty; }
+  .login.name-mode .s-title { margin-bottom: calc(22 * var(--u)); }
+  .login form.name-mode .pw-field, .login form.name-mode .or, .login form.name-mode .google, .login form.name-mode .g-error,
+  .login form.name-mode .switch, .login form.name-mode .have-code, .login form.name-mode .code-field { display: none !important; }
+
+  @media (min-width: 900px) {
+    .login .google { height: calc(64 * var(--u)); font-size: calc(19 * var(--u)); }
+    .login .or { font-size: calc(15 * var(--u)); }
+    .login .have-code { font-size: calc(15 * var(--u)); }
+    .login.name-mode .lede { font-size: calc(16 * var(--u)); }
+  }
+  @media (orientation: landscape) and (max-height: 560px) and (min-aspect-ratio: 3/2) {
+    .login { --or-gap: calc(12 * var(--u)); }
+    .login .have-code { margin-top: calc(-1 * var(--u)); font-size: calc(13 * var(--u)); }
+    .login .or { font-size: calc(13 * var(--u)); }
+    .login .google { height: calc(40 * var(--u)); font-size: calc(16 * var(--u)); }
+    .login .g-error { margin-top: calc(8 * var(--u)); line-height: 1.3; font-size: calc(13 * var(--u)); }
+    .login form.signup .switch { margin-top: calc(10 * var(--u)); }
+    .login.name-mode .s-title { margin-bottom: calc(10 * var(--u)); }
+    .login.name-mode .lede { margin-bottom: calc(18 * var(--u)); font-size: calc(13 * var(--u)); }
+  }
+
+  .su-panel { position: fixed; right: 8px; bottom: 8px; z-index: 50; display: flex; flex-wrap: wrap; gap: 6px; font: 12px var(--font); }
+  .su-panel[hidden] { display: none; }
+  .su-panel a { color: var(--ink); background: rgba(0,0,0,.35); border: 1px solid var(--faint); padding: 4px 8px; text-decoration: none; }
+  .su-panel a[aria-current] { border-color: var(--ink); }
+</style>
+<nav class="su-panel" aria-label="Mockup states" hidden>
+  <a href="?state=login">Log in</a>
+  <a href="?state=signup">Sign up</a>
+  <a href="?state=signup-code">Have a code</a>
+  <a href="?state=name">Pick a name</a>
+  <a href="?state=login-google-failed">Google failed</a>
+</nav>
+<script type="module">
+  const q = new URLSearchParams(location.search);
+  const state = q.get('state') ?? 'login';
+  const panel = document.querySelector('.su-panel');
+  if (!q.has('bare')) panel.hidden = false;
+  for (const a of panel.querySelectorAll('a')) if (a.getAttribute('href') === '?state=' + state) a.setAttribute('aria-current', 'page');
+
+  const wait = ms => new Promise(r => setTimeout(r, ms));
+  while (!window.mathtime) await wait(20);
+  const { login, openLogin } = window.mathtime;
+  const { createScanner } = await import('/src/scanner.js');
+  const { snap, onLayoutGrid } = await import('/src/ink.js');
+  const scan = createScanner();
+
+  // ---------- The new markup (index.html in Task 6/7) ----------
+  const root = document.querySelector('div.login[role=region]'), form = root.querySelector('form');
+  const $ = s => root.querySelector(s);
+  const fields = $('.fields');
+  const code = $('#f-invite').closest('.field');
+  code.classList.add('code-field');
+  code.querySelector('label').textContent = 'Code';
+  const pw = $('#f-pass').closest('.field');
+  pw.classList.add('pw-field');
+  fields.append(code);                       // under Password: nothing above it moves
+  // Have a code?: under Password, where the field opens.
+  code.insertAdjacentHTML('beforebegin', '<p class="have-code" data-for="signup" hidden><button type="button">Have a code?</button></p>');
+  // No code: in the Code label row, right-aligned like the hints.
+  code.querySelector('.labels').insertAdjacentHTML('beforeend', '<span class="hint no-code"><button type="button">No code</button></span>');
+  // Pick a name's line, under the title.
+  $('#login-title').insertAdjacentHTML('afterend', '<p class="lede">Your Google account is connected. Pick the name others will see on the boards.</p>');
+  fields.insertAdjacentHTML('beforeend',
+    '<div class="hp" aria-hidden="true"><input name="website" tabindex="-1" autocomplete="off" aria-hidden="true"></div>');
+  $('.error').insertAdjacentHTML('afterend',
+    '<p class="or" aria-hidden="true"><span>or</span></p>' +
+    '<a class="google" href="/api/google/start"><span class="in">' +
+      '<svg viewBox="1 1 22 22" aria-hidden="true"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>' +
+      '<span class="line">Continue with Google</span></span></a>' +
+    '<p class="g-error" role="alert"></p>');
+  $('.google').addEventListener('click', e => e.preventDefault());   // the mockup goes nowhere
+
+  // ---------- On its ink (login.js's rules) ----------
+  function textOf(node) {
+    const cs = getComputedStyle(node), fs = parseFloat(cs.fontSize);
+    return { fs, style: { weight: cs.fontWeight, family: cs.fontFamily, color: cs.color, spacing: (parseFloat(cs.letterSpacing) || 0) / fs }, text: node.textContent };
+  }
+  // Have a code?: its ink starts on the field's edge.
+  function inkLeft(node) {
+    const dpr = devicePixelRatio;
+    node.style.marginLeft = '';
+    const { fs, style, text } = textOf(node);
+    const left = node.getBoundingClientRect().left;
+    const at = snap(left + scan(text, style, fs * dpr).abl * fs, dpr);
+    node.style.marginLeft = onLayoutGrid(at - left, dpr) + 'px';
+  }
+  const place = login.place;
+  login.place = () => {
+    place();
+    if (!root.getClientRects().length) return;
+    for (const n of root.querySelectorAll('.have-code, .g-error, .lede')) if (n.getClientRects().length) inkLeft(n);
+  };
+  // Each visit starts with the code field shut.
+  const open = login.open;
+  login.open = mode => { form.classList.remove('code-open', 'name-mode'); root.classList.remove('name-mode'); $('.g-error').textContent = ''; open(mode); };
+  form.addEventListener('input', () => { $('.g-error').textContent = ''; });
+
+  // Have a code?: the field shows, under Password, with the focus; the link goes.
+  $('.have-code button').addEventListener('click', () => {
+    form.classList.add('code-open');
+    login.place();
+    $('#f-invite').focus();
+  });
+  // No code: the field shuts, its value goes, and "Have a code?", the
+  // divider and Google come back.
+  $('.no-code button').addEventListener('click', () => {
+    form.classList.remove('code-open');
+    $('#f-invite').value = '';
+    login.place();
+    $('.have-code button').focus();
+  });
+  // Log in's line.
+  const ask = $('.ask');
+  new MutationObserver(() => { if (ask.textContent === 'Have an invite?') ask.textContent = 'New here?'; })
+    .observe(ask, { childList: true, characterData: true, subtree: true });
+  ask.textContent = 'New here?';
+  // Sign up: Name first (the code field is shut).
+  $('.swap').addEventListener('click', () => { if (form.classList.contains('signup')) $('#f-name').focus(); });
+
+  // ---------- The state asked for ----------
+  await wait(50);
+  if (state === 'login') openLogin({ home: true }, 'login');
+  else if (state === 'signup' || state === 'signup-code') {
+    openLogin({ home: true }, 'signup');
+    $('#f-name').focus();
+    if (state === 'signup-code') {
+      $('#f-name').value = 'alex';
+      $('#f-pass').value = 'correcthorse';
+      $('.have-code button').click();
+    }
+  } else if (state === 'name') {
+    openLogin({ home: true }, 'signup');
+    form.classList.add('name-mode');
+    root.classList.add('name-mode');
+    $('#login-title').textContent = 'Pick a name';
+    document.querySelector('.crumbs .here').textContent = 'Pick a name';
+    form.querySelector('.submit .line').textContent = 'Continue';
+    login.place();
+    $('#f-name').focus();
+  } else if (state === 'login-google-failed') {
+    openLogin({ home: true }, 'login');
+    // Under the Google button; nothing takes the focus (no ring on the
+    // Log in button).
+    $('.g-error').textContent = "Google sign-in didn't work";
+    document.activeElement?.blur();
+    login.place();
+  }
+  await wait(50);
+  login.place();
+  document.documentElement.dataset.ready = '1';
+</script>
+</body>
+</html>

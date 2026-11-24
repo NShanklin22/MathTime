@@ -16,12 +16,14 @@ export async function hashPassword(password) {
   return ['scrypt', N, R, P, salt.toString('base64'), key.toString('base64')].join('$');
 }
 
+// A stored hash that isn't scrypt (a Google account's '!') never matches, but is compared against
+// DUMMY_HASH all the same, so the time taken doesn't tell which accounts have no password.
 export async function verifyPassword(password, stored) {
-  const [kind, n, r, p, salt, hash] = String(stored).split('$');
-  if (kind !== 'scrypt') return false;
+  const real = String(stored).startsWith('scrypt$');
+  const [, n, r, p, salt, hash] = (real ? String(stored) : DUMMY_HASH).split('$');
   const expected = Buffer.from(hash, 'base64');
   const key = await derive(password, Buffer.from(salt, 'base64'), Number(n), Number(r), Number(p), expected.length);
-  return timingSafeEqual(key, expected);
+  return timingSafeEqual(key, expected) && real;
 }
 
 // Compared against when the name is unknown, so a wrong name takes as long as a wrong password.

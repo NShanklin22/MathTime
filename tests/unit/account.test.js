@@ -118,6 +118,15 @@ test('sign up sends the invite, the name and the password; errors come back in w
   assert.deepEqual(await b.account.enter('signup', { invite: 'X', name: 'alex', password: 'password1' }), { error: 'offline' });
 });
 
+test('sign up sends the honeypot, and the code only when one was typed', async () => {
+  const a = setup({}, { '/api/signup': { status: 201, body: { name: 'alex' } }, '/api/runs': 201, '/api/best': { status: 200, body: {} } });
+  await a.account.enter('signup', { invite: '  ', name: ' alex ', password: 'password1', website: '' });
+  assert.deepEqual(a.log[0].body, { name: 'alex', password: 'password1', website: '' });
+  const b = setup({}, { '/api/signup': { status: 201, body: { name: 'alex' } }, '/api/runs': 201, '/api/best': { status: 200, body: {} } });
+  await b.account.enter('signup', { invite: ' good ', name: 'alex', password: 'password1', website: 'x' });
+  assert.deepEqual(b.log[0].body, { invite: 'good', name: 'alex', password: 'password1', website: 'x' });
+});
+
 // The outbox's entries, by id and owner.
 const waiting = storage => got(storage, 'mathtime.outbox');
 
@@ -574,4 +583,27 @@ test('a daily try kept for another account (cut off in another tab) waits for it
   await account.keepDaily('2026-11-14', dailyTry('d1'), 'alex');
   assert.equal(log.length, 0);
   assert.deepEqual(got(storage, 'mathtime.outbox'), [{ id: 'd1', name: 'alex', daily: { date: '2026-11-14', record: dailyTry('d1') } }]);
+});
+
+test('config() asks once; no answer, or a bad one, is Google off', async () => {
+  const a = setup({}, { '/api/config': { status: 200, body: { google: true } } });
+  assert.deepEqual(await a.account.config(), { google: true });
+  assert.deepEqual(await a.account.config(), { google: true });
+  assert.equal(a.log.filter(r => r.path === '/api/config').length, 1);
+  assert.deepEqual(await setup({}, { '/api/config': 'down' }).account.config(), { google: false });
+  assert.deepEqual(await setup({}, { '/api/config': 404 }).account.config(), { google: false });
+});
+
+test('Pick a name sends the name alone to /api/google/name; a 401 is the sign-up expired', async () => {
+  const a = setup({}, { '/api/google/name': { status: 201, body: { name: 'gina' } }, '/api/runs': 201, '/api/best': { status: 200, body: {} } });
+  assert.deepEqual(await a.account.enter('name', { name: ' gina ' }), { name: 'gina' });
+  assert.deepEqual(a.log[0].body, { name: 'gina' });
+  assert.equal(a.account.name, 'gina');
+  const b = setup({}, { '/api/google/name': body => (body.name === 'sam' ? { status: 409, body: { error: 'taken' } } : { status: 401, body: { error: 'google' } }) });
+  assert.deepEqual(await b.account.enter('name', { name: 'sam' }), { error: 'taken' });
+  assert.deepEqual(await b.account.enter('name', { name: 'gina' }), { error: 'expired' });
+  const c = setup({}, { '/api/google/name': { status: 404, body: { error: 'not found' } } });
+  assert.deepEqual(await c.account.enter('name', { name: 'gina' }), { error: 'expired' }, 'a 404 too');
+  assert.equal(ERRORS.expired, 'Google sign-in expired: try again');
+  assert.equal(ERRORS.google, "Google sign-in didn't work");
 });

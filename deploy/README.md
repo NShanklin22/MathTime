@@ -37,7 +37,7 @@ the database.
    ~/apps/mathtime/deploy/deploy.sh
    ```
 
-6. **Make your own account.** Make an invite (below), then on the game: Log in › Have an invite? Sign up.
+6. **Make your own account.** On the game: Log in › New here? Sign up.
 
 7. **Play it on a phone over cellular** (Wi-Fi off) at https://math.nshanklin.com/.
 
@@ -47,7 +47,8 @@ For another name, change `server_name` in `nginx.conf` and `SITE_HOST` in `deplo
 
 Already deployed before accounts? `/etc/nginx/sites-available/mathtime` there has certbot's TLS lines, so
 don't copy `nginx.conf` over it. Paste its `location /api/ { ... }` block into the `server` block that
-has `listen 443`, next to `location /`, then:
+has `listen 443`, next to `location /`. For Google sign-in, paste its `location = /api/google/callback`
+block there too (it keeps sign-in codes out of the access log). Then:
 
 ```bash
 sudo nginx -t && sudo systemctl reload nginx
@@ -90,7 +91,9 @@ To go back to a copy: `docker compose stop api` in `deploy/`, copy it over `math
 
 ## Invites and passwords
 
-Sign-up is by invite only, and there is no email: both are done on mainframe, from
+Anyone can sign up with a name and a password, or with Google (below). Invites are optional now: they
+matter only when open sign-up is off (`OPEN_SIGNUP=0`). There is no email, so invites and password
+resets are both done on mainframe, from
 `~/apps/mathtime/deploy`.
 
 **An invite.** Prints a code like `MATH-7KQ2-XW4P`. It makes one account, and lasts 14 days.
@@ -112,6 +115,47 @@ docker compose exec api node cli.mjs reset <name>
 ```bash
 docker compose exec api node cli.mjs users
 ```
+
+## Google sign-in
+
+"Continue with Google" shows on the log-in screen only once the API has its three settings. Open sign-up
+(a name and a password) works without them.
+
+1. **The OAuth client.** In Google Cloud Console, APIs & Services › Credentials › Create credentials ›
+   OAuth client ID. Type: Web application. Authorised redirect URI:
+   `https://math.nshanklin.com/api/google/callback`. The consent screen needs no scopes beyond the
+   defaults: MathTime asks for `openid` only and keeps Google's account id, nothing else.
+
+2. **The settings**, on mainframe, in `~/apps/mathtime/deploy/secrets.env` (not `deploy/.env`, which
+   `deploy.sh` rewrites each time). It is in `.gitignore`, so it never reaches git:
+
+   ```
+   GOOGLE_CLIENT_ID=<the client id>
+   GOOGLE_CLIENT_SECRET=<the client secret>
+   PUBLIC_URL=https://math.nshanklin.com
+   ```
+
+   Then make it readable by you alone:
+
+   ```bash
+   chmod 600 ~/apps/mathtime/deploy/secrets.env
+   ```
+
+3. **Deploy again**, so the container picks them up:
+
+   ```bash
+   ~/apps/mathtime/deploy/deploy.sh
+   ```
+
+   `docker compose logs api` then says "Google sign-in on". It never prints the secret.
+
+`compose.yaml` loads `secrets.env` with `env_file: { path, required: false }`, which needs Docker Compose
+2.24 or later (`docker compose version`). Without the file, the API runs with Google sign-in off.
+
+**Closing sign-up again.** Add `OPEN_SIGNUP=0` to `secrets.env` and deploy again: sign-up then needs an
+invite code, as before. Google sign-in still works for accounts already linked, but makes no new ones:
+picking a name for a new Google account gets the same "invite" refusal. A new Google account also counts
+toward an address's 5 accounts an hour, as a sign-up does.
 
 ## Trying the API on the PC
 

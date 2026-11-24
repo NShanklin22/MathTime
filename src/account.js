@@ -38,13 +38,17 @@ export const PASSWORD_MIN = 8;
 // What each error says, in words, under the button (accounts spec §3).
 export const ERRORS = {
   mismatch: "That name and password don't match",
-  invite: "That invite code isn't valid or has been used",
+  invite: "That code doesn't work",
   taken: 'That name is taken',
   offline: "Can't reach the server: try again",
   // '_ or -' kept on one line (no-break spaces), where it wraps at 320px.
   name: 'A name is 3–20 letters, digits, _\u00a0or\u00a0-',
   password: 'A password is 8 or more characters',
   rate: 'Too many tries: wait a minute',
+  // Google sign-in (the open sign-up spec §2, §4): it failed, or Pick a
+  // name's pending sign-up is gone.
+  google: "Google sign-in didn't work",
+  expired: 'Google sign-in expired: try again',
 };
 
 // The error, if any, that stops a sign-up being sent: the API would refuse
@@ -239,20 +243,36 @@ export function createAccount({ queue, storage = browserStorage(), fetch = (...a
     await refreshBest();
   }
 
-  // Log in or sign up (`mode`), with what was typed. Resolves to {name} or
+  // What the server offers (GET /api/config): {google}. Asked once; with no
+  // answer, Google is off.
+  let offered = null;
+  function config() {
+    offered ??= call('GET', '/api/config')
+      .then(({ status, body }) => ({ google: status === 200 && body?.google === true }), () => ({ google: false }));
+    return offered;
+  }
+
+  // Log in or sign up (`mode`), with what was typed; or, `name` mode, Pick
+  // a name after Google (POST /api/google/name), where a 401 is the
+  // pending sign-up gone ('expired'), and so is a 404 (Google sign-in
+  // turned off meanwhile). Resolves to {name} or
   // {error} (loginResult()), or {stale: true} if a log out came first.
-  // Once in, the runs go up without waiting.
-  async function enter(mode, { invite = '', name: typed, password }) {
+  // Once in, the runs go up without waiting. A sign-up sends its code
+  // (`invite`) only if one was typed: with none it is an open sign-up (the
+  // open sign-up spec §1). It always sends the honeypot, `website`.
+  async function enter(mode, { invite = '', name: typed, password, website = '' }) {
     const g = ++gen;
-    const data = mode === 'signup' ? { invite: invite.trim(), name: typed.trim(), password } : { name: typed.trim(), password };
+    let data = { name: typed.trim(), password };
+    if (mode === 'signup') data = { ...(invite.trim() ? { invite: invite.trim() } : {}), ...data, website };
     // A log out still under way first: its answer would clear the new
     // session's cookie.
     await loggingOut;
     if (g !== gen) return { stale: true };
     let result;
     try {
-      const { status, body } = await call('POST', mode === 'signup' ? '/api/signup' : '/api/login', data);
-      result = loginResult(status, body);
+      const route = { signup: '/api/signup', name: '/api/google/name' }[mode] ?? '/api/login';
+      const { status, body } = await call('POST', route, mode === 'name' ? { name: typed.trim() } : data);
+      result = mode === 'name' && (status === 401 || status === 404) ? { error: 'expired' } : loginResult(status, body);
     } catch {
       result = { error: 'offline' };
     }
@@ -265,6 +285,12 @@ export function createAccount({ queue, storage = browserStorage(), fetch = (...a
     return result;
   }
   let done = Promise.resolve();
+
+  // Back from Google signed in (?auth=in): a log out still pending is
+  // older than this new session, and sending it would end it.
+  function forgetLogout() {
+    remove(LOGOUT);
+  }
 
   // Log out: signed out here at once, and kept so until the server says
   // the session is over (sent again on the next load if it can't be now).
@@ -467,7 +493,7 @@ export function createAccount({ queue, storage = browserStorage(), fetch = (...a
     get name() { return name; },
     // f(name) after the name changes, or the bests do.
     onChange: f => listeners.add(f),
-    check, enter, logout, keep, keepDaily, flush, bests,
+    check, enter, config, logout, forgetLogout, keep, keepDaily, flush, bests,
     best: n => bests()(n),
     // Settles once the upload and bests that follow a log in are done (tests).
     settled: () => Promise.all([done, sending]),

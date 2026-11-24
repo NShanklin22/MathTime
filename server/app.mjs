@@ -1,10 +1,20 @@
-// The MathTime API (accounts spec §6, runs spec §6): accounts, sessions, runs and best times.
+// The MathTime API (accounts spec §6, runs spec §6, open sign-up spec): accounts, Google sign-in,
+// sessions, runs and best times.
 // createApp returns a node:http request handler; server.mjs listens with it, the tests too.
+import { timingSafeEqual } from 'node:crypto';
 import { hashPassword, verifyPassword, DUMMY_HASH, newToken, hashToken } from './auth.mjs';
 import * as store from './store.mjs';
+import { TOKEN, pkce, authUrl, checkIdToken } from './google.mjs';
 import { SHOWN, NO_CROWD, crowdSize, crowdFor, crowdBetter, crowdTop, compareScores } from './crowd.mjs';
 
 export const COOKIE = 'mt_session';
+// Google sign-in's two short cookies (open sign-up spec §2), both only ever sent to /api/google:
+// the state and PKCE verifier while at Google's consent screen, then the sign-up waiting for a name.
+export const OAUTH_COOKIE = 'mt_oauth';
+export const PENDING_COOKIE = 'mt_pending';
+const OAUTH_AGE = 10 * 60;
+const PENDING_AGE = store.PENDING_LIFE / 1000;
+const TOKEN_TIMEOUT = 10 * 1000;
 export const BODY_LIMIT = 64 * 1024;
 // Two limits, each 10 a minute, in memory. An address is an IPv4 address or an IPv6 /64.
 // - Per address, every log-in and sign-up try: one caller can't guess faster than 10 a minute in all,
@@ -18,7 +28,11 @@ export const RATE_LIMIT = 10;
 // Reading a daily board is cheap and needs no session: a loose limit, per address, only against floods.
 // 300, so a class behind one school address doesn't reach it.
 export const BOARD_RATE_LIMIT = 300;
+// Open sign-up (open sign-up spec §1): an address makes at most 5 accounts an hour. Only accounts made
+// count, so a typo or a taken name costs nothing; tries are still under the 10 a minute above.
+export const SIGNUP_HOUR_LIMIT = 5;
 const RATE_WINDOW = 60 * 1000;
+const HOUR = 60 * 60 * 1000;
 const NAME = /^[A-Za-z0-9_-]{3,20}$/;
 const MIN_PASSWORD = 8;
 const MAX_AGE = store.SESSION_LIFE / 1000;
@@ -31,23 +45,28 @@ class HttpError extends Error {
   }
 }
 
-// Hits per key in the last minute, in memory: a restart forgets them, which is fine at this size.
-function rateLimiter(now) {
+// Hits per key in the last window (a minute unless given), in memory: a restart forgets them, which is
+// fine at this size. A key is kept only while it has hits in the window, so asking about one stores
+// nothing.
+export function rateLimiter(now, window = RATE_WINDOW) {
   const hits = new Map();   // key -> times of the hits in the window, oldest first
   let lastSweep = 0;
   function recent(key) {
     const t = now();
-    if (t - lastSweep > RATE_WINDOW) {
-      for (const [k, times] of hits) if (!times.length || times.at(-1) <= t - RATE_WINDOW) hits.delete(k);
+    if (t - lastSweep > window) {
+      for (const [k, times] of hits) if (!times.length || times.at(-1) <= t - window) hits.delete(k);
       lastSweep = t;
     }
-    const times = (hits.get(key) || []).filter((when) => when > t - RATE_WINDOW);
-    hits.set(key, times);
+    const times = (hits.get(key) || []).filter((when) => when > t - window);
+    if (times.length) hits.set(key, times);
+    else hits.delete(key);
     return times;
   }
   return {
     full: (key, max = RATE_LIMIT) => recent(key).length >= max,
-    hit: (key) => recent(key).push(now()),
+    hit: (key) => hits.set(key, [...recent(key), now()]),
+    // How many keys are kept (tests).
+    size: () => hits.size,
   };
 }
 
@@ -143,8 +162,13 @@ export function dayNumber(date) {
 // trustProxy: take the caller's address from X-Real-IP, which only nginx (or scripts/serve.mjs) sets.
 // Without it, the socket's address, so a caller can't name a new address for each try.
 // addressLimit: tries a minute per address (default RATE_LIMIT); the tests raise it to reach the name limit.
-export function createApp({ db, now = Date.now, cookieSecure = true, trustProxy = false, addressLimit = RATE_LIMIT, crowd = true }) {
+// openSignup: sign-up with no code makes an account; false (OPEN_SIGNUP=0) asks for an invite again.
+// google: { clientId, clientSecret, publicUrl } turns Google sign-in on; fetch reaches its token
+// endpoint (the tests stub it). log: where failures are told, never with a code, token or secret.
+export function createApp({ db, now = Date.now, cookieSecure = true, trustProxy = false, addressLimit = RATE_LIMIT, crowd = true,
+  openSignup = true, google = null, fetch = globalThis.fetch, log = console.error }) {
   const limits = rateLimiter(now);
+  const hourly = rateLimiter(now, HOUR);
 
   // Expired sessions go when the app starts, then once a day, on the first request after.
   let sweptAt = now();
@@ -166,14 +190,33 @@ export function createApp({ db, now = Date.now, cookieSecure = true, trustProxy 
     return attrs.join('; ');
   }
 
-  function readToken(req) {
+  // Google sign-in's cookies: Lax, not Strict, since the first one must come back on the
+  // navigation from Google's consent screen. A null value clears the cookie.
+  function cookieFor(name, value, { path, maxAge }) {
+    const attrs = value === null ? [`${name}=`, 'Max-Age=0'] : [`${name}=${value}`, `Max-Age=${maxAge}`];
+    attrs.push(`Path=${path}`, 'HttpOnly');
+    if (cookieSecure) attrs.push('Secure');
+    attrs.push('SameSite=Lax');
+    return attrs.join('; ');
+  }
+
+  // A response may set more than one cookie (the session, and clearing Google's), so each is added.
+  function addCookie(res, line) {
+    const had = res.getHeader('Set-Cookie');
+    res.setHeader('Set-Cookie', [...(had === undefined ? [] : [].concat(had)), line]);
+  }
+
+  // The named cookie's value when it has the given shape, else null.
+  function readCookie(req, name, shape) {
     for (const part of String(req.headers.cookie || '').split(';')) {
       const [key, ...rest] = part.trim().split('=');
       const value = rest.join('=');
-      if (key === COOKIE && /^[A-Za-z0-9_-]{43}$/.test(value)) return value;
+      if (key === name && shape.test(value)) return value;
     }
     return null;
   }
+  const TOKEN_SHAPE = /^[A-Za-z0-9_-]{43}$/;
+  const readToken = (req) => readCookie(req, COOKIE, TOKEN_SHAPE);
 
   // The signed-in account, renewing the session (and its cookie) at most once a day; else 401.
   function requireUser(req, res) {
@@ -184,7 +227,7 @@ export function createApp({ db, now = Date.now, cookieSecure = true, trustProxy 
     if (!user) throw new HttpError(401, { error: 'session' });
     if (t - session.renewed_at >= store.DAY) {
       store.renewSession(db, session.token_hash, t);
-      res.setHeader('Set-Cookie', cookie(token));
+      addCookie(res, cookie(token));
     }
     return user;
   }
@@ -207,7 +250,7 @@ export function createApp({ db, now = Date.now, cookieSecure = true, trustProxy 
   function startSession(res, userId) {
     const token = newToken();
     store.createSession(db, { tokenHash: hashToken(token), userId, now: now() });
-    res.setHeader('Set-Cookie', cookie(token));
+    addCookie(res, cookie(token));
   }
 
   const callerOf = (req) => addressKey((trustProxy && req.headers['x-real-ip']) || req.socket.remoteAddress);
@@ -221,18 +264,74 @@ export function createApp({ db, now = Date.now, cookieSecure = true, trustProxy 
   // Failed log-ins count against this name from this address only.
   const nameKey = (req, name) => `name:${name.toLowerCase().slice(0, 64)}@${callerOf(req)}`;
 
+  /* ---------- Google sign-in (open sign-up spec §2) ---------- */
+
+  const redirectUri = google && `${google.publicUrl}/api/google/callback`;
+  const oauthCookie = (value) => cookieFor(OAUTH_COOKIE, value, { path: '/api/google', maxAge: OAUTH_AGE });
+  const pendingCookie = (value) => cookieFor(PENDING_COOKIE, value, { path: '/api/google', maxAge: PENDING_AGE });
+  // Every redirect goes to a fixed place: Google's consent screen, or one of these three.
+  const back = (auth) => [302, undefined, { Location: `/?auth=${auth}` }];
+
+  function requireGoogle() {
+    if (!google) throw new HttpError(404, { error: 'not found' });
+  }
+
+  // A failure with a reason fit for the log: a fixed word, never a code, token or secret.
+  class GoogleFailure extends Error {}
+
+  const sameString = (a, b) => {
+    const x = Buffer.from(String(a));
+    const y = Buffer.from(String(b));
+    return x.length === y.length && timingSafeEqual(x, y);
+  };
+
+  // Swaps the code for tokens at Google's token endpoint; gives the account id (sub).
+  async function googleSub(code, verifier) {
+    const body = new URLSearchParams({
+      code, client_id: google.clientId, client_secret: google.clientSecret, redirect_uri: redirectUri,
+      grant_type: 'authorization_code', code_verifier: verifier,
+    });
+    const reply = await fetch(TOKEN, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: String(body),
+      signal: AbortSignal.timeout(TOKEN_TIMEOUT),
+    });
+    if (!reply.ok) throw new GoogleFailure(`token endpoint ${reply.status}`);
+    let tokens;
+    try { tokens = await reply.json(); } catch { throw new GoogleFailure('token reply not JSON'); }
+    if (!tokens || typeof tokens.id_token !== 'string') throw new GoogleFailure('no id token');
+    try {
+      return checkIdToken(tokens.id_token, { clientId: google.clientId, now: now() });
+    } catch (err) {
+      throw new GoogleFailure(`id token ${err.message}`);
+    }
+  }
+
   const routes = {
     'POST /api/signup': async (req, res, body) => {
-      const { invite, name, password } = body ?? {};
+      const { invite, name, password, website } = body ?? {};
       limitAddress(req);
+      // The honeypot: a field people can't see or tab to, so only a bot fills it. It gets the answer a
+      // bad name gets, which tells it nothing.
+      if (website) throw new HttpError(400, { error: 'name' });
       if (typeof name !== 'string' || !NAME.test(name)) throw new HttpError(400, { error: 'name' });
       if (typeof password !== 'string' || [...password].length < MIN_PASSWORD) {
         throw new HttpError(400, { error: 'password' });
       }
+      // No code, or an empty one: an open sign-up, which makes a new account.
+      const open = typeof invite !== 'string' || !invite.trim();
+      if (open && !openSignup) throw new HttpError(403, { error: 'invite' });
+      const hourKey = `signup:${callerOf(req)}`;
       // What the code allows: a new account, or a new password for the account it was made for.
       // Checked before the slow hash, so a wrong code costs nothing, and again in the transaction,
-      // since another request may have used the code meanwhile.
+      // since another request may have used the code (or the name, or the hour's last account) meanwhile.
       const check = () => {
+        if (open) {
+          if (hourly.full(hourKey, SIGNUP_HOUR_LIMIT)) throw new HttpError(429, { error: 'rate' });
+          if (store.findUser(db, name)) throw new HttpError(409, { error: 'taken' });
+          return {};
+        }
         const code = store.usableCode(db, invite, now());
         if (!code) throw new HttpError(403, { error: 'invite' });
         if (code.user_id !== null) {
@@ -248,6 +347,11 @@ export function createApp({ db, now = Date.now, cookieSecure = true, trustProxy 
       const user = store.transaction(db, () => {
         const t = now();
         const { code, target } = check();
+        if (open) {
+          // Counted here, with no wait since the check above, so two at once can't both take the last one.
+          hourly.hit(hourKey);
+          return { id: store.createUser(db, { name, pwHash, now: t }), name };
+        }
         store.useCode(db, code.code, t);
         if (target) {
           store.setPassword(db, target.id, pwHash);   // which also ends its other sessions
@@ -257,6 +361,88 @@ export function createApp({ db, now = Date.now, cookieSecure = true, trustProxy 
       });
       startSession(res, user.id);
       return [201, { name: user.name }];
+    },
+
+    'GET /api/config': async () => [200, { google: !!google }],
+
+    // To Google's consent screen, with a new state and PKCE verifier kept in mt_oauth for 10 minutes.
+    'GET /api/google/start': async (req, res) => {
+      requireGoogle();
+      const state = newToken();
+      const { verifier, challenge } = pkce();
+      addCookie(res, oauthCookie(`${state}.${verifier}`));
+      return [302, undefined, { Location: authUrl({ clientId: google.clientId, redirectUri, state, challenge }) }];
+    },
+
+    // Back from Google: signed in (auth=in), a new account to name (auth=name), or failed (auth=failed).
+    // mt_oauth is cleared whatever happens, so a state works once.
+    'GET /api/google/callback': async (req, res) => {
+      requireGoogle();
+      addCookie(res, oauthCookie(null));
+      try {
+        limitAddress(req);
+        const query = new URL(req.url, 'http://api').searchParams;
+        const [code, state, error] = ['code', 'state', 'error'].map((key) => query.get(key));
+        const kept = readCookie(req, OAUTH_COOKIE, /^[A-Za-z0-9_-]{43}\.[A-Za-z0-9_-]{43}$/);
+        if (error) throw new GoogleFailure('declined at Google');
+        if (!kept) throw new GoogleFailure('no mt_oauth cookie');
+        const [keptState, verifier] = kept.split('.');
+        if (!code || !state || !sameString(state, keptState)) throw new GoogleFailure('state or code missing or wrong');
+        const sub = await googleSub(code, verifier);
+        const user = store.userByIdentity(db, 'google', sub);
+        if (user) {
+          startSession(res, user.id);
+          return back('in');
+        }
+        const token = newToken();
+        const t = now();
+        store.addPending(db, { tokenHash: hashToken(token), provider: 'google', subject: sub, expiresAt: t + store.PENDING_LIFE, now: t });
+        addCookie(res, pendingCookie(token));
+        return back('name');
+      } catch (err) {
+        // The reason only: a fetch error's own message may name hosts, and nothing here may carry
+        // the code, the tokens or the secret.
+        const reason = err instanceof GoogleFailure ? err.message
+          : err instanceof HttpError ? `HTTP ${err.status}` : err.name || 'error';
+        log(`Google sign-in failed: ${reason}`);
+        return back('failed');
+      }
+    },
+
+    // A new Google account's name. Its pending sign-up is checked again in the transaction, since
+    // another tab may have used it (or linked the same Google account) meanwhile. A new account is an
+    // open sign-up: off with OPEN_SIGNUP=0, and one of the address's accounts for the hour, checked and
+    // counted in the transaction as /api/signup's are.
+    'POST /api/google/name': async (req, res, body) => {
+      requireGoogle();
+      const { name } = body ?? {};
+      limitAddress(req);
+      if (typeof name !== 'string' || !NAME.test(name)) throw new HttpError(400, { error: 'name' });
+      const hourKey = `signup:${callerOf(req)}`;
+      const token = readCookie(req, PENDING_COOKIE, TOKEN_SHAPE);
+      const tokenHash = token && hashToken(token);
+      const user = store.transaction(db, () => {
+        const t = now();
+        const pending = tokenHash && store.findPending(db, tokenHash, t);
+        if (!pending) throw new HttpError(401, { error: 'google' });
+        const linked = store.userByIdentity(db, pending.provider, pending.subject);
+        if (linked) {
+          store.deletePending(db, tokenHash);
+          return { ...linked, existing: true };
+        }
+        if (!openSignup) throw new HttpError(403, { error: 'invite' });
+        if (hourly.full(hourKey, SIGNUP_HOUR_LIMIT)) throw new HttpError(429, { error: 'rate' });
+        if (store.findUser(db, name)) throw new HttpError(409, { error: 'taken' });
+        hourly.hit(hourKey);
+        // '!' is no scrypt hash, so no password ever matches it (auth.mjs verifyPassword).
+        const id = store.createUser(db, { name, pwHash: '!', now: t });
+        store.addIdentity(db, { provider: pending.provider, subject: pending.subject, userId: id, now: t });
+        store.deletePending(db, tokenHash);
+        return { id, name };
+      });
+      addCookie(res, pendingCookie(null));
+      startSession(res, user.id);
+      return [user.existing ? 200 : 201, { name: user.name }];
     },
 
     'POST /api/login': async (req, res, body) => {
@@ -277,7 +463,7 @@ export function createApp({ db, now = Date.now, cookieSecure = true, trustProxy 
     'POST /api/logout': async (req, res) => {
       const token = readToken(req);
       if (token) store.deleteSession(db, hashToken(token));
-      res.setHeader('Set-Cookie', cookie(null));
+      addCookie(res, cookie(null));
       return [204];
     },
 
@@ -374,9 +560,9 @@ export function createApp({ db, now = Date.now, cookieSecure = true, trustProxy 
   }
 
   return async function handler(req, res) {
-    let status, body;
+    let status, body, headers;
     try {
-      [status, body] = await handle(req, res);
+      [status, body, headers] = await handle(req, res);
     } catch (err) {
       if (!(err instanceof HttpError)) {
         console.error(err);
@@ -385,10 +571,11 @@ export function createApp({ db, now = Date.now, cookieSecure = true, trustProxy 
       [status, body] = [err.status, err.body];
       if (status === 413) res.setHeader('Connection', 'close');
       if (body.error === 'session' && readToken(req)) {
-        res.setHeader('Set-Cookie', cookie(null));   // a dead session: drop the cookie
+        addCookie(res, cookie(null));   // a dead session: drop the cookie
       }
     }
     res.setHeader('Cache-Control', 'no-store');
+    for (const [key, value] of Object.entries(headers ?? {})) res.setHeader(key, value);
     if (body === undefined) {
       res.writeHead(status).end();
     } else if (typeof body === 'string') {

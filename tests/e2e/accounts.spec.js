@@ -6,7 +6,8 @@ import { formatTime } from '../../src/finish.js';
 // the log-in screen, the cached sign-in and the upload of finished runs.
 // The account itself is in Settings (the home screen spec §4): Log in and
 // Sign up, or "Logged in as sam" and Log out. The API is the fake in
-// fixtures.js: sam / password1, the invite TEST-INVITE.
+// fixtures.js: sam / password1, the invite TEST-INVITE. Sign-up needs no
+// code (the open sign-up spec): "Have a code?" opens the Code field.
 
 const loaded = page => page.waitForFunction(() => !document.documentElement.classList.contains('loading'));
 // Load the game, and go from Home to the level selector.
@@ -35,6 +36,9 @@ async function logOut(page) {
 }
 const field = (page, name) => page.locator(`#f-${name}`);
 const error = page => page.locator('.login .error');
+// Sign up's "Have a code?", and the Code field's "No code".
+const haveCode = page => page.locator('.login .have-code button');
+const noCode = page => page.locator('.login .no-code button');
 const atLogin = page => expect(page.locator('body')).toHaveClass(/\bat-login\b/);
 const atSelect = page => expect(page.locator('body')).toHaveClass(/\bat-select\b/);
 const atHome = page => expect(page.locator('body')).toHaveClass(/\bat-home\b/);
@@ -138,9 +142,15 @@ test.describe('signed out', () => {
     await page.keyboard.press('Enter');
     await expect(field(page, 'pass')).toBeFocused();
     await expect(error(page)).toBeHidden();
-    await page.locator('.login .swap').click();                  // Sign up: the invite comes first
-    await expect(field(page, 'invite')).toBeFocused();
+    await page.locator('.login .swap').click();                  // Sign up: the name kept, the password next
+    await expect(field(page, 'pass')).toBeFocused();
+    await field(page, 'name').fill('');
     await page.keyboard.press('Enter');
+    await expect(field(page, 'name')).toBeFocused();
+    await haveCode(page).click();                                // the code, opened, last
+    await field(page, 'name').fill('alex');
+    await field(page, 'pass').fill('password1');
+    await field(page, 'pass').press('Enter');
     await expect(field(page, 'invite')).toBeFocused();
     expect(api.requests.filter(r => r.method === 'POST')).toHaveLength(0);
   });
@@ -180,6 +190,7 @@ test.describe('signed out', () => {
     await expect(page.locator('#h-name')).toHaveText('3–20 letters, digits, _ -');
     await expect(page.locator('#h-pass')).toHaveText('8 or more characters');
     await expect(field(page, 'pass')).toHaveAttribute('autocomplete', 'new-password');
+    await haveCode(page).click();
     const fill = async (invite, name, password) => {
       await field(page, 'invite').fill(invite);
       await field(page, 'name').fill(name);
@@ -197,7 +208,7 @@ test.describe('signed out', () => {
     expect(api.requests.filter(r => r.path === '/api/signup')).toHaveLength(0);
     // The API's errors.
     await fill('OLD-CODE', 'alex', 'password1');
-    await expect(error(page)).toHaveText("That invite code isn't valid or has been used");
+    await expect(error(page)).toHaveText("That code doesn't work");
     await expect(field(page, 'invite')).toBeFocused();
     await expect(field(page, 'invite')).toHaveValue('OLD-CODE');
     await expect(field(page, 'name')).toHaveValue('alex');
@@ -222,11 +233,11 @@ test.describe('signed out', () => {
     await page.locator('.login .swap').click();
     await expect(error(page)).toBeHidden();
     await expect(field(page, 'invite')).toBeHidden();
-    await page.locator('.login .swap').click();
+    await page.locator('.login .swap').click();                  // the code stays open
     await fill('test-invite', 'Alex_2', 'password1');
     await atHome(page);
     expect(await who(page)).toBe('Alex_2');
-    expect(api.requests.filter(r => r.path === '/api/signup').at(-1).body).toEqual({ invite: 'test-invite', name: 'Alex_2', password: 'password1' });
+    expect(api.requests.filter(r => r.path === '/api/signup').at(-1).body).toEqual({ invite: 'test-invite', name: 'Alex_2', password: 'password1', website: '' });
   });
 
   test('log in errors: too many tries, and the server out of reach', async ({ page, api }) => {
@@ -459,8 +470,9 @@ test.describe('fits', () => {
           const found = [];
           const doc = document.scrollingElement;
           if (doc.scrollHeight > doc.clientHeight || doc.scrollWidth > doc.clientWidth) found.push('the document');
+          // The honeypot is off the screen by design (left:-10000px).
           for (const el of document.querySelectorAll('body *')) {
-            if (!el.getClientRects().length || el.closest('.sr-only')) continue;
+            if (!el.getClientRects().length || el.closest('.sr-only, .hp')) continue;
             const cs = getComputedStyle(el);
             const name = el.id || el.className?.baseVal || el.className || el.tagName;
             if (el.scrollHeight > el.clientHeight + 0.5 && /auto|scroll/.test(cs.overflowY)) found.push(`${name} scrolls`);
@@ -482,11 +494,13 @@ test.describe('fits', () => {
         expect(await overflow(), 'Log in, an error').toEqual([]);
         await page.locator('.login .swap').click();
         expect(await overflow(), 'Sign up').toEqual([]);
+        await haveCode(page).click();
+        expect(await overflow(), 'Sign up, the code open').toEqual([]);
         await field(page, 'invite').fill('OLD-CODE');
         await field(page, 'name').fill('alex');
         await field(page, 'pass').fill('password1');
         await page.keyboard.press('Enter');
-        await expect(error(page)).toHaveText("That invite code isn't valid or has been used");
+        await expect(error(page)).toHaveText("That code doesn't work");
         expect(await overflow(), 'Sign up, an error').toEqual([]);
         await page.keyboard.press('Escape');
         await logInFromSettings(page);
@@ -589,7 +603,8 @@ test('a log out the server never heard sticks: signed out on the next load, sent
   const again = api.requests.length;
   await page.reload();
   await loaded(page);
-  await expect.poll(() => api.requests.slice(again).map(r => r.path)).toEqual(['/api/logout', '/api/me']);
+  // Google's /api/config aside.
+  await expect.poll(() => api.requests.slice(again).map(r => r.path).filter(p => p !== '/api/config')).toEqual(['/api/logout', '/api/me']);
   expect(api.session).toBeNull();
   expect(await page.evaluate(() => localStorage.getItem('mathtime.logoutPending'))).toBeNull();
   expect(await who(page)).toBeNull();
@@ -631,13 +646,111 @@ test.describe('the log-in screen', () => {
     await field(page, 'name').press('Backspace');         // the name, edited
     await expect(error(page)).toBeHidden();
     await page.locator('.login .swap').click();
+    await haveCode(page).click();
     await field(page, 'invite').fill('OLD');
     await field(page, 'name').fill('alex');
     await field(page, 'pass').fill('password1');
     await page.keyboard.press('Enter');
-    await expect(error(page)).toHaveText("That invite code isn't valid or has been used");
-    await field(page, 'invite').type('X');                 // the invite code, edited
+    await expect(error(page)).toHaveText("That code doesn't work");
+    await field(page, 'invite').type('X');                 // the code, edited
     await expect(error(page)).toBeHidden();
+  });
+});
+
+// Open sign-up (2026-11-23-open-signup-design.md §1): Sign up is Name and
+// Password; a code (an invite or a reset) is behind "Have a code?".
+test.describe('open sign-up', () => {
+  test.use({ account: null });
+  async function toSignUp(page) {
+    await home(page);
+    await openLogIn(page);
+    await page.locator('.login .swap').click();
+    await expect(page.locator('#login-title')).toHaveText('Sign up');
+  }
+  const signups = api => api.requests.filter(r => r.path === '/api/signup');
+
+  test('Log in reads "New here? Sign up"; Sign up is Name and Password, the code shut', async ({ page }) => {
+    await home(page);
+    await openLogIn(page);
+    await expect(page.locator('.login .switch')).toHaveText('New here? Sign up');
+    await expect(haveCode(page)).toBeHidden();
+    await page.locator('.login .swap').click();
+    await expect(field(page, 'name')).toBeVisible();
+    await expect(field(page, 'pass')).toBeVisible();
+    await expect(field(page, 'invite')).toBeHidden();
+    await expect(field(page, 'name')).toBeFocused();
+    await expect(haveCode(page)).toHaveText('Have a code?');
+    await expect(haveCode(page)).toBeVisible();
+  });
+
+  test('a sign-up with no code sends no invite, and is in', async ({ page, api }) => {
+    await toSignUp(page);
+    await field(page, 'name').fill('alex');
+    await field(page, 'pass').fill('password1');
+    await page.keyboard.press('Enter');
+    await atHome(page);
+    expect(await who(page)).toBe('alex');
+    await expect(page.locator('#status')).toHaveText('Signed in as alex');
+    expect(signups(api).map(r => r.body)).toEqual([{ name: 'alex', password: 'password1', website: '' }]);
+  });
+
+  test('"Have a code?" opens Code, focused, under Password; "No code" shuts it', async ({ page, api }) => {
+    await toSignUp(page);
+    await field(page, 'name').fill('alex');
+    await haveCode(page).click();
+    await expect(field(page, 'invite')).toBeVisible();
+    await expect(field(page, 'invite')).toBeFocused();
+    await expect(page.locator('label[for="f-invite"]')).toHaveText('Code');
+    await expect(haveCode(page)).toBeHidden();
+    const y = id => page.locator(`#f-${id}`).evaluate(n => n.getBoundingClientRect().top);
+    expect(await y('invite')).toBeGreaterThan(await y('pass'));
+    // Shut, its value goes, and "Have a code?" has the focus.
+    await field(page, 'invite').fill('TEST-INVITE');
+    await noCode(page).click();
+    await expect(field(page, 'invite')).toBeHidden();
+    await expect(haveCode(page)).toBeFocused();
+    await haveCode(page).click();
+    await expect(field(page, 'invite')).toHaveValue('');
+    // A sign-up with the code open sends it.
+    await field(page, 'invite').fill('TEST-INVITE');
+    await field(page, 'pass').fill('password1');
+    await field(page, 'pass').press('Enter');
+    await atHome(page);
+    expect(signups(api).at(-1).body).toEqual({ invite: 'TEST-INVITE', name: 'alex', password: 'password1', website: '' });
+  });
+
+  test('a code left blank counts as none', async ({ page, api }) => {
+    await toSignUp(page);
+    await haveCode(page).click();
+    await field(page, 'invite').fill('   ');
+    await field(page, 'name').fill('alex');
+    await field(page, 'pass').fill('password1');
+    await field(page, 'pass').press('Enter');
+    await atHome(page);
+    expect(signups(api).at(-1).body).toEqual({ name: 'alex', password: 'password1', website: '' });
+  });
+
+  test('each visit starts with the code shut', async ({ page }) => {
+    await toSignUp(page);
+    await haveCode(page).click();
+    await page.keyboard.press('Escape');
+    await page.locator('.settings .signup').click();
+    await atLogin(page);
+    await expect(field(page, 'invite')).toBeHidden();
+    await expect(haveCode(page)).toBeVisible();
+  });
+
+  test('the honeypot is off the screen, and Tab never reaches it', async ({ page }) => {
+    await toSignUp(page);
+    const hp = page.locator('.login input[name="website"]');
+    await expect(hp).toHaveAttribute('tabindex', '-1');
+    expect(await hp.evaluate(n => n.getBoundingClientRect().right < 0 && getComputedStyle(n).display !== 'none')).toBe(true);
+    const seen = [];
+    for (let i = 0; i < 12; i++) {
+      await page.keyboard.press('Tab');
+      seen.push(await page.evaluate(() => document.activeElement?.name ?? ''));
+    }
+    expect(seen).not.toContain('website');
   });
 });
 
@@ -692,7 +805,6 @@ test.describe('at 320×640', () => {
     await home(page);
     await openLogIn(page);
     await page.locator('.login .swap').click();
-    await field(page, 'invite').fill('TEST-INVITE');
     await field(page, 'name').fill('al');
     await field(page, 'pass').fill('password1');
     await page.keyboard.press('Enter');

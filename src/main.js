@@ -82,8 +82,10 @@ const queue = createQueue();
 const account = createAccount({ queue });
 const finish = createFinish(dom.finish, scan, { again: () => play(game.level), levels: toSelector });
 // Its breadcrumb is "Settings › Log in" (where you came from), or
-// "› Sign up" in that mode.
+// "› Sign up" in that mode; Pick a name's, "Home › Pick a name".
 const login = createLogin(dom.login, scan, { enter: account.enter, done: loggedIn, onMode: word => { dom.here.textContent = word; } });
+// Continue with Google, if the server offers it (the open sign-up spec §2).
+account.config().then(({ google }) => login.offerGoogle(google));
 // The daily challenge (daily spec): the day's try and board as this
 // browser keeps them, and the board.
 const days = createDailyStore();
@@ -228,7 +230,16 @@ let asked = 0;                       // boards asked for: an answer to an earlie
 endCutOff().then(() => cutOffGone()).catch(err => console.error(err));
 showAccount();
 account.onChange(showAccount);
-account.check().catch(err => console.error(err)).then(() => refreshDaily());
+// Back from Google (the open sign-up spec §2, step 5): ?auth= says how it
+// went, and is taken off the URL at once. `in`: signed in, as /api/me
+// will say, on Home; `name`: Pick a name; `failed`: Log in, with the error.
+const auth = new URLSearchParams(location.search).get('auth');
+if (auth) history.replaceState(null, '', location.pathname + location.hash);
+if (auth === 'in') account.forgetLogout();
+account.check().catch(err => console.error(err)).then(name => {
+  if (auth === 'in' && name && on('at-home')) dom.status.textContent = `Signed in as ${name}`;
+  refreshDaily();
+});
 
 // A row of the selector: a locked one opens log in, and once in, the level
 // starts (spec §3).
@@ -990,6 +1001,14 @@ function watchPixelRatio() {
     watchPixelRatio();               // re-arm for the new ratio
     remeasure();
   }, { once: true });
+}
+
+// Pick a name, or Log in with Google's error, opened here, once all the
+// screen's parts are set up (?auth=, above).
+if (auth === 'name') openLogin({ home: true }, 'name');
+if (auth === 'failed') {
+  openLogin({ home: true });
+  login.googleFailed();
 }
 
 fontsReady().then(() => {

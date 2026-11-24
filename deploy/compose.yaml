@@ -21,6 +21,10 @@ services:
       PORT: "3006"
       DB_PATH: /data/mathtime.db
       TRUST_PROXY: "1"   # nginx's X-Real-IP is the caller's address, for the log-in rate limits
+    # Also OPEN_SIGNUP=0, if wanted. Without the file, Google sign-in is off. path/required need Compose 2.24+.
+    env_file:
+      - path: secrets.env   # GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, PUBLIC_URL (deploy/README.md); not in git
+        required: false
     ports:
       - "127.0.0.1:3006:3006"
     volumes:

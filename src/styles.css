@@ -777,7 +777,8 @@ body.at-login .login {
 }
 .login .submit .line { position: relative; left: var(--ink-dx, 0px); display: block; text-box: trim-both cap alphabetic; }
 .login .submit:active { background: var(--go-press); }
-.login .submit:focus-visible { outline: 2px solid var(--ink); outline-offset: 4px; }
+/* Its focus ring inside it, so the column's edges stay true. */
+.login .submit:focus-visible { outline: 2px solid var(--bg); outline-offset: -6px; }
 /* The error, in words, under the button: the strike's warm red (4.6:1). */
 .login .error { margin: calc(16 * var(--u)) 0 0; font-size: calc(14 * var(--u)); line-height: 1.5; color: var(--redline); text-wrap: pretty; }
 .login .error:empty { display: none; }
@@ -803,6 +804,89 @@ body.at-login .login {
 .login .swap::after { content: ""; position: absolute; inset: -15px -8px; }
 @media (hover: hover) { .login .swap:hover { text-decoration-color: currentColor; } }
 .login .swap:focus-visible { outline: 2px solid var(--ink); outline-offset: 4px; }
+/* Have a code? (the open sign-up spec §1, its mockup): the quiet link,
+   right under Password, where the Code field opens. Muted, the way back's
+   faint underline. */
+.login .have-code { display: block; margin: calc(-6 * var(--u)) 0 0; font-size: calc(14 * var(--u)); font-weight: 500; letter-spacing: 0.02em; white-space: nowrap; text-box: trim-both cap alphabetic; }
+.login .have-code button, .login .no-code button {
+  position: relative;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  letter-spacing: inherit;
+  color: var(--muted);
+  text-decoration: underline;
+  text-decoration-color: var(--faint);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 4px;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.login .have-code button::after, .login .no-code button::after { content: ""; position: absolute; inset: -15px -8px; }
+@media (hover: hover) { .login .have-code button:hover, .login .no-code button:hover { color: var(--ink); text-decoration-color: currentColor; } }
+.login .have-code button:focus-visible, .login .no-code button:focus-visible { outline: 2px solid var(--ink); outline-offset: 4px; }
+/* No code: in the Code label row, where the hints sit. */
+.login .no-code { font-weight: 500; }
+.login form:not(.code-open) .code-field, .login form.code-open .have-code { display: none !important; }
+/* With a code (an invite or a reset), the account is a password one: the
+   Google way goes until "No code". */
+.login form.signup.code-open .or, .login form.signup.code-open .google, .login form.signup.code-open .g-error { display: none !important; }
+/* or (the open sign-up spec §2): a 1px rule each side in the line colour,
+   the word muted; the same gap above and below it in every state. */
+.login { --or-gap: calc(24 * var(--u)); }
+.login .or {
+  display: flex;
+  align-items: center;
+  gap: calc(14 * var(--u));
+  margin: var(--or-gap) 0 0;
+  font-size: calc(14 * var(--u));
+  letter-spacing: 0.02em;
+  color: var(--muted);
+}
+.login .or::before, .login .or::after { content: ""; flex: 1; height: 1px; background: var(--faint); }
+.login .or span { display: block; text-box: trim-both ex alphabetic; }
+/* Continue with Google: the app's outline, the fields' ring, as tall as
+   the button above; a plain G in the text colour, the G and the words
+   centred as one group. */
+.login .google {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: calc(60 * var(--u));
+  margin-top: var(--or-gap);
+  background: transparent;
+  box-shadow: var(--key-ring);
+  color: var(--ink);
+  text-decoration: none;
+  font: 600 calc(18 * var(--u))/1 var(--font);
+  letter-spacing: 0.02em;
+  touch-action: manipulation;
+}
+.login .google .in { display: inline-flex; align-items: center; gap: 0.6em; }
+.login .google svg { width: 1em; height: 1em; fill: currentColor; flex: none; }
+.login .google .line { display: block; text-box: trim-both cap alphabetic; margin-right: -0.02em; }
+.login .google:active { background: rgba(238, 245, 255, 0.1); }
+/* Focused, its ring becomes solid white, 2px, in place, as a field's does
+   (the UI review: a ring inside the ring read as a heavy double one). */
+.login .google:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--ink); }
+/* Google's error: under its own button, in the error's red. */
+.login .g-error { display: block; text-box: trim-both cap alphabetic; letter-spacing: 0.02em; margin: calc(16 * var(--u)) 0 0; font-size: calc(14 * var(--u)); line-height: 1.5; color: var(--redline); text-wrap: pretty; }
+.login .g-error:empty { display: none; }
+/* Pick a name: a line on why, then the Name field only. Its sign-up gone
+   (expired), Continue with Google alone, to start again, the line above
+   saying why: no field, no Continue, no "or" and no red error. */
+.login .lede { display: none; }
+.login.name-mode .lede { display: block; margin: 0 0 calc(32 * var(--u)); font-size: calc(15 * var(--u)); line-height: 1.5; letter-spacing: 0.02em; color: var(--muted); text-wrap: pretty; }
+.login.name-mode .s-title { margin-bottom: calc(22 * var(--u)); }
+.login form.name-mode .pw-field, .login form.name-mode .or, .login form.name-mode:not(.expired) .google, .login form.name-mode:not(.expired) .g-error,
+.login form.name-mode .switch, .login form.name-mode .have-code, .login form.name-mode .code-field,
+.login form.name-mode.expired .fields, .login form.name-mode.expired .submit, .login form.name-mode.expired .error { display: none !important; }
+.login form.name-mode.expired .google { margin-top: 0; }
+/* The honeypot: off the screen, never display:none (bots skip those). */
+.login .hp { position: absolute; left: -10000px; top: 0; width: 1px; height: 1px; overflow: hidden; }
 
 /* Wide: Home's wide column. */
 @media (min-width: 900px) {
@@ -810,6 +894,10 @@ body.at-login .login {
   .login label, .login .hint { font-size: calc(15 * var(--u)); }
   .login input { height: calc(56 * var(--u)); font-size: calc(19 * var(--u)); }
   .login .submit { height: calc(64 * var(--u)); font-size: calc(19 * var(--u)); }
+  .login .have-code { font-size: calc(15 * var(--u)); }
+  .login .google { height: calc(64 * var(--u)); font-size: calc(19 * var(--u)); }
+  .login .or { font-size: calc(15 * var(--u)); }
+  .login.name-mode .lede { font-size: calc(16 * var(--u)); }
 }
 
 /* Held sideways: the same one column, Home's sideways column, tighter,
@@ -825,6 +913,18 @@ body.at-login .login {
   .login .error { margin-top: calc(8 * var(--u)); line-height: 1.3; }
   .login .switch { margin-top: calc(12 * var(--u)); font-size: calc(13 * var(--u)); }
   .login .swap { font-size: calc(13 * var(--u)); }
+  .login { --or-gap: calc(12 * var(--u)); }
+  .login .have-code { margin-top: calc(-1 * var(--u)); font-size: calc(13 * var(--u)); }
+  .login .or { font-size: calc(13 * var(--u)); }
+  .login .google { height: calc(40 * var(--u)); font-size: calc(16 * var(--u)); }
+  .login .g-error { margin-top: calc(8 * var(--u)); line-height: 1.3; font-size: calc(13 * var(--u)); }
+  .login form.signup .switch { margin-top: calc(10 * var(--u)); }
+  .login.name-mode .s-title { margin-bottom: calc(10 * var(--u)); }
+  .login.name-mode .lede { margin-bottom: calc(18 * var(--u)); font-size: calc(13 * var(--u)); }
+  /* Room under "Have a code?" before the button, and under Google's error
+     before the other link (the UI review, 844×390). */
+  .login form.signup:not(.code-open, .name-mode) .submit { margin-top: calc(18 * var(--u)); }
+  .login .g-error:not(:empty) + .switch { margin-top: calc(18 * var(--u)); }
 }
 
 /* ---------- The home screen (2026-11-17-home-screen-design.md, the home mockup) ---------- */
@@ -916,6 +1016,11 @@ body.at-settings .settings, body.at-progress .progress, body.at-daily .dboard { 
 .home .gear svg path, .home .gear svg circle { fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
 @media (hover: hover) { .home .gear:hover { color: var(--ink); } }
 .home :is(.gear, .hero, .btn, .links a):focus-visible { outline: 2px solid var(--ink); outline-offset: 4px; }
+/* The daily card fills the column, so its ring goes inside it, hugging
+   its 2px frame: outside, it ran 6px past the column, and further in it
+   crowded the card's content (the UI reviews). "button" outweighs the
+   :is() above. */
+.home button.hero:focus-visible { outline-offset: -4px; }
 
 /* The hero: the one box with a 2px ink frame. "Daily challenge" and the
    date across the top; under them, Start, filled, the frame's width.

@@ -6,6 +6,8 @@ the selector's header. The details below are the recommended defaults. This repl
 per-device key: an account is what lets the API store runs (2026-11-01-runs-design.md §5–§6).
 
 ## 1. Who and how
+- **Since 2026-11-23** sign-up is open (a name and password, or Google), and an invite is optional:
+  docs/superpowers/specs/2026-11-23-open-signup-design.md. The rest of this section is as first decided.
 - **Invite only.** You sign up with an invite code, a name and a password. Codes are made on
   mainframe (`docker compose exec api node cli.mjs invite`). Each code works once and lasts 14 days.
 - **Name:** 3–20 letters, digits, `_` or `-`. Case-insensitive, so `Sam` and `sam` are the same player,

@@ -230,8 +230,8 @@ test.describe('Settings', () => {
       await page.locator('.settings .signup').click();
       await at(page, 'login');
       expect(await crumbs(page)).toBe('Settings › Sign up');
-      await expect(page.locator('#f-invite')).toBeVisible();
-      await expect(page.locator('#f-invite')).toBeFocused();
+      await expect(page.locator('#f-invite')).toBeHidden();
+      await expect(page.locator('#f-name')).toBeFocused();
     });
   });
 });

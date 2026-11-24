@@ -4,3 +4,4 @@ playwright-report/
 /data/
 server/data/
 deploy/.env
+deploy/secrets.env
