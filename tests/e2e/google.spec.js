@@ -122,10 +122,17 @@ async function expectExpired(page) {
   await expect(google(page)).toBeFocused();
   // Named for what happened, in the title and the breadcrumb; the line
   // under the title says it once, with no red error repeating it.
-  await expect(page.locator('#login-title')).toHaveText('Sign-in timed out');
+  await expect(page.locator('#login-title')).toHaveText('Timed out');
   await expect(page.locator('.crumbs .back')).toHaveText('Home');
-  await expect(page.locator('.crumbs .here')).toHaveText('Sign-in timed out');
-  await expect(page.locator('.login .lede')).toHaveText('Your sign-in timed out. Start again with Google.');
+  await expect(page.locator('.crumbs .here')).toHaveText('Timed out');
+  const title = await page.locator('#login-title').evaluate(n => {
+    const range = document.createRange();
+    range.selectNodeContents(n);
+    return { lines: new Set([...range.getClientRects()].map(r => Math.round(r.top))).size, right: n.getBoundingClientRect().left + range.getBoundingClientRect().width, column: document.querySelector('.login .google').getBoundingClientRect().right };
+  });
+  expect(title.lines, 'the title on one line').toBe(1);
+  expect(title.right, 'inside the column').toBeLessThanOrEqual(title.column);
+  await expect(page.locator('.login .lede')).toHaveText('Start again with Google.');
   for (const gone of ['#f-name', '#h-name', '.login .submit', '.login .or', '.login .error', '.login .g-error']) {
     await expect(page.locator(gone), gone).toBeHidden();
   }

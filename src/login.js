@@ -26,7 +26,7 @@ export function createLogin(root, scan, { enter, done, onMode = () => {} }) {
   const stand = (sel, tag) => $(sel) ?? document.createElement(tag);
   const google = stand('.google', 'a'), gErr = stand('.g-error', 'p'), or = stand('.or', 'p'), lede = stand('.lede', 'p');
   // Pick a name's line, and the one once its sign-up has expired.
-  const LEDE = lede.textContent, EXPIRED = 'Your sign-in timed out. Start again with Google.', TIMED_OUT = 'Sign-in timed out';
+  const LEDE = lede.textContent, EXPIRED = 'Start again with Google.', TIMED_OUT = 'Timed out';
   const f = { invite: $('#f-invite'), name: $('#f-name'), pass: $('#f-pass'), website: $('input[name="website"]') };
   // Optional: the older mockups (docs/superpowers/specs) run this on their
   // own copies of the screen, from before open sign-up.
