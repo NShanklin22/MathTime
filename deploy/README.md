@@ -37,7 +37,7 @@ the database.
    ~/apps/mathtime/deploy/deploy.sh
    ```
 
-6. **Make your own account.** Make an invite (below), then on the game: Log in › Have an invite? Sign up.
+6. **Make your own account.** On the game: Log in › New here? Sign up.
 
 7. **Play it on a phone over cellular** (Wi-Fi off) at https://math.nshanklin.com/.
 
@@ -47,7 +47,8 @@ For another name, change `server_name` in `nginx.conf` and `SITE_HOST` in `deplo
 
 Already deployed before accounts? `/etc/nginx/sites-available/mathtime` there has certbot's TLS lines, so
 don't copy `nginx.conf` over it. Paste its `location /api/ { ... }` block into the `server` block that
-has `listen 443`, next to `location /`, then:
+has `listen 443`, next to `location /`. For Google sign-in, paste its `location = /api/google/callback`
+block there too (it keeps sign-in codes out of the access log). Then:
 
 ```bash
 sudo nginx -t && sudo systemctl reload nginx
@@ -90,7 +91,9 @@ To go back to a copy: `docker compose stop api` in `deploy/`, copy it over `math
 
 ## Invites and passwords
 
-Sign-up is by invite only, and there is no email: both are done on mainframe, from
+Anyone can sign up with a name and a password, or with Google (below). Invites are optional now: they
+matter only when open sign-up is off (`OPEN_SIGNUP=0`). There is no email, so invites and password
+resets are both done on mainframe, from
 `~/apps/mathtime/deploy`.
 
 **An invite.** Prints a code like `MATH-7KQ2-XW4P`. It makes one account, and lasts 14 days.
