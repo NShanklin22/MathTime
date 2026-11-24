@@ -45,6 +45,10 @@ export const ERRORS = {
   name: 'A name is 3–20 letters, digits, _\u00a0or\u00a0-',
   password: 'A password is 8 or more characters',
   rate: 'Too many tries: wait a minute',
+  // Google sign-in (the open sign-up spec §2, §4): it failed, or Pick a
+  // name's pending sign-up is gone.
+  google: "Google sign-in didn't work",
+  expired: 'Google sign-in expired: try again',
 };
 
 // The error, if any, that stops a sign-up being sent: the API would refuse
@@ -239,7 +243,18 @@ export function createAccount({ queue, storage = browserStorage(), fetch = (...a
     await refreshBest();
   }
 
-  // Log in or sign up (`mode`), with what was typed. Resolves to {name} or
+  // What the server offers (GET /api/config): {google}. Asked once; with no
+  // answer, Google is off.
+  let offered = null;
+  function config() {
+    offered ??= call('GET', '/api/config')
+      .then(({ status, body }) => ({ google: status === 200 && body?.google === true }), () => ({ google: false }));
+    return offered;
+  }
+
+  // Log in or sign up (`mode`), with what was typed; or, `name` mode, Pick
+  // a name after Google (POST /api/google/name), where a 401 is the
+  // pending sign-up gone ('expired'). Resolves to {name} or
   // {error} (loginResult()), or {stale: true} if a log out came first.
   // Once in, the runs go up without waiting. A sign-up sends its code
   // (`invite`) only if one was typed: with none it is an open sign-up (the
@@ -254,8 +269,9 @@ export function createAccount({ queue, storage = browserStorage(), fetch = (...a
     if (g !== gen) return { stale: true };
     let result;
     try {
-      const { status, body } = await call('POST', mode === 'signup' ? '/api/signup' : '/api/login', data);
-      result = loginResult(status, body);
+      const route = { signup: '/api/signup', name: '/api/google/name' }[mode] ?? '/api/login';
+      const { status, body } = await call('POST', route, mode === 'name' ? { name: typed.trim() } : data);
+      result = mode === 'name' && status === 401 ? { error: 'expired' } : loginResult(status, body);
     } catch {
       result = { error: 'offline' };
     }
@@ -470,7 +486,7 @@ export function createAccount({ queue, storage = browserStorage(), fetch = (...a
     get name() { return name; },
     // f(name) after the name changes, or the bests do.
     onChange: f => listeners.add(f),
-    check, enter, logout, keep, keepDaily, flush, bests,
+    check, enter, config, logout, keep, keepDaily, flush, bests,
     best: n => bests()(n),
     // Settles once the upload and bests that follow a log in are done (tests).
     settled: () => Promise.all([done, sending]),

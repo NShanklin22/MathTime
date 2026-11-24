@@ -1,9 +1,10 @@
 import { snap, onLayoutGrid } from './ink.js';
-import { ERRORS, checkSignup } from './account.js';
+import { ERRORS, NAME, checkSignup } from './account.js';
 
 // The log-in screen (accounts spec §3), as the accounts mockup (2026-11-09)
-// draws it. It opens from Settings (the home screen spec §4), a locked
-// level, or the daily challenge's board.
+// draws it, with open sign-up and Google (the open sign-up mockup,
+// 2026-11-23). It opens from Settings (the home screen spec §4), a locked
+// level, or the daily challenge's board; Pick a name, after Google.
 
 // A text element's font as the scanner wants it, and its text.
 function textOf(node) {
@@ -15,11 +16,15 @@ function textOf(node) {
 // ---------- The log-in screen (spec §3) ----------
 // In `root` (index.html). `enter(mode, typed)` logs in or signs up and
 // resolves to {name} or {error} (account.js); `done(name)` is called once in.
-// `onMode(word)` hears the mode by its name, "Log in" or "Sign up", for the
-// breadcrumb.
+// `onMode(word)` hears the mode by its name, "Log in", "Sign up" or "Pick a
+// name", for the breadcrumb. The modes: 'login', 'signup', and 'name',
+// Pick a name, the Name field only.
 export function createLogin(root, scan, { enter, done, onMode = () => {} }) {
   const $ = sel => root.querySelector(sel);
   const form = $('form'), err = $('.error'), title = $('#login-title');
+  // Not in the older mockups' copies of the screen: stand-ins, never shown.
+  const stand = (sel, tag) => $(sel) ?? document.createElement(tag);
+  const google = stand('.google', 'a'), gErr = stand('.g-error', 'p'), or = stand('.or', 'p');
   const f = { invite: $('#f-invite'), name: $('#f-name'), pass: $('#f-pass'), website: $('input[name="website"]') };
   // Optional: the older mockups (docs/superpowers/specs) run this on their
   // own copies of the screen, from before open sign-up.
@@ -33,20 +38,24 @@ export function createLogin(root, scan, { enter, done, onMode = () => {} }) {
 
   function setMode(next) {
     mode = next;
-    const up = mode === 'signup';
+    // Pick a name is Sign up's Name field, with its hint, and nothing else.
+    const up = mode !== 'login', naming = mode === 'name';
     form.classList.toggle('signup', up);
+    form.classList.toggle('name-mode', naming);
+    root.classList.toggle('name-mode', naming);
+    form.classList.remove('expired');
     for (const node of form.querySelectorAll('[data-for="signup"]')) node.hidden = !up;
     f.pass.autocomplete = up ? 'new-password' : 'current-password';
     f.name.setAttribute('aria-describedby', up ? 'h-name f-error' : 'f-error');
     f.pass.setAttribute('aria-describedby', up ? 'h-pass f-error' : 'f-error');
-    const word = up ? 'Sign up' : 'Log in';
-    form.querySelector('.submit .line').textContent = word;
+    const word = naming ? 'Pick a name' : up ? 'Sign up' : 'Log in';
+    form.querySelector('.submit .line').textContent = naming ? 'Continue' : word;
     title.textContent = word;
     onMode(word);
     form.querySelector('.ask').textContent = up ? 'Have an account?' : 'New here?';
     form.querySelector('.swap').textContent = up ? 'Log in' : 'Sign up';
     f.pass.value = '';
-    err.textContent = '';
+    err.textContent = gErr.textContent = '';
   }
   form.querySelector('.swap').addEventListener('click', () => {
     setMode(mode === 'login' ? 'signup' : 'login');
@@ -55,7 +64,7 @@ export function createLogin(root, scan, { enter, done, onMode = () => {} }) {
   });
 
   // The fields shown, in order: Code, opened, is under Password.
-  const shown = () => mode === 'signup' && codeOpen ? [f.name, f.pass, f.invite] : [f.name, f.pass];
+  const shown = () => mode === 'name' ? [f.name] : mode === 'signup' && codeOpen ? [f.name, f.pass, f.invite] : [f.name, f.pass];
   const firstEmpty = () => shown().find(i => !i.value);
 
   // Have a code?: the Code field shows, under Password, with the focus,
@@ -79,8 +88,8 @@ export function createLogin(root, scan, { enter, done, onMode = () => {} }) {
     haveCode.focus();
   });
 
-  // Open it afresh, in `next` mode (Log in, or Sign up from Settings), the
-  // focus in its first field.
+  // Open it afresh, in `next` mode (Log in, or Sign up from Settings, or
+  // Pick a name), the focus in its first field.
   function open(next = 'login') {
     visit++;
     busy = false;
@@ -101,7 +110,7 @@ export function createLogin(root, scan, { enter, done, onMode = () => {} }) {
     const empty = firstEmpty();
     if (empty) return empty.focus();
     const typed = { invite: codeOpen ? f.invite.value : '', name: f.name.value, password: f.pass.value, website: f.website?.value ?? '' };
-    let error = mode === 'signup' ? checkSignup(typed) : null;
+    let error = mode === 'signup' ? checkSignup(typed) : mode === 'name' && !NAME.test(typed.name.trim()) ? 'name' : null;
     if (!error) {
       const mine = visit;
       busy = true;
@@ -120,12 +129,27 @@ export function createLogin(root, scan, { enter, done, onMode = () => {} }) {
     showError(error);
   });
 
-  // The error goes as soon as any field is edited.
+  // The error goes as soon as any field is edited, and Google's too.
   form.addEventListener('input', () => {
-    if (!err.textContent) return;
-    err.textContent = '';
+    if (!err.textContent && !gErr.textContent) return;
+    err.textContent = gErr.textContent = '';
     place();
   });
+
+  // Google's way (the open sign-up spec §2), once /api/config has said it
+  // is on: "or", then the button.
+  function offerGoogle(on) {
+    google.hidden = or.hidden = !on;
+    place();
+  }
+
+  // Back from Google with it failed: its error under its button, and
+  // nothing focused, so no ring shows on the screen.
+  function googleFailed() {
+    gErr.textContent = ERRORS.google;
+    document.activeElement?.blur();
+    place();
+  }
 
   // The error under the button; what was typed stays, but the password
   // (unless it was the server not answering, or the name that was wrong),
@@ -133,7 +157,9 @@ export function createLogin(root, scan, { enter, done, onMode = () => {} }) {
   function showError(code) {
     if (code === 'invite' && !codeOpen) setCode(true);    // a code is wanted after all
     err.textContent = ERRORS[code];
-    const fix = { mismatch: f.pass, invite: f.invite, taken: f.name, name: f.name, password: f.pass }[code];
+    // Pick a name's sign-up gone: Google again, under the error.
+    form.classList.toggle('expired', code === 'expired');
+    const fix = { mismatch: f.pass, invite: f.invite, taken: f.name, name: f.name, password: f.pass, expired: google }[code];
     if (!['offline', 'rate', 'name'].includes(code)) f.pass.value = '';
     place();
     if (fix) fix.focus();
@@ -141,9 +167,9 @@ export function createLogin(root, scan, { enter, done, onMode = () => {} }) {
   }
 
   // ---------- On its ink ----------
-  // Labels, hints, the error, "Have a code?" and the other link start
-  // their ink at the field's edge (or end it there, the hints, "No code"
-  // among them); the button's word is centred on its ink.
+  // Labels, hints, the errors, "Have a code?", Pick a name's line and the
+  // other link start their ink at the field's edge (or end it there, the
+  // hints, "No code" among them); the button's word is centred on its ink.
   function inkLeft(node) {
     const dpr = devicePixelRatio;
     node.style.marginLeft = '';
@@ -176,11 +202,20 @@ export function createLogin(root, scan, { enter, done, onMode = () => {} }) {
   function place() {
     if (!ready || !root.getClientRects().length) return;
     const visible = n => n.getClientRects().length > 0;
-    for (const node of form.querySelectorAll('label, .error, .switch, .have-code')) if (visible(node)) inkLeft(node);
+    for (const node of root.querySelectorAll('label, .error, .switch, .have-code, .g-error, .lede')) if (visible(node)) inkLeft(node);
     for (const node of form.querySelectorAll('.hint')) if (visible(node)) inkRight(node);
     centreInk(form.querySelector('.submit .line'));
   }
 
   // Esc and the way back go back without logging in (main.js).
-  return { open, place, start() { ready = true; place(); } };
+  // Opened before the page was ready (Pick a name, from ?auth=), the focus
+  // goes in once it is, unless Google's error is shown.
+  return {
+    open, place, offerGoogle, googleFailed,
+    start() {
+      ready = true;
+      place();
+      if (root.getClientRects().length && document.activeElement === document.body && !gErr.textContent) firstEmpty()?.focus();
+    },
+  };
 }

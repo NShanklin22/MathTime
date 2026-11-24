@@ -43,6 +43,8 @@ export function fakeApi({ signedIn = null } = {}) {
     users: new Map([['sam', { name: 'sam', password: 'password1' }]]),
     invites: new Set(['TEST-INVITE']),
     openSignup: true,
+    google: false,                           // what /api/config says
+    pending: null,                           // a Google sign-up waiting for its name: its sub
     session: signedIn,
     stored: new Map(),                       // account name → Map(id → record), the runs stored
     daily: new Map(),                        // date → [{name, totalMs, reached, id}], in the order stored
@@ -102,6 +104,18 @@ export function fakeApi({ signedIn = null } = {}) {
       if (api.users.has(name.toLowerCase())) return json(409, { error: 'taken' });
       if (invite) api.invites.delete(invite.toUpperCase());
       api.users.set(name.toLowerCase(), { name, password: body.password });
+      api.session = name;
+      return json(201, { name });
+    }
+    // Google (the open sign-up spec §2): whether it is on, and Pick a name.
+    if (path === '/api/config' && method === 'GET') return json(200, { google: api.google });
+    if (path === '/api/google/name' && method === 'POST') {
+      if (!api.pending) return json(401, { error: 'google' });
+      const name = String(body?.name ?? '');
+      if (!/^[A-Za-z0-9_-]{3,20}$/.test(name)) return json(400, { error: 'name' });
+      if (api.users.has(name.toLowerCase())) return json(409, { error: 'taken' });
+      api.users.set(name.toLowerCase(), { name, password: null, google: api.pending });
+      api.pending = null;
       api.session = name;
       return json(201, { name });
     }

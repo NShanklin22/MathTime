@@ -603,7 +603,8 @@ test('a log out the server never heard sticks: signed out on the next load, sent
   const again = api.requests.length;
   await page.reload();
   await loaded(page);
-  await expect.poll(() => api.requests.slice(again).map(r => r.path)).toEqual(['/api/logout', '/api/me']);
+  // Google's /api/config aside.
+  await expect.poll(() => api.requests.slice(again).map(r => r.path).filter(p => p !== '/api/config')).toEqual(['/api/logout', '/api/me']);
   expect(api.session).toBeNull();
   expect(await page.evaluate(() => localStorage.getItem('mathtime.logoutPending'))).toBeNull();
   expect(await who(page)).toBeNull();

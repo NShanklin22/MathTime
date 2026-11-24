@@ -584,3 +584,24 @@ test('a daily try kept for another account (cut off in another tab) waits for it
   assert.equal(log.length, 0);
   assert.deepEqual(got(storage, 'mathtime.outbox'), [{ id: 'd1', name: 'alex', daily: { date: '2026-11-14', record: dailyTry('d1') } }]);
 });
+
+test('config() asks once; no answer, or a bad one, is Google off', async () => {
+  const a = setup({}, { '/api/config': { status: 200, body: { google: true } } });
+  assert.deepEqual(await a.account.config(), { google: true });
+  assert.deepEqual(await a.account.config(), { google: true });
+  assert.equal(a.log.filter(r => r.path === '/api/config').length, 1);
+  assert.deepEqual(await setup({}, { '/api/config': 'down' }).account.config(), { google: false });
+  assert.deepEqual(await setup({}, { '/api/config': 404 }).account.config(), { google: false });
+});
+
+test('Pick a name sends the name alone to /api/google/name; a 401 is the sign-up expired', async () => {
+  const a = setup({}, { '/api/google/name': { status: 201, body: { name: 'gina' } }, '/api/runs': 201, '/api/best': { status: 200, body: {} } });
+  assert.deepEqual(await a.account.enter('name', { name: ' gina ' }), { name: 'gina' });
+  assert.deepEqual(a.log[0].body, { name: 'gina' });
+  assert.equal(a.account.name, 'gina');
+  const b = setup({}, { '/api/google/name': body => (body.name === 'sam' ? { status: 409, body: { error: 'taken' } } : { status: 401, body: { error: 'google' } }) });
+  assert.deepEqual(await b.account.enter('name', { name: 'sam' }), { error: 'taken' });
+  assert.deepEqual(await b.account.enter('name', { name: 'gina' }), { error: 'expired' });
+  assert.equal(ERRORS.expired, 'Google sign-in expired: try again');
+  assert.equal(ERRORS.google, "Google sign-in didn't work");
+});
