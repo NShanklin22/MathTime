@@ -156,8 +156,9 @@
     </div>
   </div>
   <!-- The log-in screen (accounts spec §3), run by login.js: Log in, or
-       Sign up with the invite code shown too. No keypad: the system's own
-       keyboard types here. -->
+       Sign up (the open sign-up spec §1): Name and Password, with the
+       Code field (an invite or a reset) behind "Have a code?". No keypad:
+       the system's own keyboard types here. -->
   <!-- Leaving a scored daily try partway asks first (main.js): it counts as out. -->
   <div class="leave" role="alertdialog" aria-modal="true" aria-labelledby="leave-head" aria-describedby="leave-text" hidden>
     <h2 class="line l-head" id="leave-head">Leave?</h2>
@@ -171,23 +172,31 @@
     <h1 class="s-title" id="login-title">Log in</h1>
     <form novalidate>
       <div class="fields">
-        <div class="field" data-for="signup" hidden>
-          <div class="labels"><label for="f-invite">Invite code</label></div>
-          <input id="f-invite" name="invite" type="text" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" enterkeyhint="next" aria-describedby="f-error">
-        </div>
         <div class="field">
           <div class="labels"><label for="f-name">Name</label><span class="hint" id="h-name" data-for="signup" hidden>3–20 letters, digits, _&nbsp;-</span></div>
           <input id="f-name" name="username" type="text" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" maxlength="20" enterkeyhint="next" aria-describedby="f-error">
         </div>
-        <div class="field">
+        <div class="field pw-field">
           <div class="labels"><label for="f-pass">Password</label><span class="hint" id="h-pass" data-for="signup" hidden>8 or more characters</span></div>
           <input id="f-pass" name="password" type="password" autocomplete="current-password" enterkeyhint="go" aria-describedby="f-error">
         </div>
+        <!-- Have a code?: under Password, where the Code field opens (and
+             nothing above it moves); opened, it goes. "No code", in the Code
+             label row, shuts the field again. -->
+        <p class="have-code" data-for="signup" hidden><button type="button">Have a code?</button></p>
+        <div class="field code-field" data-for="signup" hidden>
+          <div class="labels"><label for="f-invite">Code</label><span class="hint no-code"><button type="button">No code</button></span></div>
+          <input id="f-invite" name="invite" type="text" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" enterkeyhint="go" aria-describedby="f-error">
+        </div>
+        <!-- The honeypot (spec §1): off the screen and out of the Tab order,
+             never display:none, as bots skip those. Filled, the API makes
+             nothing. -->
+        <div class="hp" aria-hidden="true"><input name="website" tabindex="-1" autocomplete="off" aria-hidden="true"></div>
       </div>
       <div class="actions">
         <button class="submit" type="submit"><span class="line">Log in</span></button>
         <p class="error" id="f-error" role="alert"></p>
-        <p class="switch"><span class="ask">Have an invite?</span> <button class="swap" type="button">Sign up</button></p>
+        <p class="switch"><span class="ask">New here?</span> <button class="swap" type="button">Sign up</button></p>
       </div>
     </form>
   </div>

@@ -2,7 +2,8 @@ import { test as base, expect } from '@playwright/test';
 
 // The accounts API (accounts spec §6), faked in the browser for the tests:
 // page.route('**/api/**') answers as the real one does, from memory.
-// Name "sam", password "password1"; invite "TEST-INVITE" works once.
+// Name "sam", password "password1"; invite "TEST-INVITE" works once, and
+// sign-up needs none (`openSignup`).
 // `signedIn` is the name the session starts with, or null.
 // Every request is logged (`requests`); `answer[path]`, a function of the
 // request's body, can answer instead ({status, body}, or 'down' for no
@@ -41,6 +42,7 @@ export function fakeApi({ signedIn = null } = {}) {
   const api = {
     users: new Map([['sam', { name: 'sam', password: 'password1' }]]),
     invites: new Set(['TEST-INVITE']),
+    openSignup: true,
     session: signedIn,
     stored: new Map(),                       // account name → Map(id → record), the runs stored
     daily: new Map(),                        // date → [{name, totalMs, reached, id}], in the order stored
@@ -87,13 +89,18 @@ export function fakeApi({ signedIn = null } = {}) {
       api.session = found.name;
       return json(200, { name: found.name });
     }
+    // Open sign-up (the open sign-up spec §1): no invite, or a blank one,
+    // makes an account, unless `openSignup` is off; a filled honeypot
+    // (`website`) is 400 name.
     if (path === '/api/signup' && method === 'POST') {
       const name = String(body?.name ?? '');
+      const invite = String(body?.invite ?? '').trim();
+      if (body?.website) return json(400, { error: 'name' });
       if (!/^[A-Za-z0-9_-]{3,20}$/.test(name)) return json(400, { error: 'name' });
       if (String(body?.password ?? '').length < 8) return json(400, { error: 'password' });
-      if (!api.invites.has(String(body?.invite ?? '').toUpperCase())) return json(403, { error: 'invite' });
+      if (invite ? !api.invites.has(invite.toUpperCase()) : !api.openSignup) return json(403, { error: 'invite' });
       if (api.users.has(name.toLowerCase())) return json(409, { error: 'taken' });
-      api.invites.delete(String(body.invite).toUpperCase());
+      if (invite) api.invites.delete(invite.toUpperCase());
       api.users.set(name.toLowerCase(), { name, password: body.password });
       api.session = name;
       return json(201, { name });

@@ -38,7 +38,7 @@ export const PASSWORD_MIN = 8;
 // What each error says, in words, under the button (accounts spec §3).
 export const ERRORS = {
   mismatch: "That name and password don't match",
-  invite: "That invite code isn't valid or has been used",
+  invite: "That code doesn't work",
   taken: 'That name is taken',
   offline: "Can't reach the server: try again",
   // '_ or -' kept on one line (no-break spaces), where it wraps at 320px.
@@ -241,10 +241,13 @@ export function createAccount({ queue, storage = browserStorage(), fetch = (...a
 
   // Log in or sign up (`mode`), with what was typed. Resolves to {name} or
   // {error} (loginResult()), or {stale: true} if a log out came first.
-  // Once in, the runs go up without waiting.
-  async function enter(mode, { invite = '', name: typed, password }) {
+  // Once in, the runs go up without waiting. A sign-up sends its code
+  // (`invite`) only if one was typed: with none it is an open sign-up (the
+  // open sign-up spec §1). It always sends the honeypot, `website`.
+  async function enter(mode, { invite = '', name: typed, password, website = '' }) {
     const g = ++gen;
-    const data = mode === 'signup' ? { invite: invite.trim(), name: typed.trim(), password } : { name: typed.trim(), password };
+    let data = { name: typed.trim(), password };
+    if (mode === 'signup') data = { ...(invite.trim() ? { invite: invite.trim() } : {}), ...data, website };
     // A log out still under way first: its answer would clear the new
     // session's cookie.
     await loggingOut;

@@ -20,8 +20,13 @@ function textOf(node) {
 export function createLogin(root, scan, { enter, done, onMode = () => {} }) {
   const $ = sel => root.querySelector(sel);
   const form = $('form'), err = $('.error'), title = $('#login-title');
-  const f = { invite: $('#f-invite'), name: $('#f-name'), pass: $('#f-pass') };
+  const f = { invite: $('#f-invite'), name: $('#f-name'), pass: $('#f-pass'), website: $('input[name="website"]') };
+  // Optional: the older mockups (docs/superpowers/specs) run this on their
+  // own copies of the screen, from before open sign-up.
+  const haveCode = $('.have-code button'), noCode = $('.no-code button');
   let mode = 'login', busy = false, ready = false;
+  // Sign up's Code field (the open sign-up spec §1), shut at each open().
+  let codeOpen = false;
   // Each open() is a new visit: an answer to a request from an earlier one
   // is ignored.
   let visit = 0;
@@ -38,7 +43,7 @@ export function createLogin(root, scan, { enter, done, onMode = () => {} }) {
     form.querySelector('.submit .line').textContent = word;
     title.textContent = word;
     onMode(word);
-    form.querySelector('.ask').textContent = up ? 'Have an account?' : 'Have an invite?';
+    form.querySelector('.ask').textContent = up ? 'Have an account?' : 'New here?';
     form.querySelector('.swap').textContent = up ? 'Log in' : 'Sign up';
     f.pass.value = '';
     err.textContent = '';
@@ -49,8 +54,30 @@ export function createLogin(root, scan, { enter, done, onMode = () => {} }) {
     firstEmpty()?.focus();
   });
 
-  const shown = () => [f.invite, f.name, f.pass].filter(i => !i.closest('.field').hidden);
+  // The fields shown, in order: Code, opened, is under Password.
+  const shown = () => mode === 'signup' && codeOpen ? [f.name, f.pass, f.invite] : [f.name, f.pass];
   const firstEmpty = () => shown().find(i => !i.value);
+
+  // Have a code?: the Code field shows, under Password, with the focus,
+  // and the link goes. It stays open till the screen is left, or "No code"
+  // shuts it, its value gone, the focus back on "Have a code?".
+  function setCode(open) {
+    codeOpen = open;
+    form.classList.toggle('code-open', open);
+    if (!open) f.invite.value = '';
+    // Enter in the last field shown sends the form.
+    f.pass.enterKeyHint = open ? 'next' : 'go';
+  }
+  haveCode?.addEventListener('click', () => {
+    setCode(true);
+    place();
+    f.invite.focus();
+  });
+  noCode?.addEventListener('click', () => {
+    setCode(false);
+    place();
+    haveCode.focus();
+  });
 
   // Open it afresh, in `next` mode (Log in, or Sign up from Settings), the
   // focus in its first field.
@@ -59,7 +86,9 @@ export function createLogin(root, scan, { enter, done, onMode = () => {} }) {
     busy = false;
     form.removeAttribute('aria-busy');
     setMode(next);
-    f.invite.value = f.name.value = '';
+    setCode(false);
+    f.name.value = '';
+    if (f.website) f.website.value = '';
     place();
     firstEmpty()?.focus();
   }
@@ -71,7 +100,7 @@ export function createLogin(root, scan, { enter, done, onMode = () => {} }) {
     if (busy) return;
     const empty = firstEmpty();
     if (empty) return empty.focus();
-    const typed = { invite: f.invite.value, name: f.name.value, password: f.pass.value };
+    const typed = { invite: codeOpen ? f.invite.value : '', name: f.name.value, password: f.pass.value, website: f.website?.value ?? '' };
     let error = mode === 'signup' ? checkSignup(typed) : null;
     if (!error) {
       const mine = visit;
@@ -102,6 +131,7 @@ export function createLogin(root, scan, { enter, done, onMode = () => {} }) {
   // (unless it was the server not answering, or the name that was wrong),
   // and the focus goes to the field to fix, or the button to try again.
   function showError(code) {
+    if (code === 'invite' && !codeOpen) setCode(true);    // a code is wanted after all
     err.textContent = ERRORS[code];
     const fix = { mismatch: f.pass, invite: f.invite, taken: f.name, name: f.name, password: f.pass }[code];
     if (!['offline', 'rate', 'name'].includes(code)) f.pass.value = '';
@@ -111,9 +141,9 @@ export function createLogin(root, scan, { enter, done, onMode = () => {} }) {
   }
 
   // ---------- On its ink ----------
-  // Labels, hints, the error and the other link start their ink at the
-  // field's edge (or end it there, the hints); the button's word is
-  // centred on its ink.
+  // Labels, hints, the error, "Have a code?" and the other link start
+  // their ink at the field's edge (or end it there, the hints, "No code"
+  // among them); the button's word is centred on its ink.
   function inkLeft(node) {
     const dpr = devicePixelRatio;
     node.style.marginLeft = '';
@@ -146,7 +176,7 @@ export function createLogin(root, scan, { enter, done, onMode = () => {} }) {
   function place() {
     if (!ready || !root.getClientRects().length) return;
     const visible = n => n.getClientRects().length > 0;
-    for (const node of form.querySelectorAll('label, .error, .switch')) if (visible(node)) inkLeft(node);
+    for (const node of form.querySelectorAll('label, .error, .switch, .have-code')) if (visible(node)) inkLeft(node);
     for (const node of form.querySelectorAll('.hint')) if (visible(node)) inkRight(node);
     centreInk(form.querySelector('.submit .line'));
   }

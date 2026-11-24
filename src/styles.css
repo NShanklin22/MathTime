@@ -803,6 +803,34 @@ body.at-login .login {
 .login .swap::after { content: ""; position: absolute; inset: -15px -8px; }
 @media (hover: hover) { .login .swap:hover { text-decoration-color: currentColor; } }
 .login .swap:focus-visible { outline: 2px solid var(--ink); outline-offset: 4px; }
+/* Have a code? (the open sign-up spec §1, its mockup): the quiet link,
+   right under Password, where the Code field opens. Muted, the way back's
+   faint underline. */
+.login .have-code { display: block; margin: calc(-6 * var(--u)) 0 0; font-size: calc(14 * var(--u)); font-weight: 500; letter-spacing: 0.02em; white-space: nowrap; text-box: trim-both cap alphabetic; }
+.login .have-code button, .login .no-code button {
+  position: relative;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  letter-spacing: inherit;
+  color: var(--muted);
+  text-decoration: underline;
+  text-decoration-color: var(--faint);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 4px;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.login .have-code button::after, .login .no-code button::after { content: ""; position: absolute; inset: -15px -8px; }
+@media (hover: hover) { .login .have-code button:hover, .login .no-code button:hover { color: var(--ink); text-decoration-color: currentColor; } }
+.login .have-code button:focus-visible, .login .no-code button:focus-visible { outline: 2px solid var(--ink); outline-offset: 4px; }
+/* No code: in the Code label row, where the hints sit. */
+.login .no-code { font-weight: 500; }
+.login form:not(.code-open) .code-field, .login form.code-open .have-code { display: none !important; }
+/* The honeypot: off the screen, never display:none (bots skip those). */
+.login .hp { position: absolute; left: -10000px; top: 0; width: 1px; height: 1px; overflow: hidden; }
 
 /* Wide: Home's wide column. */
 @media (min-width: 900px) {
@@ -810,6 +838,7 @@ body.at-login .login {
   .login label, .login .hint { font-size: calc(15 * var(--u)); }
   .login input { height: calc(56 * var(--u)); font-size: calc(19 * var(--u)); }
   .login .submit { height: calc(64 * var(--u)); font-size: calc(19 * var(--u)); }
+  .login .have-code { font-size: calc(15 * var(--u)); }
 }
 
 /* Held sideways: the same one column, Home's sideways column, tighter,
@@ -825,6 +854,8 @@ body.at-login .login {
   .login .error { margin-top: calc(8 * var(--u)); line-height: 1.3; }
   .login .switch { margin-top: calc(12 * var(--u)); font-size: calc(13 * var(--u)); }
   .login .swap { font-size: calc(13 * var(--u)); }
+  .login .have-code { margin-top: calc(-1 * var(--u)); font-size: calc(13 * var(--u)); }
+  .login form.signup .switch { margin-top: calc(10 * var(--u)); }
 }
 
 /* ---------- The home screen (2026-11-17-home-screen-design.md, the home mockup) ---------- */

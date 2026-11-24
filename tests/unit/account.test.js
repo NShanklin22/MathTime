@@ -118,6 +118,15 @@ test('sign up sends the invite, the name and the password; errors come back in w
   assert.deepEqual(await b.account.enter('signup', { invite: 'X', name: 'alex', password: 'password1' }), { error: 'offline' });
 });
 
+test('sign up sends the honeypot, and the code only when one was typed', async () => {
+  const a = setup({}, { '/api/signup': { status: 201, body: { name: 'alex' } }, '/api/runs': 201, '/api/best': { status: 200, body: {} } });
+  await a.account.enter('signup', { invite: '  ', name: ' alex ', password: 'password1', website: '' });
+  assert.deepEqual(a.log[0].body, { name: 'alex', password: 'password1', website: '' });
+  const b = setup({}, { '/api/signup': { status: 201, body: { name: 'alex' } }, '/api/runs': 201, '/api/best': { status: 200, body: {} } });
+  await b.account.enter('signup', { invite: ' good ', name: 'alex', password: 'password1', website: 'x' });
+  assert.deepEqual(b.log[0].body, { invite: 'good', name: 'alex', password: 'password1', website: 'x' });
+});
+
 // The outbox's entries, by id and owner.
 const waiting = storage => got(storage, 'mathtime.outbox');
 
