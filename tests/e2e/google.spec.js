@@ -120,13 +120,15 @@ async function expectExpired(page) {
   await expect(google(page)).toBeVisible();
   await expect(google(page)).toHaveText('Continue with Google');
   await expect(google(page)).toBeFocused();
-  await expect(page.locator('.login .g-error')).toHaveText('Google sign-in expired: try again');
+  // Named for what happened, in the title and the breadcrumb; the line
+  // under the title says it once, with no red error repeating it.
+  await expect(page.locator('#login-title')).toHaveText('Sign-in timed out');
+  await expect(page.locator('.crumbs .back')).toHaveText('Home');
+  await expect(page.locator('.crumbs .here')).toHaveText('Sign-in timed out');
   await expect(page.locator('.login .lede')).toHaveText('Your sign-in timed out. Start again with Google.');
-  for (const gone of ['#f-name', '#h-name', '.login .submit', '.login .or', '.login .error']) {
+  for (const gone of ['#f-name', '#h-name', '.login .submit', '.login .or', '.login .error', '.login .g-error']) {
     await expect(page.locator(gone), gone).toBeHidden();
   }
-  const below = await page.evaluate(() => document.querySelector('.login .g-error').getBoundingClientRect().top - document.querySelector('.login .google').getBoundingClientRect().bottom);
-  expect(below).toBeGreaterThan(0);
   // Its focus ring the weight of a field's, inside it: no ring outside.
   const ring = await google(page).evaluate(n => ({ fv: n.matches(':focus-visible'), outline: getComputedStyle(n).outlineStyle, shadow: getComputedStyle(n).boxShadow }));
   expect(ring.outline).toBe('none');
@@ -167,10 +169,12 @@ test('Home after Pick a name: the daily card\'s focus ring stays inside the colu
   await expect(hero).toBeFocused();
   const m = await hero.evaluate(n => {
     const cs = getComputedStyle(n);
-    return { fv: n.matches(':focus-visible'), out: parseFloat(cs.outlineOffset) + parseFloat(cs.outlineWidth) };
+    return { fv: n.matches(':focus-visible'), offset: parseFloat(cs.outlineOffset), out: parseFloat(cs.outlineOffset) + parseFloat(cs.outlineWidth) };
   });
   expect(m.fv).toBe(true);
   expect(m.out, 'the ring reaches no further than the card').toBeLessThanOrEqual(0);
+  // and hugs its frame (2px), never crowding what is inside.
+  expect(m.offset, 'just inside the frame').toBe(-4);
 });
 
 test('?auth=failed opens Log in with Google\'s error, under its button, nothing focused', async ({ page, api }) => {

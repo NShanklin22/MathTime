@@ -26,7 +26,7 @@ export function createLogin(root, scan, { enter, done, onMode = () => {} }) {
   const stand = (sel, tag) => $(sel) ?? document.createElement(tag);
   const google = stand('.google', 'a'), gErr = stand('.g-error', 'p'), or = stand('.or', 'p'), lede = stand('.lede', 'p');
   // Pick a name's line, and the one once its sign-up has expired.
-  const LEDE = lede.textContent, EXPIRED = 'Your sign-in timed out. Start again with Google.';
+  const LEDE = lede.textContent, EXPIRED = 'Your sign-in timed out. Start again with Google.', TIMED_OUT = 'Sign-in timed out';
   const f = { invite: $('#f-invite'), name: $('#f-name'), pass: $('#f-pass'), website: $('input[name="website"]') };
   // Optional: the older mockups (docs/superpowers/specs) run this on their
   // own copies of the screen, from before open sign-up.
@@ -159,13 +159,16 @@ export function createLogin(root, scan, { enter, done, onMode = () => {} }) {
   // and the focus goes to the field to fix, or the button to try again.
   function showError(code) {
     if (code === 'invite' && !codeOpen) setCode(true);    // a code is wanted after all
-    // Pick a name's sign-up gone: Continue with Google is all that's left,
-    // its error under it, as on Log in; the line above says why.
+    // Pick a name's sign-up gone: Continue with Google is all that's left.
+    // The screen is named for what happened, in its title and the
+    // breadcrumb (onMode), as a mode is; the line under the title says
+    // why, so no red error repeats it.
     if (code === 'expired') {
       form.classList.add('expired');
+      title.textContent = TIMED_OUT;
+      onMode(TIMED_OUT);
       lede.textContent = EXPIRED;
-      err.textContent = '';
-      gErr.textContent = ERRORS.expired;
+      err.textContent = gErr.textContent = '';
       place();
       return google.focus();
     }
