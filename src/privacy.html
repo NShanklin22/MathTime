@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Privacy · MathTime</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;600&display=swap">
+<!-- The privacy policy, linked from Google's consent screen. It lives in src/ because deploy.sh
+     publishes only index.html and src/. Its colours are the game's (styles.css :root). -->
+<style>
+  :root {
+    --bg: #12407e;
+    --ink: #eef5ff;
+    --muted: #b6cdee;
+    --rule: rgba(238, 245, 255, 0.18);
+    --gutter: 24px;
+  }
+  * { box-sizing: border-box; }
+  html { background: var(--bg); color-scheme: dark; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font: 16px/1.6 "IBM Plex Sans", system-ui, sans-serif;
+    -webkit-text-size-adjust: 100%;
+  }
+  main {
+    max-width: 40rem;
+    margin: 0 auto;
+    padding: max(20px, env(safe-area-inset-top)) var(--gutter) max(40px, env(safe-area-inset-bottom));
+  }
+  .crumbs { font: 500 14px/20px "IBM Plex Mono", ui-monospace, monospace; margin: 0 0 16px; }
+  .crumbs a {
+    display: inline-flex; align-items: center; min-height: 44px; padding: 0 8px; margin: -12px 0 0 -8px;
+    color: var(--ink); text-decoration: none;
+  }
+  .crumbs a:hover, .crumbs a:focus-visible { text-decoration: underline; }
+  code { font: 0.9em "IBM Plex Mono", ui-monospace, monospace; color: var(--ink); }
+  @media (min-width: 1200px) { body { font-size: 17px; } }
+  h1 { font: 600 28px/1.2 "IBM Plex Mono", ui-monospace, monospace; margin: 0 0 6px; }
+  .date { color: var(--muted); margin: 0 0 28px; font-size: 14px; }
+  h2 {
+    font: 600 17px/1.3 "IBM Plex Mono", ui-monospace, monospace;
+    margin: 32px 0 8px;
+    padding-top: 24px;
+    border-top: 1px solid var(--rule);
+  }
+  p, ul { margin: 0 0 12px; }
+  p, li { text-wrap: pretty; }
+  ul { padding-left: 1.25em; }
+  li { margin: 0 0 6px; }
+  a { color: var(--ink); text-underline-offset: 2px; }
+  a:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; border-radius: 2px; }
+  strong { font-weight: 600; }
+</style>
+</head>
+<body>
+<main>
+  <nav class="crumbs"><a href="/">‹ MathTime</a></nav>
+
+  <h1>Privacy</h1>
+  <p class="date">Updated 26 November 2026</p>
+
+  <p>MathTime is a math game at math.nshanklin.com. You can play without an account. This page says what
+  MathTime keeps when you make one, and why.</p>
+
+  <h2>What an account keeps</h2>
+  <ul>
+    <li><strong>Your name</strong>, the one you choose. It shows on the boards.</li>
+    <li><strong>Your password</strong>, stored only as a one-way hash, never as typed.</li>
+    <li><strong>Your games</strong>: each finished level and daily challenge, with its time and misses.</li>
+    <li><strong>A log-in cookie</strong>, so you stay signed in. The server keeps only a hash of it.</li>
+  </ul>
+
+  <h2>Signing in with Google</h2>
+  <p>MathTime asks Google for the <code>openid</code> scope only. From Google it keeps one thing: the
+  account id Google gives you, so it knows it's you next time. It does not get or keep your email
+  address, your real name or your photo.</p>
+
+  <h2>On this device</h2>
+  <p>Your settings and progress are also saved in your browser's local storage, so the game remembers
+  them between visits. Clearing your browser's data for the site removes them.</p>
+
+  <h2>What it doesn't do</h2>
+  <ul>
+    <li>No ads, no tracking and no analytics.</li>
+    <li>Nothing is sold or shared with anyone. Your data stays on MathTime's own server.</li>
+  </ul>
+
+  <h2>Logs and fonts</h2>
+  <p>The web server keeps a standard access log (IP address, time, page asked for), used only to keep the
+  site running and to stop abuse. The pages load their fonts from Google Fonts, which sees your IP
+  address, as for any website.</p>
+
+  <h2>Deleting your account</h2>
+  <p>Open a <a href="https://github.com/NShanklin22/MathTime/issues">GitHub issue</a> with your MathTime
+  name, and your account, games and Google link will be deleted.</p>
+
+  <h2>Questions</h2>
+  <p>Ask in a <a href="https://github.com/NShanklin22/MathTime/issues">GitHub issue</a>. If this
+  policy changes, the date at the top changes with it.</p>
+</main>
+</body>
+</html>
